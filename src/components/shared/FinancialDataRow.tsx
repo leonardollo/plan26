@@ -60,6 +60,7 @@ export type FinancialDataRowProps = {
     onUpdate?: (month: Month, value: string) => void;
     onUpdateAll?: (newValues: MonthlyData) => void;
     onUpdateName?: (newName: string) => void;
+    onUpdateHint?: (newHint: string) => void;
     onRemove?: () => void;
     isCustom?: boolean;
     isTotal?: boolean;
@@ -70,7 +71,7 @@ export type FinancialDataRowProps = {
 };
 
 const FinancialDataRow: React.FC<FinancialDataRowProps> = ({
-    label, hint, rowData, onUpdate, onUpdateAll, onUpdateName, onRemove, isCustom = false,
+    label, hint, rowData, onUpdate, onUpdateAll, onUpdateName, onUpdateHint, onRemove, isCustom = false,
     isTotal = false, isPercentage = false, calculatedValue, seasonalReference, actionButton
 }) => {
     const [showZeroAlert, setShowZeroAlert] = useState(false);
@@ -114,7 +115,17 @@ const FinancialDataRow: React.FC<FinancialDataRowProps> = ({
 
             {/* Hint Cell */}
             <td className="p-3 text-gray-500 text-xs italic">
-                {hint}
+                {isCustom && onUpdateHint ? (
+                    <input
+                        type="text"
+                        value={hint || ''}
+                        onChange={(e) => onUpdateHint(e.target.value)}
+                        placeholder="Descreva este item..."
+                        className="w-full bg-transparent border-b border-dashed border-gray-300 focus:border-brand-orange focus:outline-none text-xs italic text-gray-500 placeholder-gray-300"
+                    />
+                ) : (
+                    hint
+                )}
                 {actionButton}
             </td>
             

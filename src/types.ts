@@ -35,6 +35,7 @@ export interface FinancialSheetRow {
 export interface CustomLineItem extends FinancialSheetRow {
     id: string;
     name: string;
+    hint?: string;
 }
 
 export interface FinancialSheetData {
@@ -684,7 +685,7 @@ export interface PlanContextType {
     updateCompanyProfile: (field: keyof CompanyProfile, value: string) => void;
     updateSheetValue: (rowKey: keyof FinancialSheetData, month: Month, value: string) => void;
     updateSheetAllValues: (rowKey: keyof FinancialSheetData, newValues: MonthlyData) => void;
-    updateCustomItem: (type: 'customCustosFixos' | 'customCustosVariaveis', id: string, field: 'name' | Month, value: string) => void;
+    updateCustomItem: (type: 'customCustosFixos' | 'customCustosVariaveis', id: string, field: 'name' | 'hint' | Month, value: string) => void;
     updateCustomItemAllValues: (type: 'customCustosFixos' | 'customCustosVariaveis', id: string, newValues: MonthlyData) => void;
     addCustomItem: (type: 'customCustosFixos' | 'customCustosVariaveis') => void;
     removeCustomItem: (type: 'customCustosFixos' | 'customCustosVariaveis', id: string) => void;

@@ -710,7 +710,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         }));
     };
 
-    const updateCustomItem = (type: 'customCustosFixos' | 'customCustosVariaveis', id: string, field: 'name' | Month, value: string) => {
+    const updateCustomItem = (type: 'customCustosFixos' | 'customCustosVariaveis', id: string, field: 'name' | 'hint' | Month, value: string) => {
         setPlanData(prev => ({
             ...prev,
             financialSheet: {
@@ -718,6 +718,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                 [type]: prev.financialSheet[type].map(item => {
                     if (item.id !== id) return item;
                     if (field === 'name') return { ...item, name: value };
+                    if (field === 'hint') return { ...item, hint: value };
                     return { ...item, values2025: { ...item.values2025, [field]: parseFloat(value) || 0 } };
                 })
             }
