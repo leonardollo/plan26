@@ -657,6 +657,8 @@ export interface SensitivityScenario {
 export type SensitivityMatrix = SensitivityScenario[][];
 
 export interface PlanContextType {
+    /** Por que a última gravação falhou, em português. Vazio quando deu certo. */
+    motivoDoErroAoSalvar: string;
     /** Verdadeiro quando o e-mail está na coleção `admins` do Firestore. */
     souAdmin: boolean;
     /** Onde esta pessoa está na fila de liberação. */
