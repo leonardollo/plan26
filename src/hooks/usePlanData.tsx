@@ -592,18 +592,56 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         const novosClientes = sumRawMonthlyData(commercial.clientes.novosClientes);
         const cac = novosClientes > 0 ? investMktTotal / novosClientes : 0;
         const totalClientesValues = Object.values(commercial.clientes.totalClientesAtivos || {}).filter(v => v != null) as number[];
-        const mediaClientes = totalClientesValues.length > 0 ? totalClientesValues.reduce((a,b)=>a+b,0)/totalClientesValues.length : 0;
-        const ticketMedio = mediaClientes > 0 ? (receitaBrutaTotal / 12) / mediaClientes : 0;
+        const mediaClientesAtivos = totalClientesValues.length > 0 ? totalClientesValues.reduce((a,b)=>a+b,0)/totalClientesValues.length : 0;
+        const ticketMedio = mediaClientesAtivos > 0 ? (receitaBrutaTotal / 12) / mediaClientesAtivos : 0;
         const ltv = ticketMedio * 12 * 3; 
         const roiMarketing = investMktTotal > 0 ? (receitaTotal - investMktTotal) / investMktTotal : 0;
         const margemContribuicaoPercent = receitaTotal > 0 ? (margemBruta / receitaTotal) : 0;
-        const pontoEquilibrioContabil = margemContribuicaoPercent > 0 ? custosFixosTotal / margemContribuicaoPercent : 0;
+
+        /**
+         * Ponto de equilíbrio MENSAL.
+         *
+         * A conta clássica (custo fixo ÷ margem de contribuição %) devolve o
+         * faturamento do PERÍODO dos custos usados — aqui, o ano inteiro. O
+         * dashboard chamava esse número de "receita mínima mensal" e o comparava
+         * com a receita de um mês: um erro de fator 12, que acusava prejuízo em
+         * empresa lucrativa. Agora o número já sai mensal, que é como consultor
+         * fala e como o card sempre prometeu.
+         */
+        const custoFixoMensalMedio = custosFixosTotal / 12;
+        const pontoEquilibrioContabil = margemContribuicaoPercent > 0 ? custoFixoMensalMedio / margemContribuicaoPercent : 0;
+
+        /**
+         * Conversão e retenção saíam fixadas em zero e apareciam assim no
+         * relatório entregue ao cliente — dizendo que a empresa não converte
+         * nenhum lead e não retém nenhum cliente. Os dados para calcular as
+         * duas sempre estiveram na Coleta; ninguém tinha ligado os fios.
+         *
+         * Quando não há base para a conta, continua 0 — mas quem exibe precisa
+         * mostrar "não medido", nunca "0%". Ver `temBaseConversao`/`temBaseRetencao`.
+         */
+        const leadsTotal = sumRawMonthlyData(commercial.funilComercial.leadsGerados);
+        const vendasFechadasTotal = sumRawMonthlyData(commercial.funilComercial.vendasFechadas);
+        const temBaseConversao = leadsTotal > 0 && vendasFechadasTotal > 0;
+        const taxaConversaoLeadCliente = temBaseConversao ? (vendasFechadasTotal / leadsTotal) * 100 : 0;
+
+        const clientesPerdidosTotal = sumRawMonthlyData(commercial.clientes.clientesPerdidos);
+        const temBaseRetencao = mediaClientesAtivos > 0 && clientesPerdidosTotal > 0;
+        const taxaRetencao = temBaseRetencao
+            ? Math.max(0, (1 - clientesPerdidosTotal / mediaClientesAtivos) * 100)
+            : 0;
 
         return {
             receitaTotal, receitaBrutaTotal, custosTotal: custosVariaveisTotal, custosVariaveisTotal, cmvTotal, custosFixosTotal, despesasTotal: custosFixosTotal,
             margemBruta, margemBrutaPercent: receitaTotal > 0 ? (margemBruta/receitaTotal)*100 : 0,
             ebitda, margemEbitda: receitaTotal > 0 ? (ebitda/receitaTotal)*100 : 0,
-            novosClientesTotal: novosClientes, ticketMedio, taxaRetencao: 0, taxaConversaoLeadCliente: 0, classARevenuePercent: 0,
+            // margemContribuicao era declarada no tipo e nunca devolvida: o relatório
+            // entregue ao cliente mostrava "Margem de Contribuição R$ 0,00" numa
+            // linha central do DRE, porque formatCurrency(undefined) devolve zero.
+            margemContribuicao: margemBruta,
+            margemContribuicaoPercent: margemContribuicaoPercent * 100,
+            temBaseConversao, temBaseRetencao,
+            novosClientesTotal: novosClientes, ticketMedio, taxaRetencao, taxaConversaoLeadCliente, classARevenuePercent: 0,
             headcountFinal, headcountMedio, turnoverPercent, salarioMedioMensal, custoColaboradorAno, roiTreinamento,
             investimentoMarketingTotal: investMktTotal, cac, ltv, relacaoLtvCac: cac > 0 ? ltv/cac : 0, roiMarketing,
             pontoEquilibrioContabil, pontoEquilibrioFinanceiro: 0, roas: 0,
@@ -685,7 +723,11 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         setPlanData(prev => ({ ...prev, companyProfile: { ...prev.companyProfile, [field]: value } }));
     };
 
-    const updateSheetValue = (rowKey: keyof FinancialSheetData, month: Month, value: string) => {
+    // As duas chaves custom guardam LISTA, não linha com values2025. Aceitar
+    // `keyof FinancialSheetData` prometia um contrato que a função não cumpre:
+    // chamar com 'customCustosFixos' quebraria em tempo de execução.
+    type LinhaSimples = Exclude<keyof FinancialSheetData, 'customCustosFixos' | 'customCustosVariaveis'>;
+    const updateSheetValue = (rowKey: LinhaSimples, month: Month, value: string) => {
         setPlanData(prev => ({
             ...prev,
             financialSheet: {

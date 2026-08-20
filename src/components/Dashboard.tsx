@@ -242,7 +242,7 @@ const FinancialAlerts: React.FC = () => {
             list.push({ type: 'warning', title: 'LTV/CAC Precisa Melhorar', message: `Relação LTV/CAC de ${formatNumber(summary2025.relacaoLtvCac)}x. O ideal e acima de 3x. Invista em retencao ou reduza o custo de aquisição.` });
         }
 
-        // Ponto de Equilibrio vs Receita Media
+        // Ponto de Equilibrio (mensal) vs Receita Media mensal — ambos no mesmo período
         const receitaMediaMensal = summary2025.receitaTotal / 12;
         if (summary2025.pontoEquilibrioContabil > 0 && receitaMediaMensal > 0) {
             const peRatio = summary2025.pontoEquilibrioContabil / receitaMediaMensal;

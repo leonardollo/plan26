@@ -526,7 +526,12 @@ export interface Summary2025 {
     ltv: number;
     relacaoLtvCac: number;
     roiMarketing: number;
+    /** Receita MENSAL mínima para não dar prejuízo. */
     pontoEquilibrioContabil: number;
+    /** Falso quando não há leads/vendas para calcular conversão — não exibir 0%. */
+    temBaseConversao: boolean;
+    /** Falso quando não há clientes perdidos para calcular retenção — não exibir 0%. */
+    temBaseRetencao: boolean;
     pontoEquilibrioFinanceiro: number;
     roas: number;
     monthlySummary: {
@@ -682,6 +687,7 @@ export interface PlanContextType {
     };
     calculateSensitivityAnalysis: (baseRevenue: number, baseVariableCost: number, baseFixedCost: number, range: number) => SensitivityMatrix;
 
+    recalculateAllScenarios: () => void;
     recalculateScenario: (scenario: ScenarioName) => void;
     applyTaxesTo2025: () => void;
     updateCompanyProfile: (field: keyof CompanyProfile, value: string) => void;

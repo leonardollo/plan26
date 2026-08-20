@@ -687,7 +687,7 @@ export const getBenchmarkAnalysis = async (companyProfile: CompanyProfile, summa
         - Lifetime Value (LTV): ${formatCurrency(summary.ltv)}
         - Relação LTV/CAC: ${formatNumber(summary.relacaoLtvCac)}
         - Taxa de Turnover Anual (Funcionários): ${formatPercentage(summary.turnoverPercent)}
-        - Ponto de Equilíbrio (Receita Mínima): ${formatCurrency(summary.pontoEquilibrioContabil)}
+        - Ponto de Equilíbrio (Receita Mínima MENSAL): ${formatCurrency(summary.pontoEquilibrioContabil)}
 
         Com base nestes dados:
         1. Compare esses indicadores com benchmarks de mercado *gerais* para o setor de '${companyProfile.industry}'. Se não tiver dados específicos, use boas práticas de mercado (ex: LTV/CAC ideal é > 3, Margem EBITDA saudável, etc.).
@@ -971,7 +971,7 @@ export const generateDiagnosisReportAnalysis = async (planData: PlanData, summar
         **Resumo Financeiro 2025:**
         - Receita Líquida: ${formatCurrency(summary2025.receitaTotal)}
         - Margem EBITDA: ${formatPercentage(summary2025.margemEbitda)}
-        - Ponto de Equilíbrio: ${formatCurrency(summary2025.pontoEquilibrioContabil)}
+        - Ponto de Equilíbrio (mensal): ${formatCurrency(summary2025.pontoEquilibrioContabil)}
 
         **Análise Estratégica (SWOT):**
         - Forças: ${planData.marketAnalysis.swot.strengths}

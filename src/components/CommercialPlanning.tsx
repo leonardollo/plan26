@@ -868,18 +868,29 @@ const CommercialPlanning: React.FC = () => {
         setIsLoading(prev => ({ ...prev, channel: false }));
     };
 
+    /**
+     * Pré-preenche os drivers com o que 2025 realmente foi.
+     *
+     * Antes, quando não havia conversão medida, a função chutava 5% e derivava
+     * os leads desse chute (leads = novos clientes ÷ 0,05), entregando um
+     * número 20× inventado com cara de "veio de 2025". Se o dado não existe, o
+     * campo fica em branco — em branco a pessoa percebe e preenche; número
+     * errado ela usa.
+     */
     const handlePrefillDrivers = () => {
-        const avgLeads25 = summary2025.novosClientesTotal / (summary2025.taxaConversaoLeadCliente / 100 || 0.05);
-        const realLeads25 = avgLeads25 || 100;
-        const conversion25 = summary2025.taxaConversaoLeadCliente || 5;
-        const ticket25 = summary2025.ticketMedio || 0;
-        const clients25 = summary2025.monthlySummary[11]?.receita / summary2025.ticketMedio || 0;
+        const leadsMedidos = Object.values(planData.commercial.funilComercial.leadsGerados || {})
+            .reduce<number>((a, v) => a + (v || 0), 0);
+        const conversao = summary2025.temBaseConversao ? summary2025.taxaConversaoLeadCliente : null;
+        const ticket = summary2025.ticketMedio || null;
+        const clientesFim = summary2025.monthlySummary[11]?.receita && ticket
+            ? summary2025.monthlySummary[11].receita / ticket
+            : null;
 
         MONTHS.forEach(m => {
-            updateDriverBasedPlanning('leadsQualificados', m, (realLeads25 / 12).toFixed(0));
-            updateDriverBasedPlanning('taxaConversao', m, conversion25.toFixed(1).replace('.', ','));
-            updateDriverBasedPlanning('ticketMedio', m, ticket25.toFixed(2).replace('.', ','));
-            updateDriverBasedPlanning('clientesRecorrentes', m, clients25.toFixed(0));
+            if (leadsMedidos > 0) updateDriverBasedPlanning('leadsQualificados', m, (leadsMedidos / 12).toFixed(0));
+            if (conversao !== null) updateDriverBasedPlanning('taxaConversao', m, conversao.toFixed(1).replace('.', ','));
+            if (ticket !== null) updateDriverBasedPlanning('ticketMedio', m, ticket.toFixed(2).replace('.', ','));
+            if (clientesFim !== null) updateDriverBasedPlanning('clientesRecorrentes', m, clientesFim.toFixed(0));
         });
     };
 
@@ -978,7 +989,7 @@ const CommercialPlanning: React.FC = () => {
                         <div style={{width: '100%', height: 250}}>
                             <ResponsiveContainer>
                                 <PieChart>
-                                    <Pie data={chartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} fill="#8884d8" label={({ name, value }: { name: string; value: number }) => `${name}: ${formatCurrency(value, true)}`}>
+                                    <Pie data={chartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} fill="#8884d8" label={({ name, value }: { name?: string; value?: number }) => `${name ?? ''}: ${formatCurrency(value ?? 0, true)}`}>
                                         {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                                     </Pie>
                                     <Tooltip formatter={(value: number) => formatCurrency(value)} />

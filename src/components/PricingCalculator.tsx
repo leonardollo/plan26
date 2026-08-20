@@ -931,7 +931,7 @@ const PricingCalculator: React.FC = () => {
                             <div className="h-[300px] w-full">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
-                                        <Pie data={mixAnalysis.pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={120} label={({ name, value }: { name: string; value: number }) => `${name}: ${formatCurrency(value, true)}`}>
+                                        <Pie data={mixAnalysis.pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={120} label={({ name, value }: { name?: string; value?: number }) => `${name ?? ''}: ${formatCurrency(value ?? 0, true)}`}>
                                             {mixAnalysis.pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                                         </Pie>
                                         <Tooltip formatter={(value: number) => formatCurrency(value)} />
