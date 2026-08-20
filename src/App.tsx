@@ -26,6 +26,8 @@ import SensitivityAnalysis from './components/SensitivityAnalysis';
 import OnboardingWizard from './components/OnboardingWizard';
 import HelpGuide from './components/HelpGuide';
 import ImportFromDpe from './components/ImportFromDpe';
+import GestaoDeAcessos from './components/GestaoDeAcessos';
+import AguardandoLiberacao from './components/AguardandoLiberacao';
 import { User, View } from './types';
 import { PlanProvider, authService, usePlan } from './hooks/usePlanData';
 import SubscriptionExpiredPage from './components/SubscriptionExpiredPage';
@@ -44,12 +46,13 @@ const LoadingScreen: React.FC<{ message?: string }> = ({ message = 'Carregando..
 
 const MainLayout: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLogout }) => {
     const [currentView, setCurrentView] = useState<View>('dashboard');
-    const { subscriptionStatus } = usePlan();
+    const { subscriptionStatus, statusAcesso, souAdmin } = usePlan();
 
     const renderView = () => {
         switch (currentView) {
             case 'dashboard': return <Dashboard />;
             case 'settings': return <Settings />;
+            case 'gestao-acessos': return <GestaoDeAcessos />;
             case 'import-dpe': return <ImportFromDpe />;
             case 'data-collection': return <DataCollection />;
             case 'strategic-analysis': return <StrategicAnalysis />;
@@ -76,10 +79,17 @@ const MainLayout: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLo
     };
 
     if (subscriptionStatus === 'loading') {
-        return <LoadingScreen message="Verificando assinatura..." />;
+        return <LoadingScreen message="Conferindo seu acesso..." />;
     }
 
-    if (subscriptionStatus === 'expired' || subscriptionStatus === 'not_found' || subscriptionStatus === 'inactive') {
+    // Quem ainda não foi liberado não passa daqui. A tela é só o aviso — quem
+    // realmente barra é a regra do Firestore, que recusa ler e escrever
+    // `users/{uid}` enquanto o acesso não estiver liberado.
+    if (subscriptionStatus === 'not_found' || subscriptionStatus === 'inactive') {
+        return <AguardandoLiberacao onLogout={onLogout} bloqueado={statusAcesso === 'bloqueado'} />;
+    }
+
+    if (subscriptionStatus === 'expired') {
         return <SubscriptionExpiredPage status={subscriptionStatus} onLogout={onLogout} />;
     }
 

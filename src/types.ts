@@ -6,7 +6,7 @@ export const MONTH_LABELS: { [key in Month]: string } = {
     jul: 'Julho', ago: 'Agosto', set: 'Setembro', out: 'Outubro', nov: 'Novembro', dez: 'Dezembro'
 };
 
-export type View = 'dashboard' | 'settings' | 'import-dpe' | 'data-collection' | 'strategic-analysis' | 'goal-setting' | 'okrs-kpis' | 'commercial-planning' | 'marketing-funnel' | 'action-plan' | 'scenario-planning' | 'financial-planning' | 'plan-summary' | 'monthly-tracking' | 'dre-comparison' | 'taxes' | 'pricing-calculator' | 'report-generator' | 'liquidity-dashboard' | 'financial-ratios' | 'sensitivity-analysis' | 'help-guide';
+export type View = 'dashboard' | 'settings' | 'gestao-acessos' | 'import-dpe' | 'data-collection' | 'strategic-analysis' | 'goal-setting' | 'okrs-kpis' | 'commercial-planning' | 'marketing-funnel' | 'action-plan' | 'scenario-planning' | 'financial-planning' | 'plan-summary' | 'monthly-tracking' | 'dre-comparison' | 'taxes' | 'pricing-calculator' | 'report-generator' | 'liquidity-dashboard' | 'financial-ratios' | 'sensitivity-analysis' | 'help-guide';
 
 export type SubscriptionStatus = 'loading' | 'active' | 'inactive' | 'expired' | 'not_found';
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'unsaved';
@@ -657,6 +657,12 @@ export interface SensitivityScenario {
 export type SensitivityMatrix = SensitivityScenario[][];
 
 export interface PlanContextType {
+    /** Verdadeiro quando o e-mail está na coleção `admins` do Firestore. */
+    souAdmin: boolean;
+    /** Onde esta pessoa está na fila de liberação. */
+    statusAcesso: import('./services/acesso').StatusAcesso | null;
+    listarAcessosDoBanco: () => Promise<import('./services/acesso').Acesso[]>;
+    mudarStatusDeAcesso: (uid: string, status: import('./services/acesso').StatusAcesso) => Promise<void>;
     /** Traz para o PLAN o que o cliente respondeu no diagnóstico (DPE-GI). */
     aplicarImportacaoDpe: (patch: import('./services/dpeImport').PatchPlano, metas: Partial<Goals2026>) => void;
     planData: PlanData;

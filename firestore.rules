@@ -1,0 +1,90 @@
+rules_version = '2';
+
+// ============================================================
+//  PLAN 2026 — regras de acesso ao Firestore
+//
+//  Cole no console: console.firebase.google.com/project/plan-ea4cc/firestore/rules
+//  → colar tudo → Publicar.
+//
+//  A ideia em uma frase: quem se cadastra fica PENDENTE e não alcança dado
+//  nenhum. Um administrador libera. Só depois de liberado a pessoa passa a
+//  ler e escrever o próprio espaço — e nunca o dos outros.
+//
+//  Isto aqui é o que realmente barra. A tela do app pode ser burlada por
+//  qualquer um com o navegador aberto; a regra do banco, não.
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Administrador é quem tem um documento em `admins` cujo ID é o e-mail.
+    // Pelo e-mail e não pelo uid: assim dá para cadastrar alguém antes mesmo
+    // dessa pessoa ter conta.
+    function souAdmin() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.token.email.lower()));
+    }
+
+    function meuAcessoEsta(status) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/acessos/$(request.auth.uid))
+        && get(/databases/$(database)/documents/acessos/$(request.auth.uid)).data.status == status;
+    }
+
+    // ---------- quem é administrador ----------
+    // Qualquer pessoa logada precisa poder LER para saber se é admin.
+    // Ninguém escreve pelo app: administrador se cadastra no console, à mão.
+    // É isso que impede alguém se promover sozinho.
+    match /admins/{email} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // ---------- a fila de liberação ----------
+    match /acessos/{uid} {
+      // vejo o meu; o administrador vê todos
+      allow get: if request.auth != null && (request.auth.uid == uid || souAdmin());
+      allow list: if souAdmin();
+
+      // a pessoa cria o próprio pedido, e SÓ como pendente.
+      // Sem esta checagem de status, bastaria abrir o console do navegador e
+      // criar o próprio documento já liberado.
+      // O guarda de e-mail nulo importa: sem ele, uma conta sem e-mail faria a
+      // regra estourar em vez de simplesmente recusar.
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.auth.token.email != null
+        && request.resource.data.status == 'pendente'
+        && request.resource.data.email == request.auth.token.email.lower();
+
+      // mudar status é só do administrador
+      allow update: if souAdmin();
+
+      // ninguém apaga: a fila é histórico de quem pediu acesso e quando
+      allow delete: if false;
+    }
+
+    // ---------- os dados de planejamento ----------
+    // O espaço de cada pessoa. Duas condições, as duas obrigatórias:
+    // ser dona do espaço, e estar com o acesso liberado.
+    match /users/{uid} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == uid
+        && meuAcessoEsta('liberado');
+
+      // subcoleções seguem a mesma regra do dono
+      match /{documento=**} {
+        allow read, write: if request.auth != null
+          && request.auth.uid == uid
+          && meuAcessoEsta('liberado');
+      }
+    }
+
+    // ---------- tudo o mais ----------
+    // Coleção que não foi pensada aqui não é liberada por engano.
+    match /{documento=**} {
+      allow read, write: if false;
+    }
+  }
+}
