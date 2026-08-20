@@ -60,7 +60,19 @@ const DataTable: React.FC<{ headers: string[]; rows: (string | React.ReactNode)[
 // ===== MAIN COMPONENT =====
 
 const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) => {
-    const { planData, summary2025, baseScenario } = usePlan();
+    const { planData, goals2026, summary2025, baseScenario } = usePlan();
+
+    // As metas mensais somam o ano. Antes esta seção lia planData.goals2026,
+    // que não existe — goals2026 é estado separado —, e com nomes de campo que
+    // também não existem. Tudo caía no `|| 0` e a seção inteira do relatório
+    // entregue ao cliente saía zerada, parecendo preenchida.
+    const somaMeses = (m?: Record<string, number | null> | null): number =>
+        m ? Object.values(m).reduce<number>((a, v) => a + (v || 0), 0) : 0;
+    const metaReceitaAnual = somaMeses(goals2026.financeiras?.metaReceita);
+    const metaClientesAnual = (() => {
+        const vals = Object.values(goals2026.comerciais?.metaNumClientes || {}).filter(v => v != null) as number[];
+        return vals.length ? vals[vals.length - 1] : 0;
+    })();
     const isDiagnosis = reportType === 'diagnosis';
     const reportTitle = isDiagnosis ? "Relatório de Diagnóstico 2025" : "Plano Estratégico 2026";
     const analysisText = isDiagnosis ? planData.analysis.diagnosisReportAnalysis : planData.analysis.planReportAnalysis;
@@ -267,7 +279,7 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                                         ['(-) Custos Fixos (Despesas Operacionais)', formatCurrency(summary2025.custosFixosTotal)],
                                         ['(=) EBITDA', formatCurrency(summary2025.ebitda)],
                                         ['Margem EBITDA', formatPercentage(summary2025.margemEbitda)],
-                                        ['Ponto de Equilíbrio Contábil', formatCurrency(summary2025.pontoEquilibrioContabil)],
+                                        ['Ponto de Equilíbrio Contábil (mensal)', formatCurrency(summary2025.pontoEquilibrioContabil)],
                                     ]}
                                     highlightLast
                                 />
@@ -350,8 +362,8 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
                                     <MetricCard label="Novos Clientes" value={formatNumber(summary2025.novosClientesTotal)} />
                                     <MetricCard label="Ticket Médio" value={formatCurrency(summary2025.ticketMedio)} highlight />
-                                    <MetricCard label="Taxa de Retenção" value={formatPercentage(summary2025.taxaRetencao)} />
-                                    <MetricCard label="Conversão Lead → Cliente" value={formatPercentage(summary2025.taxaConversaoLeadCliente)} />
+                                    <MetricCard label="Taxa de Retenção" value={summary2025.temBaseRetencao ? formatPercentage(summary2025.taxaRetencao) : "não medido"} />
+                                    <MetricCard label="Conversão Lead → Cliente" value={summary2025.temBaseConversao ? formatPercentage(summary2025.taxaConversaoLeadCliente) : "não medido"} />
                                     <MetricCard label="Investimento em Marketing" value={formatCurrency(summary2025.investimentoMarketingTotal)} />
                                     <MetricCard label="Custo de Aquisição (CAC)" value={formatCurrency(summary2025.cac)} />
                                     <MetricCard label="Lifetime Value (LTV)" value={formatCurrency(summary2025.ltv)} />
@@ -441,35 +453,36 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                                     <div>
                                         <h3 className="text-lg font-bold text-gray-800 mb-3">Metas Financeiras</h3>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-                                            <MetricCard label="Receita Bruta" value={formatCurrency(planData.goals2026?.financeiras?.receitaBruta?.annual || 0)} highlight />
-                                            <MetricCard label="Margem Bruta" value={formatPercentage(planData.goals2026?.financeiras?.margemBruta?.annual || 0)} />
-                                            <MetricCard label="Margem EBITDA" value={formatPercentage(planData.goals2026?.financeiras?.margemEbitda?.annual || 0)} />
-                                            <MetricCard label="Lucro Líquido" value={formatCurrency(planData.goals2026?.financeiras?.lucroLiquido?.annual || 0)} />
+                                            <MetricCard label="Receita 2026" value={formatCurrency(metaReceitaAnual)} highlight />
+                                            <MetricCard label="Crescimento vs. 2025" value={summary2025.receitaTotal > 0 && metaReceitaAnual > 0 ? formatPercentage((metaReceitaAnual / summary2025.receitaTotal - 1) * 100) : 'não definida'} />
+                                            <MetricCard label="Margem EBITDA" value={goals2026.financeiras.metaMargemEbitda != null ? formatPercentage(goals2026.financeiras.metaMargemEbitda) : 'não definida'} />
+                                            <MetricCard label="Lucro Líquido" value={goals2026.financeiras.metaLucroLiquido != null ? formatCurrency(goals2026.financeiras.metaLucroLiquido) : 'não definida'} />
                                         </div>
                                     </div>
                                     <div>
                                         <h3 className="text-lg font-bold text-gray-800 mb-3">Metas Comerciais</h3>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-                                            <MetricCard label="Novos Clientes" value={formatNumber(planData.goals2026?.comerciais?.novosClientes?.annual || 0)} highlight />
-                                            <MetricCard label="Ticket Médio" value={formatCurrency(planData.goals2026?.comerciais?.ticketMedio?.annual || 0)} />
-                                            <MetricCard label="Taxa de Retenção" value={formatPercentage(planData.goals2026?.comerciais?.taxaRetencao?.annual || 0)} />
-                                            <MetricCard label="Conversão Lead → Cliente" value={formatPercentage(planData.goals2026?.comerciais?.taxaConversao?.annual || 0)} />
+                                            <MetricCard label="Clientes no fim de 2026" value={metaClientesAnual > 0 ? formatNumber(metaClientesAnual) : 'não definida'} highlight />
+                                            <MetricCard label="Ticket Médio" value={goals2026.comerciais.metaTicketMedio != null ? formatCurrency(goals2026.comerciais.metaTicketMedio) : 'não definida'} />
+                                            <MetricCard label="Taxa de Conversão" value={goals2026.comerciais.metaTaxaConversao != null ? formatPercentage(goals2026.comerciais.metaTaxaConversao) : 'não definida'} />
+                                            <MetricCard label="Inflação Prevista" value={goals2026.inflacaoPrevista != null ? formatPercentage(goals2026.inflacaoPrevista) : 'não definida'} />
                                         </div>
                                     </div>
                                     <div>
                                         <h3 className="text-lg font-bold text-gray-800 mb-3">Metas de Pessoas</h3>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-                                            <MetricCard label="Headcount Final" value={formatNumber(planData.goals2026?.pessoas?.headcountFinal?.annual || 0)} />
-                                            <MetricCard label="Turnover" value={formatPercentage(planData.goals2026?.pessoas?.turnover?.annual || 0)} />
-                                            <MetricCard label="ROI Treinamento" value={formatPercentage(planData.goals2026?.pessoas?.roiTreinamento?.annual || 0)} />
+                                            <MetricCard label="Headcount" value={goals2026.pessoas.metaHeadcount != null ? formatNumber(goals2026.pessoas.metaHeadcount) : 'não definida'} />
+                                            <MetricCard label="Turnover" value={goals2026.pessoas.metaTurnover != null ? formatPercentage(goals2026.pessoas.metaTurnover) : 'não definida'} />
+                                            <MetricCard label="Investimento em T&D" value={goals2026.pessoas.metaInvestimentoTD != null ? formatCurrency(goals2026.pessoas.metaInvestimentoTD) : 'não definida'} />
+                                            <MetricCard label="Absenteísmo" value={goals2026.pessoas.metaAbsenteismo != null ? formatPercentage(goals2026.pessoas.metaAbsenteismo) : 'não definida'} />
                                         </div>
                                     </div>
-                                    {planData.goals2026?.objetivosEstrategicos && (
+                                    {goals2026.objetivosEstrategicos && (
                                         (() => {
                                             const objs = [
-                                                planData.goals2026.objetivosEstrategicos.objective1,
-                                                planData.goals2026.objetivosEstrategicos.objective2,
-                                                planData.goals2026.objetivosEstrategicos.objective3,
+                                                goals2026.objetivosEstrategicos.objective1,
+                                                goals2026.objetivosEstrategicos.objective2,
+                                                goals2026.objetivosEstrategicos.objective3,
                                             ].filter(o => o && o.trim());
                                             if (objs.length === 0) return null;
                                             return (
@@ -539,19 +552,19 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                             <PageBreak />
                             <div id="report-section-action-plan">
                                 <SectionHeader number="05" title="Plano de Ação" subtitle="Ações priorizadas com responsáveis, prazos e resultados esperados" />
-                                {planData.actionPlanItems?.length > 0 ? (
+                                {planData.actionPlan?.length > 0 ? (
                                     <div className="space-y-4">
                                         {/* Summary stats */}
                                         <div className="grid grid-cols-5 gap-4 mb-8">
-                                            <MetricCard label="Total de Ações" value={String(planData.actionPlanItems.length)} />
-                                            <MetricCard label="Prioridade Alta" value={String(planData.actionPlanItems.filter(i => i.priority === 'Alta').length)} />
-                                            <MetricCard label="Em Andamento" value={String(planData.actionPlanItems.filter(i => i.status === 'Em Andamento').length)} />
-                                            <MetricCard label="Concluídas" value={String(planData.actionPlanItems.filter(i => i.status === 'Concluído').length)} highlight />
-                                            <MetricCard label="Investimento Total" value={formatCurrency(planData.actionPlanItems.reduce((s, i) => s + (i.howMuch || 0), 0))} />
+                                            <MetricCard label="Total de Ações" value={String(planData.actionPlan.length)} />
+                                            <MetricCard label="Prioridade Alta" value={String(planData.actionPlan.filter(i => i.priority === 'Alta').length)} />
+                                            <MetricCard label="Em Andamento" value={String(planData.actionPlan.filter(i => i.status === 'Em Andamento').length)} />
+                                            <MetricCard label="Concluídas" value={String(planData.actionPlan.filter(i => i.status === 'Concluído').length)} highlight />
+                                            <MetricCard label="Investimento Total" value={formatCurrency(planData.actionPlan.reduce((s, i) => s + (i.howMuch || 0), 0))} />
                                         </div>
                                         {/* Action items table */}
                                         {(['Alta', 'Média', 'Baixa'] as ActionPlanPriority[]).map(priority => {
-                                            const items = planData.actionPlanItems.filter(i => (i.priority || 'Média') === priority);
+                                            const items = planData.actionPlan.filter(i => (i.priority || 'Média') === priority);
                                             if (items.length === 0) return null;
                                             return (
                                                 <div key={priority} className="mb-6">
