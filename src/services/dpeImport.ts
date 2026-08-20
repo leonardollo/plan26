@@ -44,6 +44,8 @@ import {
   MarketCompetitionData,
   SWOTData,
   OkrsAndKpis,
+  DriverBasedPlanningData,
+  SalesFunnelData,
 } from '../types';
 
 /* ------------------------------------------------------------------ */
@@ -105,6 +107,10 @@ export interface PatchPlano {
   marketCompetition?: MarketCompetitionData;
   swot?: Pick<SWOTData, 'strengths' | 'weaknesses' | 'opportunities' | 'threats'>;
   kpis?: OkrsAndKpis['kpis'];
+  driverBasedPlanning?: DriverBasedPlanningData;
+  salesFunnel?: Partial<SalesFunnelData>;
+  /** Blocos 4 e 5 não têm campo próprio no PLAN; viram texto de diagnóstico. */
+  diagnosticoOperacional?: string;
 }
 
 export interface ResultadoImportacao {
@@ -224,6 +230,8 @@ export function importarDoDiagnostico(foto: FotoDpe): ResultadoImportacao {
   const nm = foto.nm || {};
   const src = foto.src || {};
   const rel: ItemRelatorio[] = [];
+  let patchDrivers: DriverBasedPlanningData | undefined;
+  let patchFunil: Partial<SalesFunnelData> | undefined;
 
   const anota = (destino: string, origem: string, confianca: Confianca, observacao?: string) =>
     rel.push({ destino, origem, confianca, observacao });
@@ -407,14 +415,14 @@ export function importarDoDiagnostico(foto: FotoDpe): ResultadoImportacao {
   if (numeroBr(f.caixa) !== null) anota('Saldo de caixa', 'Bloco 2 — caixa e aplicações', 'dado');
 
   /* ---------- portfólio ---------- */
-  const receitaAno = soma(receitaBruta);
+  const receitaAnoBase = soma(receitaBruta);
   const productPortfolio: ProductPortfolioItem[] = (g.linhas || [])
     .filter((l) => texto(l.nome))
     .map((l, i) => {
       const pctReceita = numeroBr(l.pct);
       const ticket = numeroBr(l.ticket);
       const mc = numeroBr(l.mc);
-      const receita = pctReceita !== null && receitaAno > 0 ? (pctReceita / 100) * receitaAno : null;
+      const receita = pctReceita !== null && receitaAnoBase > 0 ? (pctReceita / 100) * receitaAnoBase : null;
       return {
         id: uid('linha', i),
         name: texto(l.nome),
@@ -487,12 +495,40 @@ export function importarDoDiagnostico(foto: FotoDpe): ResultadoImportacao {
     return 'Não Iniciado';
   };
   const frentes = g.frentes || [];
+
+  /**
+   * A prioridade sai do score GUT, não da ordem em que as frentes foram
+   * digitadas. O diagnóstico já fez esse trabalho: cada problema recebeu
+   * nota de Gravidade, Urgência e Tendência, e G×U×T ordena a lista. Usar a
+   * ordem de digitação jogaria fora a única priorização que o cliente
+   * realmente pensou.
+   *
+   * A frente aponta para o problema-raiz; o problema-raiz aparece no GUT.
+   * A ligação é por texto, que é como o diagnóstico amarra os dois.
+   */
+  const scoreGut = (procurado: string): number => {
+    if (!procurado) return 0;
+    const alvo = procurado.toLowerCase();
+    let melhor = 0;
+    (g.gut || []).forEach((linha) => {
+      const prob = texto(linha.prob).toLowerCase();
+      if (!prob) return;
+      const casa = prob.includes(alvo) || alvo.includes(prob);
+      if (!casa) return;
+      const n = (numeroBr(linha.g) || 0) * (numeroBr(linha.u) || 0) * (numeroBr(linha.t) || 0);
+      if (n > melhor) melhor = n;
+    });
+    return melhor;
+  };
   const prioridadePor = (frente: string): ActionPlanPriority => {
+    const alvo = frentes.find((fr) => texto(fr.nome) === frente);
+    const score = Math.max(scoreGut(texto(alvo?.raiz)), scoreGut(frente));
+    if (score >= 64) return 'Alta';   // 4×4×4 ou mais
+    if (score >= 27) return 'Média';  // 3×3×3 ou mais
+    if (score > 0) return 'Baixa';
+    // sem GUT que case, cai na ordem das frentes — que ao menos é uma escolha
     const idx = frentes.findIndex((fr) => texto(fr.nome) === frente);
-    if (idx === 0) return 'Alta';
-    if (idx === 1) return 'Alta';
-    if (idx > 1) return 'Média';
-    return 'Média';
+    return idx >= 0 && idx < 2 ? 'Alta' : 'Média';
   };
   const actionPlan: ActionPlanItem[] = (g.w5h2 || [])
     .filter((a) => texto(a.oque))
@@ -551,6 +587,120 @@ export function importarDoDiagnostico(foto: FotoDpe): ResultadoImportacao {
     kpis[classificar(item.name)].push(item);
   });
   if (kpisDpe.length) anota(`Indicadores (${kpisDpe.length})`, 'Bloco 6 — KPIs do ciclo', 'dado');
+
+  /* ---------- dívidas viram financiamento de curto e longo prazo ---------- */
+  const dividas = g.dividas || [];
+  if (dividas.length && investment.financing) {
+    let curto = 0, longo = 0;
+    dividas.forEach((d) => {
+      const saldo = numeroBr(d.saldo);
+      const parcelas = numeroBr(d.parcelas);
+      if (saldo === null) return;
+      // até 12 parcelas restantes é dívida do exercício; acima disso, longo prazo
+      if (parcelas !== null && parcelas <= 12) curto += saldo;
+      else longo += saldo;
+    });
+    if (curto > 0) investment.financing.financiamentoCurtoPrazo = Math.round(curto);
+    if (longo > 0) investment.financing.financiamentoLongoPrazo = Math.round(longo);
+    anota(
+      `Endividamento (${dividas.length} contrato(s))`,
+      'Bloco 2 — endividamento',
+      'estimado',
+      'Contratos com até 12 parcelas restantes entraram como curto prazo; o resto, longo prazo. Confira se algum tem carência.'
+    );
+  }
+
+  /* ---------- drivers do cenário provável ---------- */
+  const acharDriver = (re: RegExp) => (g.drivers || []).find((d) => re.test(texto(d.nome).toLowerCase()));
+  const dLeads = acharDriver(/lead/);
+  const dConversao = acharDriver(/convers/);
+  const dTicketMedio = acharDriver(/ticket/);
+  const dBase = acharDriver(/base|recorren|client/);
+  if (dLeads || dConversao || dTicketMedio || dBase) {
+    const mensalizar = (v: number | null, anual: boolean) => {
+      if (v === null) return mesVazio();
+      const m = mesVazio();
+      MONTHS.forEach((k) => (m[k] = anual ? Math.round((v / 12) * 100) / 100 : v));
+      return m;
+    };
+    patchDrivers = {
+      leadsQualificados: mensalizar(dLeads ? numeroBr(dLeads.prov) : null, false),
+      taxaConversao: mensalizar(dConversao ? numeroBr(dConversao.prov) : null, false),
+      clientesRecorrentes: mensalizar(dBase ? numeroBr(dBase.prov) : null, false),
+      ticketMedio: mensalizar(dTicketMedio ? numeroBr(dTicketMedio.prov) : null, false),
+    };
+    anota(
+      'Planejamento por drivers',
+      'Bloco 6 — árvore de drivers (cenário provável)',
+      'dado',
+      'O cenário provável é o que vira meta oficial no diagnóstico. Conservador e esticado ficam para os cenários do PLAN.'
+    );
+  }
+
+  /* ---------- ticket médio calculado da série ---------- */
+  const pedidosAno = Object.values(vendas).reduce<number>((a, v) => a + (v || 0), 0);
+  const ticketDaSerie = pedidosAno > 0 && receitaAnoBase > 0 ? Math.round(receitaAnoBase / pedidosAno) : null;
+  if (ticketDaSerie !== null) {
+    commercial.pipeline.ticketMedioPipeline = distribuirComoPeso(ticketDaSerie * 12, receitaBruta);
+    patchFunil = { avgTicket: ticketDaSerie };
+    if (cicloVendas !== null) patchFunil.rampUpTime = null;
+    anota(
+      `Ticket médio (${ticketDaSerie.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })})`,
+      'Bloco 2 — receita ÷ pedidos',
+      'estimado',
+      'Calculado da série, não perguntado ao cliente.'
+    );
+  }
+
+  /* ---------- o que o PLAN não tem campo para receber ---------- */
+  const linhas: string[] = [];
+  const mfv = g.mfv || [];
+  if (mfv.length) {
+    const exec = mfv.reduce((a, e) => a + (numeroBr(e.texec) || 0), 0);
+    const espera = mfv.reduce((a, e) => a + (numeroBr(e.tesp) || 0), 0);
+    const total = exec + espera;
+    const gargalo = mfv.slice().sort((a, b) => (numeroBr(b.tesp) || 0) - (numeroBr(a.tesp) || 0))[0];
+    linhas.push(
+      '## Fluxo de valor',
+      `Lead time total: ${total} dias (${exec} de execução, ${espera} de espera).`,
+      total > 0 ? `Só ${Math.round((exec / total) * 100)}% do tempo agrega valor.` : '',
+      gargalo ? `Gargalo: **${texto(gargalo.etapa)}** — ${numeroBr(gargalo.tesp) || 0} dias parados antes de começar.` : '',
+      texto(f.gargalo) ? `Na palavra de quem faz: "${texto(f.gargalo)}"` : ''
+    );
+  }
+  const teste30 = texto(f.teste30);
+  if (teste30) {
+    linhas.push(
+      '',
+      '## Dependência do dono',
+      `Se o dono sumisse por 30 dias: **${teste30}**.`,
+      texto(f.horas_dono) ? `Trabalha ${texto(f.horas_dono)}h por semana, ${texto(f.pct_operacao)}% disso em operação.` : '',
+      texto(f.decisoes) ? `Decisões que só ele toma: ${texto(f.decisoes)}.` : '',
+      texto(f.substituto) ? `Substituto natural: ${texto(f.substituto)}.` : ''
+    );
+  }
+  const raizes = (g.raiz || []).filter((r) => texto(r.causa));
+  if (raizes.length) {
+    linhas.push('', '## Problemas-raiz (cinco porquês)');
+    raizes.forEach((r, i) => {
+      linhas.push(`${i + 1}. **${texto(r.causa)}** _(${texto(r.nat)})_`, `   Sintoma: ${texto(r.prob)}`);
+    });
+  }
+  const procs = (g.proc || []).filter((pr) => numeroBr(pr.mat) !== null);
+  if (procs.length) {
+    const fracos = procs.slice().sort((a, b) => (numeroBr(a.mat) || 0) - (numeroBr(b.mat) || 0)).slice(0, 3);
+    linhas.push('', '## Processos menos maduros');
+    fracos.forEach((pr) => linhas.push(`- **${texto(pr.nome)}** (nota ${texto(pr.mat)}/5) — ${texto(pr.dor)}`));
+  }
+  const diagnosticoOperacional = linhas.filter((l) => l !== '').join('\n');
+  if (diagnosticoOperacional) {
+    anota(
+      'Diagnóstico operacional',
+      'Blocos 4 e 5 — MFV, dependência do dono, causas-raiz',
+      'dado',
+      'O PLAN 2026 não tem campo próprio para isso. Entra como texto na análise de diagnóstico — é o maior buraco entre os dois sistemas.'
+    );
+  }
 
   /* ---------- metas ---------- */
   const metaReceitaAnual = numeroBr(f.meta_receita);
@@ -634,6 +784,9 @@ export function importarDoDiagnostico(foto: FotoDpe): ResultadoImportacao {
   patch.marketCompetition = marketCompetition;
   if (temSwot) patch.swot = swotTexto;
   if (kpisDpe.length) patch.kpis = kpis;
+  if (patchDrivers) patch.driverBasedPlanning = patchDrivers;
+  if (patchFunil) patch.salesFunnel = patchFunil;
+  if (diagnosticoOperacional) patch.diagnosticoOperacional = diagnosticoOperacional;
 
   return {
     empresa: nomeEmpresa,

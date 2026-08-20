@@ -1462,6 +1462,28 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                 novo.okrsAndKpis = { ...prev.okrsAndKpis, kpis: patch.kpis };
             }
 
+            if (patch.driverBasedPlanning || patch.salesFunnel) {
+                novo.commercialPlanning = {
+                    ...prev.commercialPlanning,
+                    driverBasedPlanning: patch.driverBasedPlanning
+                        ? { ...prev.commercialPlanning.driverBasedPlanning, ...patch.driverBasedPlanning }
+                        : prev.commercialPlanning.driverBasedPlanning,
+                    salesFunnel: patch.salesFunnel
+                        ? { ...prev.commercialPlanning.salesFunnel, ...patch.salesFunnel }
+                        : prev.commercialPlanning.salesFunnel,
+                };
+            }
+
+            // MFV, dependência do dono e causas-raiz não têm campo próprio no
+            // PLAN. Até terem, ficam como texto de diagnóstico — melhor do que
+            // se perderem na passagem.
+            if (patch.diagnosticoOperacional) {
+                novo.analysis = {
+                    ...prev.analysis,
+                    diagnosisReportAnalysis: patch.diagnosticoOperacional,
+                };
+            }
+
             return novo;
         });
 

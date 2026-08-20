@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { usePlan } from '../hooks/usePlanData';
 import {
   buscarFotoDpe,
@@ -6,6 +6,7 @@ import {
   lerLink,
   Confianca,
   ResultadoImportacao,
+  FotoDpe,
 } from '../services/dpeImport';
 import { formatCurrency } from '../utils/formatters';
 
@@ -49,6 +50,39 @@ const ImportFromDpe: React.FC = () => {
   const [erro, setErro] = useState('');
   const [previa, setPrevia] = useState<ResultadoImportacao | null>(null);
   const [aplicado, setAplicado] = useState(false);
+  const arquivoRef = useRef<HTMLInputElement>(null);
+
+  const processar = (foto: FotoDpe) => {
+    const r = importarDoDiagnostico(foto);
+    if (!r.mesesEncontrados && !r.empresa) {
+      setErro('O diagnóstico foi encontrado, mas está praticamente vazio. Peça ao cliente para preencher pelo menos o Bloco 1 e o Bloco 2.');
+      return;
+    }
+    setPrevia(r);
+  };
+
+  /**
+   * Caminho pelo arquivo: o cliente aperta "Baixar dados" no diagnóstico e
+   * manda o .json. Serve para quando ele preencheu sem internet e a foto nunca
+   * chegou à nuvem — e para quando o link se perdeu no meio dos e-mails.
+   */
+  const abrirArquivo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const arq = e.target.files?.[0];
+    if (!arq) return;
+    setErro('');
+    setPrevia(null);
+    setAplicado(false);
+    const leitor = new FileReader();
+    leitor.onload = () => {
+      try {
+        processar(JSON.parse(String(leitor.result)) as FotoDpe);
+      } catch {
+        setErro('Não consegui ler esse arquivo. Use o .json que sai do botão "Baixar dados" do diagnóstico.');
+      }
+    };
+    leitor.readAsText(arq);
+    e.target.value = '';
+  };
 
   const buscar = async () => {
     setErro('');
@@ -63,13 +97,7 @@ const ImportFromDpe: React.FC = () => {
     }
     setCarregando(true);
     try {
-      const foto = await buscarFotoDpe(alvo);
-      const r = importarDoDiagnostico(foto);
-      if (!r.mesesEncontrados && !r.empresa) {
-        setErro('O diagnóstico foi encontrado, mas está praticamente vazio. Peça ao cliente para preencher pelo menos o Bloco 1 e o Bloco 2.');
-      } else {
-        setPrevia(r);
-      }
+      processar(await buscarFotoDpe(alvo));
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui buscar o diagnóstico.');
     } finally {
@@ -133,6 +161,29 @@ const ImportFromDpe: React.FC = () => {
           partes do link, o diagnóstico não abre — é assim que a resposta de uma empresa não vaza
           para outra.
         </p>
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <p className="text-sm text-gray-600">
+            Sem o link?{' '}
+            <button
+              onClick={() => arquivoRef.current?.click()}
+              className="text-brand-orange font-medium hover:underline"
+            >
+              Abrir o arquivo que o cliente baixou
+            </button>
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            É o <span className="font-mono">.json</span> do botão "Baixar dados" do diagnóstico. Funciona
+            mesmo se o cliente preencheu sem internet e nada chegou à nuvem.
+          </p>
+          <input
+            ref={arquivoRef}
+            type="file"
+            accept=".json,application/json"
+            onChange={abrirArquivo}
+            className="hidden"
+          />
+        </div>
+
         {erro && (
           <div className="mt-4 p-3 bg-red-50 border-l-4 border-red-400 text-red-800 text-sm rounded">
             {erro}
