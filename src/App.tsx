@@ -25,6 +25,7 @@ import FinancialRatiosDashboard from './components/FinancialRatiosDashboard';
 import SensitivityAnalysis from './components/SensitivityAnalysis';
 import OnboardingWizard from './components/OnboardingWizard';
 import HelpGuide from './components/HelpGuide';
+import ImportFromDpe from './components/ImportFromDpe';
 import { User, View } from './types';
 import { PlanProvider, authService, usePlan } from './hooks/usePlanData';
 import SubscriptionExpiredPage from './components/SubscriptionExpiredPage';
@@ -49,6 +50,7 @@ const MainLayout: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLo
         switch (currentView) {
             case 'dashboard': return <Dashboard />;
             case 'settings': return <Settings />;
+            case 'import-dpe': return <ImportFromDpe />;
             case 'data-collection': return <DataCollection />;
             case 'strategic-analysis': return <StrategicAnalysis />;
             case 'goal-setting': return <GoalSetting />;

@@ -111,6 +111,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, on
         <NavButton id="settings" label="Configurações" icon={icons.settings} currentView={currentView} onClick={() => setCurrentView('settings')} />
 
         <SectionTitle title="Diagnóstico" />
+        <NavButton id="import-dpe" label="Importar do Diagnóstico" icon={icons.clipboard} currentView={currentView} onClick={() => setCurrentView('import-dpe')} />
         <NavButton id="data-collection" label="Coleta de Dados 2025" icon={icons.clipboard} currentView={currentView} onClick={() => setCurrentView('data-collection')} />
         <NavButton id="taxes" label="Impostos" icon={icons.scale} currentView={currentView} onClick={() => setCurrentView('taxes')} />
         <NavButton id="strategic-analysis" label="Análise Estratégica" icon={icons.search} currentView={currentView} onClick={() => setCurrentView('strategic-analysis')} />

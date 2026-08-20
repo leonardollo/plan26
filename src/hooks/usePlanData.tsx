@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail, updateProfile } from 'firebase/auth';
+import { PatchPlano } from '../services/dpeImport';
 import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import * as api from '../services/geminiService';
@@ -1401,8 +1402,106 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         }));
     };
     
+    /**
+     * Aplica ao PLAN o que veio do diagnóstico (DPE-GI).
+     *
+     * Junta pedaço por pedaço em vez de espalhar um objeto inteiro por cima.
+     * A diferença importa: `{...prev, ...patch}` num bloco aninhado apagaria
+     * tudo o que o patch não trouxesse — o Blue Ocean e o Bowman sumiriam
+     * junto com `marketAnalysis`, e o trabalho de quem preencheu iria embora
+     * sem aviso. Aqui só é escrito o que o diagnóstico realmente trouxe.
+     *
+     * Listas (portfólio, ações, KPIs) são a exceção: essas substituem, porque
+     * misturar duas origens numa lista gera duplicata. A tela avisa antes.
+     */
+    const aplicarImportacaoDpe = (patch: PatchPlano, metas: Partial<Goals2026>) => {
+        setPlanData(prev => {
+            const novo: PlanData = { ...prev };
+
+            if (patch.companyProfile) {
+                novo.companyProfile = { ...prev.companyProfile, ...patch.companyProfile };
+            }
+            if (patch.financialSheet) {
+                novo.financialSheet = { ...prev.financialSheet, ...patch.financialSheet };
+            }
+            if (patch.commercial) {
+                novo.commercial = { ...prev.commercial, ...patch.commercial };
+            }
+            if (patch.people) {
+                novo.people = { ...prev.people, ...patch.people };
+            }
+            if (patch.marketing) {
+                novo.marketing = { ...prev.marketing, ...patch.marketing };
+            }
+            if (patch.investment) {
+                novo.investment = {
+                    ...prev.investment,
+                    ...patch.investment,
+                    workingCapital: { ...prev.investment.workingCapital, ...(patch.investment.workingCapital || {}) },
+                    financing: { ...prev.investment.financing, ...(patch.investment.financing || {}) },
+                };
+            }
+            if (patch.productPortfolio) novo.productPortfolio = patch.productPortfolio;
+            if (patch.actionPlan) novo.actionPlan = patch.actionPlan;
+
+            if (patch.marketCompetition || patch.swot) {
+                novo.marketAnalysis = {
+                    ...prev.marketAnalysis,
+                    marketCompetition: patch.marketCompetition
+                        ? { ...prev.marketAnalysis.marketCompetition, ...patch.marketCompetition }
+                        : prev.marketAnalysis.marketCompetition,
+                    // o texto vem do diagnóstico; as notas de impacto continuam
+                    // as que o consultor já tinha dado
+                    swot: patch.swot
+                        ? { ...prev.marketAnalysis.swot, ...patch.swot }
+                        : prev.marketAnalysis.swot,
+                };
+            }
+
+            if (patch.kpis) {
+                novo.okrsAndKpis = { ...prev.okrsAndKpis, kpis: patch.kpis };
+            }
+
+            if (patch.driverBasedPlanning || patch.salesFunnel) {
+                novo.commercialPlanning = {
+                    ...prev.commercialPlanning,
+                    driverBasedPlanning: patch.driverBasedPlanning
+                        ? { ...prev.commercialPlanning.driverBasedPlanning, ...patch.driverBasedPlanning }
+                        : prev.commercialPlanning.driverBasedPlanning,
+                    salesFunnel: patch.salesFunnel
+                        ? { ...prev.commercialPlanning.salesFunnel, ...patch.salesFunnel }
+                        : prev.commercialPlanning.salesFunnel,
+                };
+            }
+
+            // MFV, dependência do dono e causas-raiz não têm campo próprio no
+            // PLAN. Até terem, ficam como texto de diagnóstico — melhor do que
+            // se perderem na passagem.
+            if (patch.diagnosticoOperacional) {
+                novo.analysis = {
+                    ...prev.analysis,
+                    diagnosisReportAnalysis: patch.diagnosticoOperacional,
+                };
+            }
+
+            return novo;
+        });
+
+        if (Object.keys(metas).length) {
+            setGoals2026(prev => ({
+                ...prev,
+                ...metas,
+                financeiras: { ...prev.financeiras, ...(metas.financeiras || {}) },
+                comerciais: { ...prev.comerciais, ...(metas.comerciais || {}) },
+                pessoas: { ...prev.pessoas, ...(metas.pessoas || {}) },
+                objetivosEstrategicos: { ...prev.objetivosEstrategicos, ...(metas.objetivosEstrategicos || {}) },
+            }));
+        }
+    };
+
     // ... (value object definition) ...
     const value: PlanContextType = {
+        aplicarImportacaoDpe,
         planData, goals2026, scenarios2026, tracking2026, taxes, baseScenario, summary2025, subscriptionStatus,
         progressStatus: {} as any, 
         saveStatus, saveDataNow: () => saveToFirebase(true), lastSaved,
