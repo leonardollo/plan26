@@ -3,6 +3,10 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useRef,
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail, updateProfile } from 'firebase/auth';
 import { PatchPlano } from '../services/dpeImport';
+import {
+    Acesso, StatusAcesso, ehAdministrador, obterOuCriarAcesso,
+    listarAcessos as listarAcessosNoBanco, definirStatus,
+} from '../services/acesso';
 import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import * as api from '../services/geminiService';
@@ -233,6 +237,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     });
     const [baseScenario, setBaseScenario] = useState<ScenarioName>('Conservador');
     const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>('loading');
+    const [souAdmin, setSouAdmin] = useState(false);
+    const [statusAcesso, setStatusAcesso] = useState<StatusAcesso | null>(null);
     const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
     const isInitialLoad = useRef(true);
@@ -333,9 +339,58 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         };
     }, [planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems, user.uid, saveToFirebase]);
 
+    /**
+     * Confere se esta pessoa pode usar o sistema.
+     *
+     * Antes isto era `setSubscriptionStatus('active')` fixo: qualquer um que se
+     * cadastrasse entrava com acesso total. Agora quem chega entra na fila como
+     * pendente e não alcança dado nenhum até um administrador liberar.
+     *
+     * Esta função é para a pessoa entender o que está acontecendo. Quem de fato
+     * barra é a regra do Firestore — o código do navegador não protege nada.
+     */
     const checkSubscription = async () => {
-        setSubscriptionStatus('active');
-        return;
+        if (isOfflineMode || !db) {
+            // sem banco não há fila; o modo local é para desenvolver
+            setSouAdmin(true);
+            setStatusAcesso('liberado');
+            setSubscriptionStatus('active');
+            return;
+        }
+        try {
+            const admin = await ehAdministrador(db, user.email);
+            setSouAdmin(admin);
+
+            if (admin) {
+                setStatusAcesso('liberado');
+                setSubscriptionStatus('active');
+                return;
+            }
+
+            const acesso = await obterOuCriarAcesso(db, user.uid, user.email, user.name);
+            setStatusAcesso(acesso.status);
+            setSubscriptionStatus(
+                acesso.status === 'liberado' ? 'active'
+                    : acesso.status === 'bloqueado' ? 'inactive'
+                        : 'not_found'
+            );
+        } catch (e) {
+            // Não liberar por causa de erro: falha de rede não pode virar
+            // porta aberta. Melhor a pessoa ver a tela de espera e tentar de novo.
+            console.error('Falha ao conferir acesso', e);
+            setStatusAcesso('pendente');
+            setSubscriptionStatus('not_found');
+        }
+    };
+
+    const listarAcessosDoBanco = async (): Promise<Acesso[]> => {
+        if (!db) return [];
+        return listarAcessosNoBanco(db);
+    };
+
+    const mudarStatusDeAcesso = async (uid: string, status: StatusAcesso): Promise<void> => {
+        if (!db) return;
+        await definirStatus(db, uid, status, user.email || '');
     };
 
     useEffect(() => {
@@ -1543,6 +1598,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
 
     // ... (value object definition) ...
     const value: PlanContextType = {
+        souAdmin, statusAcesso, listarAcessosDoBanco, mudarStatusDeAcesso,
         aplicarImportacaoDpe,
         planData, goals2026, scenarios2026, tracking2026, taxes, baseScenario, summary2025, subscriptionStatus,
         progressStatus: {} as any, 

@@ -49,7 +49,7 @@ const SectionTitle: React.FC<{ title: string; icon?: string }> = ({ title, icon 
 );
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, onLogout }) => {
-  const { saveStatus, saveDataNow } = usePlan();
+  const { saveStatus, saveDataNow, souAdmin } = usePlan();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   
@@ -109,6 +109,10 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, on
       <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5 scrollbar-thin">
         <NavButton id="dashboard" label="Dashboard" icon={icons.dashboard} currentView={currentView} onClick={() => setCurrentView('dashboard')} />
         <NavButton id="settings" label="Configurações" icon={icons.settings} currentView={currentView} onClick={() => setCurrentView('settings')} />
+
+        {souAdmin && (
+          <NavButton id="gestao-acessos" label="Gestão de Acessos" icon={icons.people} currentView={currentView} onClick={() => setCurrentView('gestao-acessos')} />
+        )}
 
         <SectionTitle title="Diagnóstico" />
         <NavButton id="import-dpe" label="Importar do Diagnóstico" icon={icons.clipboard} currentView={currentView} onClick={() => setCurrentView('import-dpe')} />
