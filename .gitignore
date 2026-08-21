@@ -29,3 +29,8 @@ pnpm-debug.log*
 # Vercel
 .vercel
 .env*
+
+# Chaves locais (nunca versionar)
+.env.local
+.env.*.local
+chave-firebase.json
