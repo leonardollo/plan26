@@ -326,7 +326,43 @@ describe('usePlanData — cenários', () => {
     expect(result.current.scenarios2026.Conservador.projection.aluguel.jan).toBeCloseTo(11000);
     expect(result.current.scenarios2026.Conservador.projection.folhaPagamento.jan).toBeCloseTo(33000);
   });
+
+  it('cenário em modo manual não é recalculado quando a base de 2025 muda', async () => {
+    getDocMock.mockResolvedValue(documentoComOtimistaManual());
+    const { result } = await montar();
+    const aluguelAntes = result.current.scenarios2026.Conservador.projection.aluguel.jan;
+    act(() => result.current.updateSheetValue('aluguel', 'jan', '20000'));
+    await act(async () => {});
+    expect(result.current.scenarios2026.Otimista.projection.receitaBruta.jan).toBe(999);
+    // Controle: o cenário em percentual foi recalculado, então o efeito rodou.
+    expect(result.current.scenarios2026.Conservador.projection.aluguel.jan).not.toBeCloseTo(aluguelAntes!);
+  });
+
+  it('cenário em modo manual não é recalculado quando os impostos mudam', async () => {
+    getDocMock.mockResolvedValue(documentoComOtimistaManual());
+    const { result } = await montar();
+    const impostoAntes = result.current.scenarios2026.Conservador.projection.impostosSobreFaturamento.jan;
+    act(() => result.current.updateTaxes('simplesNacional', '10'));
+    await act(async () => {});
+    expect(result.current.scenarios2026.Otimista.projection.receitaBruta.jan).toBe(999);
+    // Controle: o cenário em percentual foi recalculado, então o efeito rodou.
+    expect(result.current.scenarios2026.Conservador.projection.impostosSobreFaturamento.jan).not.toBeCloseTo(impostoAntes!);
+  });
 });
+
+function documentoComOtimistaManual() {
+  return documentoCom({
+    planData: {
+      companyProfile: { name: 'Empresa', cnpj: '', industry: '', geminiApiKey: '' },
+      financialSheet: baseDeExemplo(),
+      scenariosInputMode: { Otimista: 'manual', Conservador: 'percentage', Disruptivo: 'percentage' },
+    },
+    taxes: { regimeTributario: 'Simples Nacional', simplesNacional: 6 },
+    scenarios2026: {
+      Otimista: { growthPercentage: 20, projection: { ...projecaoVazia(), receitaBruta: { ...mesesIguais(0), jan: 999 } } },
+    },
+  });
+}
 
 // Plano salvo pela regra antiga: Conservador (10%) com tudo crescido pelo fator, inclusive aluguel e impostos.
 function documentoDePlanoAntigo() {

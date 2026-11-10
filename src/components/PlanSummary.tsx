@@ -99,7 +99,7 @@ const PlanSummary: React.FC = () => {
             {/* KPI Cards Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <ComparisonCard 
-                    title="Receita Líquida"
+                    title="Receita Bruta"
                     value2025={formatCurrency(summary2025.receitaBrutaTotal, true)}
                     value2026={formatCurrency(summary2026.receitaTotal, true)}
                     growth={getGrowth(summary2026.receitaTotal, summary2025.receitaBrutaTotal)}
