@@ -8,7 +8,8 @@ export const MONTH_LABELS: { [key in Month]: string } = {
 
 export type View = 'dashboard' | 'settings' | 'gestao-acessos' | 'import-dpe' | 'data-collection' | 'strategic-analysis' | 'goal-setting' | 'okrs-kpis' | 'commercial-planning' | 'marketing-funnel' | 'action-plan' | 'scenario-planning' | 'financial-planning' | 'plan-summary' | 'monthly-tracking' | 'dre-comparison' | 'taxes' | 'pricing-calculator' | 'report-generator' | 'liquidity-dashboard' | 'financial-ratios' | 'sensitivity-analysis' | 'help-guide';
 
-export type SubscriptionStatus = 'loading' | 'active' | 'inactive' | 'expired' | 'not_found';
+// 'verificar_email': admin cujo e-mail ainda não foi verificado; a regra do banco não o reconhece como admin.
+export type SubscriptionStatus = 'loading' | 'active' | 'inactive' | 'expired' | 'not_found' | 'verificar_email';
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'unsaved';
 // Só 'carregado' libera gravação: uma carga que falhou nunca pode sobrescrever o plano.
 export type EstadoDaCarga = 'carregando' | 'carregado' | 'falhou';
@@ -21,6 +22,7 @@ export interface User {
   uid: string;
   email: string | null;
   name: string | null;
+  emailVerified: boolean;
 }
 
 export interface CompanyProfile {

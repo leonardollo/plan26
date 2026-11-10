@@ -46,6 +46,8 @@ export interface Acesso {
   liberadoEm?: unknown;
   liberadoPor?: string | null;
   observacao?: string;
+  /** Ausente nos pedidos criados antes deste campo existir. */
+  emailVerificado?: boolean;
 }
 
 export const COLECAO_ACESSOS = 'acessos';
@@ -75,7 +77,8 @@ export async function obterOuCriarAcesso(
   db: Firestore,
   uid: string,
   email: string | null,
-  nome: string | null
+  nome: string | null,
+  emailVerificado: boolean
 ): Promise<Acesso> {
   const ref = doc(db, COLECAO_ACESSOS, uid);
   const snap = await getDoc(ref);
@@ -91,6 +94,7 @@ export async function obterOuCriarAcesso(
       liberadoEm: d.liberadoEm,
       liberadoPor: d.liberadoPor ?? null,
       observacao: d.observacao,
+      emailVerificado: d.emailVerificado,
     };
   }
 
@@ -98,6 +102,8 @@ export async function obterOuCriarAcesso(
     email: (email || '').toLowerCase().trim(),
     nome: nome || '',
     status: 'pendente' as const,
+    // A regra confere este valor contra o token: o admin vê quem provou ser dono do e-mail.
+    emailVerificado,
     criadoEm: serverTimestamp(),
     liberadoEm: null,
     liberadoPor: null,
@@ -121,8 +127,15 @@ export async function listarAcessos(db: Firestore): Promise<Acesso[]> {
       liberadoEm: v.liberadoEm,
       liberadoPor: v.liberadoPor ?? null,
       observacao: v.observacao,
+      emailVerificado: v.emailVerificado,
     };
   });
+}
+
+/** Rótulo da coluna "E-mail verificado"; '—' é pedido antigo, sem o campo. */
+export function rotuloEmailVerificado(v: boolean | undefined): 'Sim' | 'Não' | '—' {
+  if (v === undefined) return '—';
+  return v ? 'Sim' : 'Não';
 }
 
 /** Libera, bloqueia ou devolve alguém para a fila. */

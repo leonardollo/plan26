@@ -1,6 +1,6 @@
 import type { EstadoDaCarga, SubscriptionStatus } from '../types';
 
-export type TelaDoApp = 'conferindo' | 'aguardando' | 'expirado' | 'abrindo_plano' | 'erro_ao_abrir' | 'app';
+export type TelaDoApp = 'conferindo' | 'aguardando' | 'expirado' | 'verificar_email' | 'abrindo_plano' | 'erro_ao_abrir' | 'app';
 
 /**
  * Qual tela o MainLayout mostra. O acesso decide primeiro; com acesso ativo,
@@ -13,6 +13,7 @@ export function telaDoApp(status: SubscriptionStatus, carga: EstadoDaCarga): Tel
         case 'not_found':
         case 'inactive': return 'aguardando';
         case 'expired': return 'expirado';
+        case 'verificar_email': return 'verificar_email';
         case 'active':
             if (carga === 'carregado') return 'app';
             return carga === 'falhou' ? 'erro_ao_abrir' : 'abrindo_plano';

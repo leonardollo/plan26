@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail, updateProfile } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail, updateProfile, sendEmailVerification } from 'firebase/auth';
 import { PatchPlano } from '../services/dpeImport';
 import {
     Acesso, StatusAcesso, ehAdministrador, obterOuCriarAcesso,
@@ -93,6 +93,16 @@ export const authService = {
     resetPassword: async (email: string) => {
         if (!isOfflineMode && auth) return sendPasswordResetEmail(auth, email);
         alert(`[MODO LOCAL] Simulação: Um link de redefinição foi enviado para ${email}`);
+    },
+    emailAtual: (): string | null => auth?.currentUser?.email ?? null,
+    enviarVerificacaoDeEmail: async (): Promise<void> => {
+        if (!isOfflineMode && auth?.currentUser) await sendEmailVerification(auth.currentUser);
+    },
+    recarregarUsuario: async (): Promise<void> => {
+        if (isOfflineMode || !auth?.currentUser) return;
+        await auth.currentUser.reload();
+        // Token novo: sem ele a regra do banco ainda veria email_verified falso.
+        await auth.currentUser.getIdToken(true);
     },
     subscribe: (callback: (user: any) => void) => {
         if (!isOfflineMode && auth) return onAuthStateChanged(auth, callback);
@@ -414,7 +424,17 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             return;
         }
         try {
+            // reload() não dispara onAuthStateChanged: o user do App fica com o valor antigo.
+            const verificado = auth?.currentUser ? auth.currentUser.emailVerified : user.emailVerified;
             const admin = await ehAdministrador(db, user.email);
+
+            if (admin && !verificado) {
+                // A regra só reconhece admin com e-mail verificado; sem isto o app abriria um painel que o banco recusa.
+                setSouAdmin(false);
+                setStatusAcesso(null);
+                await aplicarStatusDeAcesso('verificar_email');
+                return;
+            }
             setSouAdmin(admin);
 
             if (admin) {
@@ -423,7 +443,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                 return;
             }
 
-            const acesso = await obterOuCriarAcesso(db, user.uid, user.email, user.name);
+            const acesso = await obterOuCriarAcesso(db, user.uid, user.email, user.name, verificado);
             setStatusAcesso(acesso.status);
             await aplicarStatusDeAcesso(
                 acesso.status === 'liberado' ? 'active'

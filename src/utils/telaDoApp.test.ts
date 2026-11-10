@@ -17,6 +17,9 @@ describe('telaDoApp', () => {
   it('expirado, qualquer carga', () => {
     for (const c of CARGAS) expect(telaDoApp('expired', c)).toBe('expirado');
   });
+  it('admin sem e-mail verificado, qualquer carga', () => {
+    for (const c of CARGAS) expect(telaDoApp('verificar_email', c)).toBe('verificar_email');
+  });
   it('ativo com a carga em curso abre o plano', () => {
     expect(telaDoApp('active', 'carregando')).toBe('abrindo_plano');
   });

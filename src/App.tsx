@@ -32,6 +32,7 @@ import { User, View } from './types';
 import { PlanProvider, authService, usePlan } from './hooks/usePlanData';
 import SubscriptionExpiredPage from './components/SubscriptionExpiredPage';
 import ErroAoAbrirPlano from './components/ErroAoAbrirPlano';
+import VerificarEmailAdmin from './components/VerificarEmailAdmin';
 import { telaDoApp } from './utils/telaDoApp';
 
 const LoadingScreen: React.FC<{ message?: string }> = ({ message = 'Carregando...' }) => (
@@ -93,6 +94,9 @@ const MainLayout: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLo
     case 'expirado':
         return <SubscriptionExpiredPage status="expired" onLogout={onLogout} />;
 
+    case 'verificar_email':
+        return <VerificarEmailAdmin onLogout={onLogout} />;
+
     case 'abrindo_plano':
         return <LoadingScreen message="Abrindo seu plano..." />;
 
@@ -149,6 +153,7 @@ const App: React.FC = () => {
           uid: firebaseUser.uid,
           email: firebaseUser.email,
           name: firebaseUser.displayName,
+          emailVerified: !!firebaseUser.emailVerified,
         });
       } else {
         setUser(null);

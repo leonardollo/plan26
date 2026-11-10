@@ -187,3 +187,40 @@ describe('usePlanData — carga e salvamento', () => {
     expect(result.current.planData.companyProfile.name).toBe('Empresa Real');
   });
 });
+
+describe('usePlanData — e-mail do admin', () => {
+  beforeEach(() => {
+    getDocMock.mockResolvedValue(documento());
+  });
+
+  it('admin sem e-mail verificado vai para a verificação', async () => {
+    ehAdminMock.mockResolvedValue(true);
+    authFalso.currentUser = { emailVerified: false };
+    const { result } = await montar();
+    expect(result.current.subscriptionStatus).toBe('verificar_email');
+    expect(result.current.souAdmin).toBe(false);
+    expect(acessoMock).not.toHaveBeenCalled();
+  });
+
+  it('admin verificado entra direto', async () => {
+    ehAdminMock.mockResolvedValue(true);
+    authFalso.currentUser = { emailVerified: true };
+    const { result } = await montar();
+    expect(result.current.subscriptionStatus).toBe('active');
+    expect(result.current.souAdmin).toBe(true);
+  });
+
+  it('Já verifiquei sem ter verificado continua na verificação', async () => {
+    ehAdminMock.mockResolvedValue(true);
+    authFalso.currentUser = { emailVerified: false };
+    const { result } = await montar();
+    await act(() => result.current.checkSubscription());
+    expect(result.current.subscriptionStatus).toBe('verificar_email');
+  });
+
+  it('cliente grava emailVerificado no pedido', async () => {
+    ehAdminMock.mockResolvedValue(false);
+    await montar();
+    expect(acessoMock).toHaveBeenCalledWith(expect.anything(), 'u1', 'c@x.com', 'C', true);
+  });
+});

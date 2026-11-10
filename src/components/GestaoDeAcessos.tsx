@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { usePlan } from '../hooks/usePlanData';
-import { Acesso, StatusAcesso, quando } from '../services/acesso';
+import { Acesso, StatusAcesso, quando, rotuloEmailVerificado } from '../services/acesso';
 
 /**
  * Gestão de Acessos — a tela do administrador.
@@ -133,6 +133,7 @@ const GestaoDeAcessos: React.FC = () => {
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="text-left px-5 py-3 font-semibold text-xs uppercase tracking-wide text-gray-600">Pessoa</th>
                   <th className="text-left px-5 py-3 font-semibold text-xs uppercase tracking-wide text-gray-600">Cadastrou</th>
+                  <th className="text-left px-5 py-3 font-semibold text-xs uppercase tracking-wide text-gray-600">E-mail verificado</th>
                   <th className="text-left px-5 py-3 font-semibold text-xs uppercase tracking-wide text-gray-600">Situação</th>
                   <th className="text-right px-5 py-3 font-semibold text-xs uppercase tracking-wide text-gray-600">Ação</th>
                 </tr>
@@ -150,6 +151,7 @@ const GestaoDeAcessos: React.FC = () => {
                         <div className="text-xs text-gray-400">liberado por {a.liberadoPor}</div>
                       )}
                     </td>
+                    <td className="px-5 py-4 text-gray-600">{rotuloEmailVerificado(a.emailVerificado)}</td>
                     <td className="px-5 py-4">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${ROTULO[a.status].classe}`}>
                         {ROTULO[a.status].texto}
