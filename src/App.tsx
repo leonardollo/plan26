@@ -31,6 +31,8 @@ import AguardandoLiberacao from './components/AguardandoLiberacao';
 import { User, View } from './types';
 import { PlanProvider, authService, usePlan } from './hooks/usePlanData';
 import SubscriptionExpiredPage from './components/SubscriptionExpiredPage';
+import ErroAoAbrirPlano from './components/ErroAoAbrirPlano';
+import { telaDoApp } from './utils/telaDoApp';
 
 const LoadingScreen: React.FC<{ message?: string }> = ({ message = 'Carregando...' }) => (
     <div className="flex h-screen w-full items-center justify-center bg-brand-dark">
@@ -46,7 +48,7 @@ const LoadingScreen: React.FC<{ message?: string }> = ({ message = 'Carregando..
 
 const MainLayout: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLogout }) => {
     const [currentView, setCurrentView] = useState<View>('dashboard');
-    const { subscriptionStatus, statusAcesso, souAdmin } = usePlan();
+    const { subscriptionStatus, statusAcesso, souAdmin, estadoDaCarga, tentarCarregarDeNovo } = usePlan();
 
     const renderView = () => {
         switch (currentView) {
@@ -78,22 +80,26 @@ const MainLayout: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLo
         }
     };
 
-    if (subscriptionStatus === 'loading') {
+    switch (telaDoApp(subscriptionStatus, estadoDaCarga)) {
+    case 'conferindo':
         return <LoadingScreen message="Conferindo seu acesso..." />;
-    }
 
     // Quem ainda não foi liberado não passa daqui. A tela é só o aviso — quem
     // realmente barra é a regra do Firestore, que recusa ler e escrever
     // `users/{uid}` enquanto o acesso não estiver liberado.
-    if (subscriptionStatus === 'not_found' || subscriptionStatus === 'inactive') {
+    case 'aguardando':
         return <AguardandoLiberacao onLogout={onLogout} bloqueado={statusAcesso === 'bloqueado'} />;
-    }
 
-    if (subscriptionStatus === 'expired') {
-        return <SubscriptionExpiredPage status={subscriptionStatus} onLogout={onLogout} />;
-    }
+    case 'expirado':
+        return <SubscriptionExpiredPage status="expired" onLogout={onLogout} />;
 
-    if (subscriptionStatus === 'active') {
+    case 'abrindo_plano':
+        return <LoadingScreen message="Abrindo seu plano..." />;
+
+    case 'erro_ao_abrir':
+        return <ErroAoAbrirPlano onTentarDeNovo={tentarCarregarDeNovo} onLogout={onLogout} />;
+
+    case 'app':
         return (
             <div className="flex h-screen bg-[#f1f5f9] text-gray-800 relative">
                 <OnboardingWizard />

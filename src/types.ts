@@ -10,6 +10,8 @@ export type View = 'dashboard' | 'settings' | 'gestao-acessos' | 'import-dpe' | 
 
 export type SubscriptionStatus = 'loading' | 'active' | 'inactive' | 'expired' | 'not_found';
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'unsaved';
+// Só 'carregado' libera gravação: uma carga que falhou nunca pode sobrescrever o plano.
+export type EstadoDaCarga = 'carregando' | 'carregado' | 'falhou';
 
 export interface MonthlyData {
   [key: string]: number | null;
@@ -659,6 +661,10 @@ export type SensitivityMatrix = SensitivityScenario[][];
 export interface PlanContextType {
     /** Por que a última gravação falhou, em português. Vazio quando deu certo. */
     motivoDoErroAoSalvar: string;
+    /** Se o plano já foi lido do banco. Fora de 'carregado', nada é gravado. */
+    estadoDaCarga: EstadoDaCarga;
+    /** Lê o plano do banco outra vez (tela "Não consegui abrir seu plano"). */
+    tentarCarregarDeNovo: () => Promise<void>;
     /** Verdadeiro quando o e-mail está na coleção `admins` do Firestore. */
     souAdmin: boolean;
     /** Onde esta pessoa está na fila de liberação. */

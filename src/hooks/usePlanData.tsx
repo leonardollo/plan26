@@ -17,7 +17,7 @@ import {
     SubscriptionStatus, CompanyProfile, FinancialSheetData, OkrsAndKpis, CommercialPlanning2026,
     FinancialPlan2026, ProductPortfolioItem, MarketCompetitionData, SWOTData, BlueOceanData, BowmanClockProduct,
     ActionPlanItem, ScenarioData, DriverBasedPlanningData, MonthlyData, DRE2026, DFC2026, BP2026,
-    LiquidityMetrics, FinancialKPIs, SensitivityMatrix, SaveStatus, PricingItem, FinancialSheetRow, CustomLineItem,
+    LiquidityMetrics, FinancialKPIs, SensitivityMatrix, SaveStatus, EstadoDaCarga, PricingItem, FinancialSheetRow, CustomLineItem,
     BlueOceanFactor, BlueOceanFourActions, ScenarioProjectionData, StrategicObjectives, CustomProjectionLineItem
 } from '../types';
 
@@ -242,10 +242,31 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     const [statusAcesso, setStatusAcesso] = useState<StatusAcesso | null>(null);
     const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
-    const isInitialLoad = useRef(true);
+    const [estadoDaCarga, setEstadoDaCargaState] = useState<EstadoDaCarga>('carregando');
+    // Espelhos em ref: saveToFirebase, checkSubscription e o beforeunload precisam do valor atual, não o da closure.
+    const estadoDaCargaRef = useRef<EstadoDaCarga>('carregando');
+    const saveStatusRef = useRef<SaveStatus>('idle');
+    const subscriptionStatusRef = useRef<SubscriptionStatus>('loading');
+    // Marca o commit em que o plano lido entra no estado; os efeitos abaixo o ignoram.
+    const acabouDeCarregar = useRef(false);
+
+    const setEstadoDaCarga = (estado: EstadoDaCarga) => {
+        estadoDaCargaRef.current = estado;
+        setEstadoDaCargaState(estado);
+    };
+
+    useEffect(() => { saveStatusRef.current = saveStatus; }, [saveStatus]);
+    useEffect(() => { subscriptionStatusRef.current = subscriptionStatus; }, [subscriptionStatus]);
 
     const saveToFirebase = useCallback(async (manual: boolean = false) => {
         if (!user.uid) return Promise.resolve();
+        if (estadoDaCargaRef.current !== 'carregado') {
+            // Gravar antes de ler o plano trocaria o plano real pelo estado vazio da tela.
+            const motivo = 'O plano ainda não foi carregado';
+            setMotivoDoErroAoSalvar(motivo);
+            setSaveStatus('error');
+            return Promise.reject(new Error(motivo));
+        }
         setSaveStatus('saving');
         try {
             if (!isOfflineMode && db) {
@@ -279,9 +300,9 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         }
     }, [planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems, user.uid]);
 
-    useEffect(() => {
+    const carregarPlano = async (): Promise<void> => {
         if (!user.uid) return;
-        const loadData = async () => {
+        setEstadoDaCarga('carregando');
             try {
                 let data: any = null;
                 if (!isOfflineMode && db) {
@@ -322,35 +343,47 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                     if (data.taxes) setTaxes(prev => ({ ...prev, ...data.taxes }));
                     if (data.pricingItems) setPricingItems(data.pricingItems);
                 }
+                // No mesmo tique dos setters acima: o commit que traz o plano lido é o mesmo que entra em 'carregado'.
+                acabouDeCarregar.current = true;
+                setEstadoDaCarga('carregado');
             } catch (error) {
                 console.error("Error loading data:", error);
-            } finally {
-                setTimeout(() => { isInitialLoad.current = false; }, 1000);
+                setEstadoDaCarga('falhou');
             }
-        };
-        loadData();
+    };
+    const tentarCarregarDeNovo = carregarPlano;
+
+    useEffect(() => {
+        if (!user.uid) return;
+        carregarPlano();
         checkSubscription();
     }, [user.uid]);
 
     useEffect(() => {
-        if (!user.uid || isInitialLoad.current) return;
+        if (!user.uid || estadoDaCarga !== 'carregado') return;
+        // O que acabou de ser lido não é edição; regravar arriscaria sobrescrever o banco com o estado de antes da carga.
+        if (acabouDeCarregar.current) return;
         setSaveStatus('unsaved');
+        const saveDataTimeout = setTimeout(() => {
+            saveToFirebase().catch(() => {}); // o motivo já fica em saveStatus/motivoDoErroAoSalvar
+        }, 3000);
+        return () => {
+            clearTimeout(saveDataTimeout);
+        };
+    }, [planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems, user.uid, saveToFirebase, estadoDaCarga]);
+
+    useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-            if (saveStatus === 'unsaved' || saveStatus === 'saving') {
+            const status = saveStatusRef.current;
+            if (status === 'unsaved' || status === 'saving' || status === 'error') {
                 e.preventDefault();
                 e.returnValue = '';
                 return '';
             }
         };
         window.addEventListener('beforeunload', handleBeforeUnload);
-        const saveDataTimeout = setTimeout(() => {
-            saveToFirebase();
-        }, 3000); 
-        return () => {
-            clearTimeout(saveDataTimeout);
-            window.removeEventListener('beforeunload', handleBeforeUnload);
-        };
-    }, [planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems, user.uid, saveToFirebase]);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, []);
 
     /**
      * Confere se esta pessoa pode usar o sistema.
@@ -362,6 +395,16 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
      * Esta função é para a pessoa entender o que está acontecendo. Quem de fato
      * barra é a regra do Firestore — o código do navegador não protege nada.
      */
+    const aplicarStatusDeAcesso = async (novo: SubscriptionStatus) => {
+        const anterior = subscriptionStatusRef.current;
+        setSubscriptionStatus(novo);
+        // Pendente → liberado: a primeira carga foi negada pela regra; sem isto o app abriria vazio.
+        // Na primeira conferência (anterior 'loading') não recarrega: a falha ali é da carga em si e a tela oferece "Tentar de novo".
+        if (novo === 'active' && anterior !== 'loading' && estadoDaCargaRef.current === 'falhou') {
+            await carregarPlano();
+        }
+    };
+
     const checkSubscription = async () => {
         if (isOfflineMode || !db) {
             // sem banco não há fila; o modo local é para desenvolver
@@ -376,13 +419,13 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
 
             if (admin) {
                 setStatusAcesso('liberado');
-                setSubscriptionStatus('active');
+                await aplicarStatusDeAcesso('active');
                 return;
             }
 
             const acesso = await obterOuCriarAcesso(db, user.uid, user.email, user.name);
             setStatusAcesso(acesso.status);
-            setSubscriptionStatus(
+            await aplicarStatusDeAcesso(
                 acesso.status === 'liberado' ? 'active'
                     : acesso.status === 'bloqueado' ? 'inactive'
                         : 'not_found'
@@ -558,7 +601,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     useEffect(() => {
         // Verifica se há dados na financialSheet (receita bruta preenchida)
         const hasData = MONTHS.some(m => (planData.financialSheet.receitaBruta.values2025?.[m] || 0) > 0);
-        if (!hasData || isInitialLoad.current) return;
+        // O plano recém-lido já traz os cenários gravados (inclusive os manuais); recalcular aqui os sobrescreveria.
+        if (!hasData || estadoDaCargaRef.current !== 'carregado' || acabouDeCarregar.current) return;
 
         const strategicScore = planData.analysis.strategicScore.total || 0;
         const scenarioNames: ScenarioName[] = ['Otimista', 'Conservador', 'Disruptivo'];
@@ -592,6 +636,9 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         planData.analysis.strategicScore.total,
         planData.analysis.peopleAnalytics.productivityGainFactor
     ]);
+
+    // Declarado depois dos efeitos que olham acabouDeCarregar: só é limpo quando todos já viram o commit da carga.
+    useEffect(() => { acabouDeCarregar.current = false; });
 
     const summary2025: Summary2025 = useMemo(() => {
         const { financialSheet, commercial, people, marketing } = planData;
@@ -1612,6 +1659,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     // ... (value object definition) ...
     const value: PlanContextType = {
         souAdmin, statusAcesso, listarAcessosDoBanco, mudarStatusDeAcesso, motivoDoErroAoSalvar,
+        estadoDaCarga, tentarCarregarDeNovo,
         aplicarImportacaoDpe,
         planData, goals2026, scenarios2026, tracking2026, taxes, baseScenario, summary2025, subscriptionStatus,
         progressStatus: {} as any, 
