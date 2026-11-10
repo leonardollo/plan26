@@ -3,6 +3,43 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
+## 2026-11-10 — Entrega 2: números certos
+
+- **O quê:** plano `docs/superpowers/plans/2026-11-10-numeros-certos.md` (spec `…/specs/2026-11-10-numeros-certos-design.md`).
+  Funções puras em `src/utils/calculos/` (`impostos`, `cenario`, `planoFinanceiro`, `indicadores`, `resumo`).
+  IRPJ/CSLL pelo regime (Simples 0; Presumido % da receita; Real 15% + 10% acima de R$ 20 mil/mês, acumulado
+  no ano) numa só regra para DRE, Coleta, Comparativo, sensibilidade, ROIC e lucro 2025 do relatório.
+  Cenários: variáveis pelo crescimento, fixos pela inflação prevista, impostos pela alíquota de dedução;
+  cenário manual não é recalculado. DRE recalculada quando muda a projeção do cenário base ou os impostos.
+  Resumo, Acompanhamento, análise mensal e prompts do Gemini leem a projeção (`resumoDoCenario`) no lugar
+  dos campos `*Projetad*`, que nunca eram preenchidos. Payback do CAC sem a divisão extra por 12; série
+  "Projeção" do Planejamento Comercial; "Despesas Fixas" do relatório deixa de sair 0.
+- **Por quê:** a revisão para o ciclo 2027 achou IR cobrado duas vezes, cenários que só multiplicavam o
+  ano-base, Resumo/Acompanhamento zerados e payback 12× maior. Decisões do usuário: IRPJ/CSLL pelo regime;
+  fixos pela inflação; CAPEX/financiamentos/contratações numa entrega própria. Decisão do plano: plano já
+  salvo é recalculado dentro de `carregarPlano`, no mesmo commit da carga, para não gravar só por abrir
+  (entrega 1). Fora do plano, decididas pelo implementador: "Recalcular Todos" continua sobrescrevendo
+  valores manuais (como antes); linhas ausentes da projeção valem 0; o recálculo na carga só roda com
+  documento existente e receita 2025 > 0; no Presumido realizado, a base do IR é `receitaBruta ?? receitaLíquida`;
+  o card do Resumo compara receita bruta 2026 com bruta 2025, e a margem EBITDA é sobre a receita líquida.
+- **Verificação:** em `7dc777c`: `npm run typecheck` sem erros; `npm test` 79/79 (16 arquivos);
+  `npm run test:rules` 33/33; `npm run build` ok (built in 2.13s); `npm audit --audit-level=high` ok
+  (13 moderadas). Preview do build: tela de login no celular (390×844) e no desktop (1440×900), sem erros.
+- **Revisão:** Codex, Estrutural + Sensível (toca `usePlanData.tsx` e `geminiService.ts`). Plano: 2
+  should-fix corrigidos em `7dc777c`: card "Receita Líquida" mostrava receita bruta (renomeado para
+  "Receita Bruta"); faltavam testes do cenário manual ao mudar a base de 2025 e as alíquotas (adicionados;
+  conferido que falham sem a proteção). Segurança: sem achados. Sem re-revisão: nenhum blocker e a correção
+  não tocou caminho sensível. O Codex não rodou `npm test` nem `test:rules` (sandbox).
+- **Em aberto:** telas com números (Resumo, Acompanhamento, Cenários, DRE, Relatório) não vistas no
+  navegador, sem conta de teste. `applyTaxesTo2025` sobrescreve o imposto de 2025 digitado à mão na Coleta
+  (mantido, conforme a condição de parada; decisão do usuário). Os efeitos de score estratégico e
+  produtividade gravam ao abrir se o valor salvo estiver desatualizado (anterior a esta entrega). A linha
+  "Custos Variáveis" do relatório não soma `outrosCustosVariaveis`. Limitação conhecida da spec: imposto
+  2025 salvo com a regra antiga no Presumido/Real até mudar um campo de imposto. Publicação depende dos
+  acessos da entrega 1.
+- **Commit/PR:** branch `fix/numeros-certos`: `f1cec34`, `2674710`, `d98d902`, `48d0ba1`, `da13784`,
+  `65fa780`, `7dc777c` (spec `d29c0ed`, plano `59f6cf0`). Sem PR.
+
 ## 2026-11-10 — Entrega 1: proteger os dados
 
 - **O quê:** plano `docs/superpowers/plans/2026-11-10-proteger-dados.md` (spec `…/specs/2026-11-10-proteger-dados-design.md`).
