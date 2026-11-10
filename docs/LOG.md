@@ -3,6 +3,40 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
+## 2026-11-10 — Investimentos, financiamentos e contratações em 2026
+
+- **O quê:** plano `docs/superpowers/plans/2026-11-10-capex-financiamentos-contratacoes.md` (spec
+  `…/specs/2026-11-10-capex-financiamentos-contratacoes-design.md`). Bloco novo `investment2026` no plano
+  (investimentos, empréstimos novos, aportes de sócios e juros médios da dívida atual), com aba
+  "Investimentos e Financiamentos" no Planejamento Financeiro. Funções puras em
+  `src/utils/calculos/investimentos.ts` (depreciação linear a partir do mês seguinte, 5 anos se vazio;
+  empréstimos pela tabela Price com 1ª parcela no mês seguinte; dívida atual com o curto prazo em 12
+  amortizações e o longo prazo parado) e `contratacoes.ts` (custo mensal das contratações pela coluna
+  nova "Mês de entrada" no Comercial). DRE, DFC e Balanço de 2026 e a folha dos cenários usam esses valores;
+  o recálculo acontece na carga do plano, sem gravar ao abrir.
+- **Por quê:** decisões do usuário: bloco novo (a Coleta 2025 continua como ponto de partida), dívida
+  atual como saldo + pagamento simples, coluna "mês de entrada". Entrega adiada da entrega 2.
+- **Efeito visível:** planos existentes mudam ao abrir, sem o cliente digitar nada: o FCI deixa de repetir
+  o CAPEX de 2025 (mais caixa); a dívida de curto prazo passa a ser amortizada (menos caixa); as
+  contratações entram na folha dos cenários.
+- **Verificação:** em `006ec00`: `npm run typecheck` sem erros; `npm test` 22 arquivos, 154/154;
+  `npm run test:rules` 33/33; `npm run build` ok (built in 1.77s). `npm audit --audit-level=high` ok
+  (13 moderadas) em `1ee391d`; as dependências não mudaram depois. Preview do build: login no celular
+  (390×844) e no desktop (1440×900), sem erros.
+- **Revisão:** Codex, Estrutural + Sensível (toca `usePlanData.tsx`). Plano: 5 should-fix, corrigidos em
+  `006ec00` (parcelas enormes travavam a tela: cronograma limitado a dez/2027; testes do ajuste automático
+  do Comercial, de todos os campos apagados, da liquidez corrente após o empréstimo e de editar/remover em
+  cada lista). Segurança: 1 achado rejeitado: duas abas do mesmo usuário podem sobrescrever
+  `investment2026`; é o comportamento do salvamento automático do documento inteiro, que já vale para todo
+  o plano, e não foi introduzido aqui. Sem re-revisão: nenhum blocker e a correção não tocou caminho
+  sensível. O Codex não rodou Vitest (sandbox somente leitura).
+- **Em aberto:** a aba nova e a coluna "Mês de entrada" não foram vistas no navegador (sem conta de teste).
+  Sobrescrita entre duas abas (salvamento do documento inteiro, anterior a esta entrega). O teste de tempo
+  (100 ms para 100 milhões de parcelas) pode oscilar num CI lento. Publicação depende dos acessos da
+  entrega 1.
+- **Commit/PR:** branch `feat/capex-financiamentos-contratacoes`: spec `9014ab3`, plano `8f00253`,
+  `feb237c`, `e23238c`, `4f1202e`, `f270b9b`, `c2be191`, `1ee391d`, `006ec00`. Sem PR.
+
 ## 2026-11-10 — Ajustes pequenos (imposto 2025, abertura sem gravar, custos variáveis)
 
 - **O quê:** três pendências da entrega 2. (A) Mudar um campo na aba Impostos só preenche o imposto de 2025
