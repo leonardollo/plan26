@@ -2,6 +2,7 @@
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { PlanData, Summary2025, FinancialGoals, CommercialGoals, PeopleGoals, SalesFunnelData, ScenarioName, Scenarios2026, ScenarioData, OKR, KPI, Goals2026, CompanyProfile, DemandChannel, ActionPlanItem, FinancialPlanSheetRow, MonthlyData } from '../types';
 import { formatCurrency, formatNumber, formatPercentage } from '../utils/formatters';
+import { resumoDoCenario } from '../utils/calculos/resumo';
 
 const sumMonthlyData = (data: MonthlyData): number => data ? Object.values(data).reduce((sum, val) => sum + (Number(val) || 0), 0) : 0;
 
@@ -607,22 +608,26 @@ export const getDecisionTriggers = async (planData: PlanData, summary2025: Summa
     }
 };
 
+// A receita do cenário vem da projeção, a mesma fonte da DRE e do Resumo.
+const receitaAnualDoCenario = (cenario: ScenarioData | undefined): number =>
+    Object.values(resumoDoCenario(cenario?.projection).receita).reduce((a: number, b) => a + (Number(b) || 0), 0);
+
 export const getScenarioAnalysis = async (scenarios: Scenarios2026, triggers: { [key in ScenarioName]: string }, actions: { [key in ScenarioName]: string }): Promise<string> => {
      const prompt = `
         Você é um analista estratégico sênior. Analise o seguinte plano de cenários para 2026 e forneça uma análise sobre os caminhos estratégicos.
 
         **Cenário Otimista:**
-        - Orçamento: Receita projetada de ${formatCurrency(Object.values(scenarios.Otimista.receitaProjetada).reduce((a, b) => a + (Number(b)||0), 0))}.
+        - Orçamento: Receita projetada de ${formatCurrency(receitaAnualDoCenario(scenarios.Otimista))}.
         - Gatilhos: ${triggers.Otimista || "Não definidos"}
         - Ações Estratégicas: ${actions.Otimista || "Não definidas"}
 
         **Cenário Conservador (Base):**
-        - Orçamento: Receita projetada de ${formatCurrency(Object.values(scenarios.Conservador.receitaProjetada).reduce((a, b) => a + (Number(b)||0), 0))}.
+        - Orçamento: Receita projetada de ${formatCurrency(receitaAnualDoCenario(scenarios.Conservador))}.
         - Gatilhos: ${triggers.Conservador || "Não definidos"}
         - Ações Estratégicas: ${actions.Conservador || "Não definidas"}
 
         **Cenário Disruptivo:**
-        - Orçamento: Receita projetada de ${formatCurrency(Object.values(scenarios.Disruptivo.receitaProjetada).reduce((a, b) => a + (Number(b)||0), 0))}.
+        - Orçamento: Receita projetada de ${formatCurrency(receitaAnualDoCenario(scenarios.Disruptivo))}.
         - Gatilhos: ${triggers.Disruptivo || "Não definidos"}
         - Ações Estratégicas: ${actions.Disruptivo || "Não definidas"}
 
@@ -1006,10 +1011,9 @@ export const generatePlanReportAnalysis = async (planData: PlanData, goals2026: 
     
     // Aggregate key financial data for the prompt
     const projection = scenarios2026[baseScenario].projection;
-    const receitaProjetada = sumMonthlyData(scenarios2026[baseScenario].receitaProjetada);
-    const custoProjetado = sumMonthlyData(scenarios2026[baseScenario].custosProjetados);
-    const despesaProjetada = sumMonthlyData(scenarios2026[baseScenario].despesasProjetadas);
-    const ebitdaProjetado = receitaProjetada - custoProjetado - despesaProjetada;
+    const resumo = resumoDoCenario(projection);
+    const receitaProjetada = sumMonthlyData(resumo.receita);
+    const ebitdaProjetado = sumMonthlyData(resumo.ebitda);
     
     const prompt = `
         Você é um **Chief Strategy Officer (CSO)** de classe mundial. Sua missão é criar um **"Relatório de Plano de Jogo"** definitivo para 2026 da empresa "${planData.companyProfile.name}".
@@ -1031,7 +1035,7 @@ export const generatePlanReportAnalysis = async (planData: PlanData, goals2026: 
 
         3. **A Realidade Projetada (Cenário ${baseScenario}):**
            - Receita Projetada: ${formatCurrency(receitaProjetada)}
-           - EBITDA Projetado: ${formatCurrency(ebitdaProjetado)} (${formatPercentage((ebitdaProjetado/receitaProjetada)*100)} de margem)
+           - EBITDA Projetado: ${formatCurrency(ebitdaProjetado)} (${formatPercentage(receitaProjetada > 0 ? (ebitdaProjetado/receitaProjetada)*100 : 0)} de margem)
            - Capacidade de Caixa (Liquidez): Baseado no plano, a empresa está saudável?
 
         4. **A Máquina de Vendas (Comercial):**

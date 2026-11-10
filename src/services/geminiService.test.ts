@@ -10,7 +10,7 @@ vi.mock('@google/genai', () => ({
   Modality: { TEXT: 'TEXT', IMAGE: 'IMAGE', AUDIO: 'AUDIO' },
 }));
 
-import { generateComprehensiveStrategicAnalysis } from './geminiService';
+import { generateComprehensiveStrategicAnalysis, getScenarioAnalysis } from './geminiService';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -35,5 +35,26 @@ describe('generateComprehensiveStrategicAnalysis', () => {
     const prompt = String(generateContent.mock.calls[0][0].contents);
     expect(prompt).toContain('Empresa X');
     expect(prompt).not.toContain('kA-segredo');
+  });
+});
+
+describe('getScenarioAnalysis', () => {
+  it('a receita do prompt vem da projeção do cenário', async () => {
+    const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+    const cenario = (receitaMensal: number) => ({
+      growthPercentage: 0,
+      // Campo antigo, que ninguém mais preenche: não pode ser a fonte da receita.
+      receitaProjetada: {},
+      projection: { receitaBruta: Object.fromEntries(MESES.map(m => [m, receitaMensal])) },
+    });
+    const scenarios = { Otimista: cenario(120000), Conservador: cenario(110000), Disruptivo: cenario(95000) } as any;
+    const textos = { Otimista: '', Conservador: '', Disruptivo: '' };
+    generateContent.mockResolvedValue({ text: 'ok' });
+
+    await getScenarioAnalysis(scenarios, textos, textos);
+
+    // O Intl separa "R$" do número com espaço não separável.
+    const prompt = String(generateContent.mock.calls[0][0].contents).replace(/ /g, ' ');
+    expect(prompt).toContain('R$ 1.440.000,00');
   });
 });

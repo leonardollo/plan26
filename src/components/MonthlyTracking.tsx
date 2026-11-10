@@ -6,6 +6,7 @@ import { Month, MONTHS, MONTH_LABELS } from '../types';
 import { formatCurrency, formatPercentage } from '../utils/formatters';
 import CurrencyInput from './shared/CurrencyInput';
 import clsx from 'clsx';
+import { resumoDoCenario } from '../utils/calculos/resumo';
 
 const ForecastCard: React.FC<{ title: string; subtitle: string; value: number; ebitda: number; margin: number; color: string }> = ({ title, subtitle, value, ebitda, margin, color }) => (
     <div className={`p-5 rounded-2xl border-2 ${color} text-center`}>
@@ -54,13 +55,13 @@ const MonthlyTracking: React.FC = () => {
     const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
 
     const actual = tracking2026[selectedMonth] || { receitaRealizada: null, custosRealizados: null, despesasRealizadas: null, analysisText: null };
-    const scenarioData = scenarios2026[baseScenario];
-    const hasScenarioData = scenarioData && scenarioData.receitaProjetada && Object.keys(scenarioData.receitaProjetada).length > 0;
-    
+    const resumo = useMemo(() => resumoDoCenario(scenarios2026[baseScenario]?.projection), [scenarios2026, baseScenario]);
+    const hasScenarioData = MONTHS.reduce((s, m) => s + (resumo.receita[m] || 0), 0) > 0;
+
     const projected = {
-        receita: scenarioData?.receitaProjetada?.[selectedMonth] || 0,
-        custos: scenarioData?.custosProjetados?.[selectedMonth] || 0,
-        despesas: scenarioData?.despesasProjetadas?.[selectedMonth] || 0,
+        receita: resumo.receita[selectedMonth] || 0,
+        custos: resumo.custos[selectedMonth] || 0,
+        despesas: resumo.despesas[selectedMonth] || 0,
     };
     
     const projectedEbitda = projected.receita - projected.custos - projected.despesas;
@@ -103,7 +104,7 @@ const MonthlyTracking: React.FC = () => {
 
     const rows = [
         { label: 'Receita', actual: actual.receitaRealizada, projected: projected.receita, variance: varianceReceita },
-        { label: 'Custos Variáveis', actual: actual.custosRealizados, projected: projected.custos, variance: varianceCustos },
+        { label: 'Custos variáveis e impostos', actual: actual.custosRealizados, projected: projected.custos, variance: varianceCustos },
         { label: 'Margem de Contribuição', actual: actualMC, projected: projectedMC, variance: varianceMC, isBold: true },
         { label: 'Despesas Fixas', actual: actual.despesasRealizadas, projected: projected.despesas, variance: varianceDespesas },
         { label: 'EBITDA', actual: actualEbitda, projected: projectedEbitda, variance: varianceEbitda, isBold: true },
@@ -128,9 +129,9 @@ const MonthlyTracking: React.FC = () => {
         MONTHS.forEach((month, index) => {
             const trackingMonthData = tracking2026[month];
 
-            proj.receita += scenarioData.receitaProjetada?.[month] || 0;
-            proj.custos += scenarioData.custosProjetados?.[month] || 0;
-            proj.despesas += scenarioData.despesasProjetadas?.[month] || 0;
+            proj.receita += resumo.receita[month] || 0;
+            proj.custos += resumo.custos[month] || 0;
+            proj.despesas += resumo.despesas[month] || 0;
 
             if (trackingMonthData?.receitaRealizada != null) {
                  actualYTD.receita += trackingMonthData.receitaRealizada || 0;
@@ -143,9 +144,9 @@ const MonthlyTracking: React.FC = () => {
                 forecast.custos += trackingMonthData.custosRealizados || 0;
                 forecast.despesas += trackingMonthData.despesasRealizadas || 0;
             } else {
-                forecast.receita += scenarioData.receitaProjetada?.[month] || 0;
-                forecast.custos += scenarioData.custosProjetados?.[month] || 0;
-                forecast.despesas += scenarioData.despesasProjetadas?.[month] || 0;
+                forecast.receita += resumo.receita[month] || 0;
+                forecast.custos += resumo.custos[month] || 0;
+                forecast.despesas += resumo.despesas[month] || 0;
             }
         });
 
@@ -161,7 +162,7 @@ const MonthlyTracking: React.FC = () => {
             forecast: { ...forecast, ...calcMetrics(forecast) }
         };
 
-    }, [selectedMonth, tracking2026, scenarios2026, baseScenario, hasScenarioData]);
+    }, [selectedMonth, tracking2026, resumo, hasScenarioData]);
 
     const handleGenerateAnalysis = async () => {
         setIsAnalysisLoading(true);
@@ -253,6 +254,8 @@ const MonthlyTracking: React.FC = () => {
                         </div>
                          <div>
                             <label className="block text-sm font-medium text-gray-700">Custos Variáveis Realizados</label>
+                            {/* O projetado soma os impostos sobre vendas aos custos; o realizado precisa da mesma base. */}
+                            <p className="text-xs text-gray-500">inclui impostos sobre vendas</p>
                             <CurrencyInput value={actual.custosRealizados} onChange={v => updateTracking2026(selectedMonth, 'custosRealizados', v)} className="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="0" />
                         </div>
                          <div>
@@ -264,7 +267,7 @@ const MonthlyTracking: React.FC = () => {
                         <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
                             <h3 className="text-sm font-bold text-gray-600 mb-3">Comparativo Visual - {MONTH_LABELS[selectedMonth]}</h3>
                             <BarComparison label="Receita" projected={projected.receita} actual={actual.receitaRealizada} />
-                            <BarComparison label="Custos Variáveis" projected={projected.custos} actual={actual.custosRealizados} />
+                            <BarComparison label="Custos variáveis e impostos"projected={projected.custos} actual={actual.custosRealizados} />
                             <BarComparison label="Despesas Fixas" projected={projected.despesas} actual={actual.despesasRealizadas} />
                         </div>
                     </div>

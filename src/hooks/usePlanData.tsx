@@ -24,6 +24,7 @@ import { projetarCenario } from '../utils/calculos/cenario';
 import { calcularPlanoFinanceiro2026 } from '../utils/calculos/planoFinanceiro';
 import { aliquotaDeducao, irpjCsllAnual } from '../utils/calculos/impostos';
 import { nopat, paybackCacMeses } from '../utils/calculos/indicadores';
+import { resumoDoCenario } from '../utils/calculos/resumo';
 
 // Firebase configuration - loaded from environment variables
 const firebaseConfig = {
@@ -222,7 +223,6 @@ const initialScenarioData: ScenarioData = {
         receitaBruta: {}, impostosSobreFaturamento: {}, folhaPagamento: {}, aluguel: {}, despesasOperacionais: {},
         marketingFixo: {}, administrativo: {}, customCustosFixos: [], cmv: {}, comissoes: {}, fretes: {}, customCustosVariaveis: []
     },
-    receitaProjetada: {}, custosProjetados: {}, despesasProjetadas: {}
 };
 const initialScenarios: Scenarios2026 = {
     'Otimista': { ...initialScenarioData, growthPercentage: 20 },
@@ -1654,7 +1654,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         calculateFinancialPlan2026, setBaseScenario, updateTracking2026, updateTaxes,
         generateBenchmarkAnalysis: async () => { const result = await api.getBenchmarkAnalysis(planData.companyProfile, summary2025); setPlanData(p => ({...p, analysis: {...p.analysis, benchmarkAnalysis: result}})); },
         generateStrategicSummaryAndActions: async () => { const result = await api.generateComprehensiveStrategicAnalysis(planData, summary2025, goals2026); setPlanData(p => ({...p, analysis: {...p.analysis, strategicSummary: result.analysisText}, actionPlan: [...p.actionPlan, ...result.actionPlanItems.map(i => ({...i, id: uuidv4(), status: 'Não Iniciado' as const, category: i.category || 'Estratégico' as const, priority: i.priority || 'Alta' as const, expectedResult: i.expectedResult || ''}))]})); },
-        generateMonthlyAnalysis: async (m) => { const actual = tracking2026[m]; const projected = { receita: scenarios2026[baseScenario].receitaProjetada[m], custos: scenarios2026[baseScenario].custosProjetados[m], despesas: scenarios2026[baseScenario].despesasProjetadas[m] }; 
+        generateMonthlyAnalysis: async (m) => { const actual = tracking2026[m]; const resumo = resumoDoCenario(scenarios2026[baseScenario]?.projection); const projected = { receita: resumo.receita[m], custos: resumo.custos[m], despesas: resumo.despesas[m] }; 
             const pMC = (projected.receita||0) - (projected.custos||0);
             const pPE = pMC > 0 ? (projected.despesas||0) / (pMC / (projected.receita||1)) : 0;
             const aMC = (actual?.receitaRealizada||0) - (actual?.custosRealizados||0);

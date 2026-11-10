@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { usePlan } from '../hooks/usePlanData';
 import { formatCurrency, formatNumber, formatPercentage } from '../utils/formatters';
+import { resumoDoCenario } from '../utils/calculos/resumo';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 
 const ComparisonCard: React.FC<{
@@ -45,12 +46,13 @@ const PlanSummary: React.FC = () => {
         Object.values(data).reduce((sum, val) => sum + (val || 0), 0);
 
     const summary2026 = React.useMemo(() => {
-        const scenario = scenarios2026[baseScenario];
-        const receitaTotal = sumMonthlyData(scenario.receitaProjetada);
-        const custosTotal = sumMonthlyData(scenario.custosProjetados);
-        const despesasTotal = sumMonthlyData(scenario.despesasProjetadas);
-        const ebitda = receitaTotal - custosTotal - despesasTotal;
-        const margemEbitda = receitaTotal > 0 ? (ebitda / receitaTotal) * 100 : 0;
+        const projection = scenarios2026[baseScenario]?.projection;
+        const resumo = resumoDoCenario(projection);
+        const receitaTotal = sumMonthlyData(resumo.receita);
+        const ebitda = sumMonthlyData(resumo.ebitda);
+        // A margem de 2025 é sobre a receita líquida; a de 2026 segue a mesma base para comparar.
+        const receitaLiquida = receitaTotal - sumMonthlyData(projection?.impostosSobreFaturamento || {});
+        const margemEbitda = receitaLiquida > 0 ? (ebitda / receitaLiquida) * 100 : 0;
 
         return {
             receitaTotal,
@@ -69,7 +71,7 @@ const PlanSummary: React.FC = () => {
     };
     
     const chartData = [
-        { name: 'Receita', '2025': summary2025.receitaTotal, '2026': summary2026.receitaTotal },
+        { name: 'Receita', '2025': summary2025.receitaBrutaTotal, '2026': summary2026.receitaTotal },
         { name: 'EBITDA', '2025': summary2025.ebitda, '2026': summary2026.ebitda },
     ];
 
@@ -98,9 +100,9 @@ const PlanSummary: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <ComparisonCard 
                     title="Receita Líquida"
-                    value2025={formatCurrency(summary2025.receitaTotal, true)}
+                    value2025={formatCurrency(summary2025.receitaBrutaTotal, true)}
                     value2026={formatCurrency(summary2026.receitaTotal, true)}
-                    growth={getGrowth(summary2026.receitaTotal, summary2025.receitaTotal)}
+                    growth={getGrowth(summary2026.receitaTotal, summary2025.receitaBrutaTotal)}
                     growthIsGood={true}
                 />
                  <ComparisonCard 

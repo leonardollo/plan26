@@ -453,9 +453,6 @@ export interface ScenarioProjectionData {
 export interface ScenarioData {
     growthPercentage: number | null;
     projection: ScenarioProjectionData;
-    receitaProjetada: MonthlyData;
-    custosProjetados: MonthlyData; 
-    despesasProjetadas: MonthlyData; 
 }
 
 export interface Scenarios2026 {
