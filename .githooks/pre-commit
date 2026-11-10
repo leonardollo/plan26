@@ -1,0 +1,43 @@
+#!/bin/sh
+# Pre-commit checks — Starter Pack v2.
+# Enable once per clone (/onboard does it):  git config core.hooksPath .githooks
+# Prints file:line only, never the matched content.
+set -eu
+
+# quotePath=false: accented names (common in pt-BR) would otherwise come back quoted/escaped.
+staged=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR)
+[ -z "$staged" ] && exit 0
+
+# 1. Real env files never get committed; examples are fine.
+envs=$(printf '%s\n' "$staged" | grep -E '(^|/)\.env[^/]*$' | grep -v -E '\.(example|sample|template)$' || true)
+if [ -n "$envs" ]; then
+  echo "pre-commit: env file staged — unstage it and keep it out of git:" >&2
+  printf '  %s\n' "$envs" >&2
+  exit 1
+fi
+
+# 2. Secret scan. gitleaks when installed; CI runs it on every push anyway.
+if command -v gitleaks >/dev/null 2>&1; then
+  if ! gitleaks git --pre-commit --redact --staged --verbose; then
+    echo "pre-commit: gitleaks found a possible secret (redacted above)." >&2
+    exit 1
+  fi
+else
+  secret_re='-----BEGIN [A-Z ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|(sk|rk)_live_[A-Za-z0-9]{16,}|sk-[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|(postgres(ql)?|mysql|mongodb(\+srv)?|redis)://[^:/@[:space:]]+:[^@/[:space:]]+@'
+  local_re='@(localhost|127\.0\.0\.1|0\.0\.0\.0|host\.docker\.internal)[:/]'
+  hits=$(printf '%s\n' "$staged" | while IFS= read -r f; do
+    git show ":$f" 2>/dev/null | grep -I -n -E -e "$secret_re" | grep -v -E "$local_re" | cut -d: -f1 | while IFS= read -r n; do printf '  %s:%s\n' "$f" "$n"; done  # name as data, never inside a sed program
+  done)
+  if [ -n "$hits" ]; then
+    echo "pre-commit: possible secret in staged files (install gitleaks for a precise scan):" >&2
+    printf '%s\n' "$hits" >&2
+    exit 1
+  fi
+fi
+
+# 3. Project checks on staged files — filled by /onboard (format, lint).
+# >>> project checks
+# No formatter or linter in this project yet (no Prettier/ESLint); typecheck runs in CI.
+# <<< project checks
+
+exit 0

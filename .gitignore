@@ -29,3 +29,8 @@ pnpm-debug.log*
 # Vercel
 .vercel
 .env*
+
+# Starter Pack v2
+.env*
+!.env.example
+.superpowers/

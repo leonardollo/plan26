@@ -1,0 +1,28 @@
+# Starter Pack — Codex command rules. Load when the project is trusted in Codex.
+# "allow" runs the command outside the sandbox without asking: the sandbox keeps .git
+# read-only, so without these every commit asked for approval (39 prompts in one session).
+# When several rules match, the most restrictive wins (forbidden > prompt > allow).
+# /onboard appends the project's verified commands in project.rules.
+
+prefix_rule(pattern = ["git", "add"], decision = "allow", justification = "Stage files")
+prefix_rule(pattern = ["git", "commit"], decision = "allow", justification = "Commit on a branch")
+prefix_rule(pattern = ["git", "switch"], decision = "allow", justification = "Change branch")
+prefix_rule(pattern = ["git", "merge"], decision = "allow", justification = "Consolidate branches")
+prefix_rule(pattern = ["git", "stash"], decision = "allow", justification = "Stash work")
+prefix_rule(pattern = ["git", "branch"], decision = "allow", justification = "Manage branches")
+prefix_rule(pattern = ["git", "worktree"], decision = "allow", justification = "Manage worktrees")
+prefix_rule(pattern = ["git", "symbolic-ref"], decision = "allow", justification = "Find the base branch")
+prefix_rule(pattern = ["codex", "login", "status"], decision = "allow", justification = "Reviewer availability")
+prefix_rule(pattern = ["codex", "review"], decision = "allow", justification = "Fresh-process review (network)")
+prefix_rule(
+    pattern = ["claude", "-p", "--disallowedTools"],
+    decision = "allow",
+    justification = "Cross-model review by Claude, read-only (network)",
+)
+
+# Destructive or history-rewriting: always ask.
+prefix_rule(pattern = ["git", "push", ["--force", "-f", "--force-with-lease"]], decision = "prompt", justification = "Rewrites remote history")
+prefix_rule(pattern = ["git", "reset", "--hard"], decision = "prompt", justification = "Discards work")
+prefix_rule(pattern = ["git", "clean"], decision = "prompt", justification = "Deletes untracked files")
+prefix_rule(pattern = ["git", "branch", "-D"], decision = "prompt", justification = "Deletes an unmerged branch")
+prefix_rule(pattern = ["git", "worktree", "remove", ["-f", "--force"]], decision = "prompt", justification = "Discards a worktree's changes")

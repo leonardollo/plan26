@@ -1,0 +1,10 @@
+# Project commands verified by /onboard (PLAN 2026).
+
+prefix_rule(pattern = ["npm", "ci"], decision = "allow", justification = "Install from the lockfile (network)")
+prefix_rule(pattern = ["npm", "run", "typecheck"], decision = "allow", justification = "Typecheck")
+prefix_rule(pattern = ["npm", "run", "build"], decision = "allow", justification = "Typecheck + production build")
+prefix_rule(pattern = ["npm", "audit"], decision = "allow", justification = "Dependency audit (network)")
+
+# Production: publishes Firestore rules or deploys to Firebase.
+prefix_rule(pattern = ["firebase", "deploy"], decision = "prompt", justification = "Writes to production Firebase")
+prefix_rule(pattern = ["npx", "firebase", "deploy"], decision = "prompt", justification = "Writes to production Firebase")
