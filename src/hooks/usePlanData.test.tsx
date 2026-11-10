@@ -47,7 +47,8 @@ vi.mock('../services/geminiService');
 
 import { getDoc, setDoc } from 'firebase/firestore';
 import { ehAdministrador, obterOuCriarAcesso } from '../services/acesso';
-import { PlanProvider, usePlan } from './usePlanData';
+import { signOut } from 'firebase/auth';
+import { PlanProvider, authService, usePlan } from './usePlanData';
 
 const getDocMock = vi.mocked(getDoc);
 const setDocMock = vi.mocked(setDoc);
@@ -185,6 +186,47 @@ describe('usePlanData — carga e salvamento', () => {
     expect(getDocMock).toHaveBeenCalledTimes(2);
     expect(result.current.estadoDaCarga).toBe('carregado');
     expect(result.current.planData.companyProfile.name).toBe('Empresa Real');
+  });
+});
+
+describe('usePlanData — chave do Gemini', () => {
+  const CHAVE = 'google_gemini_api_key';
+
+  it('logout apaga a chave', async () => {
+    localStorage.setItem(CHAVE, 'kA');
+    vi.mocked(signOut).mockResolvedValue(undefined);
+    await authService.logout();
+    expect(localStorage.getItem(CHAVE)).toBeNull();
+  });
+
+  it('logout apaga a chave mesmo se signOut falhar', async () => {
+    localStorage.setItem(CHAVE, 'kA');
+    vi.mocked(signOut).mockRejectedValue(new Error('rede'));
+    await authService.logout().catch(() => {});
+    expect(localStorage.getItem(CHAVE)).toBeNull();
+  });
+
+  it('B sem chave no plano remove a chave de A', async () => {
+    localStorage.setItem(CHAVE, 'kA');
+    getDocMock.mockResolvedValue(documento());
+    const { result } = await montar();
+    expect(result.current.estadoDaCarga).toBe('carregado');
+    expect(localStorage.getItem(CHAVE)).toBeNull();
+  });
+
+  it('B com chave kB grava kB', async () => {
+    localStorage.setItem(CHAVE, 'kA');
+    getDocMock.mockResolvedValue(documento({ geminiApiKey: 'kB' }));
+    await montar();
+    expect(localStorage.getItem(CHAVE)).toBe('kB');
+  });
+
+  it('carga negada também remove a chave de A', async () => {
+    localStorage.setItem(CHAVE, 'kA');
+    getDocMock.mockRejectedValue(negado());
+    const { result } = await montar();
+    expect(result.current.estadoDaCarga).toBe('falhou');
+    expect(localStorage.getItem(CHAVE)).toBeNull();
   });
 });
 

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { usePlan } from '../hooks/usePlanData';
 import { CompanyProfile } from '../types';
 import { getIndustryFromCnpj, getMarketResearchFromCnpj, CnpjData } from '../services/geminiService';
@@ -19,15 +19,6 @@ const Settings: React.FC = () => {
     const [isResetting, setIsResetting] = useState(false);
     const RESET_CONFIRMATION_WORD = 'APAGAR TUDO';
     
-    // Migrar chave antiga do localStorage para o Firebase (uma única vez)
-    useEffect(() => {
-        const oldKey = localStorage.getItem('google_gemini_api_key');
-        if (oldKey && !planData.companyProfile.geminiApiKey) {
-            updateCompanyProfile('geminiApiKey', oldKey);
-            localStorage.removeItem('google_gemini_api_key');
-        }
-    }, [planData.companyProfile.geminiApiKey]);
-
     const handleSaveKey = async () => {
         const key = planData.companyProfile.geminiApiKey?.trim() || '';
         if (key) {

@@ -718,12 +718,14 @@ export const generateComprehensiveStrategicAnalysis = async (
 ): Promise<{ analysisText: string; actionPlanItems: Omit<ActionPlanItem, 'id' | 'status'>[] }> => {
     
     const serialize = (obj: any) => JSON.stringify(obj, null, 2);
+    // A chave do Gemini mora no perfil; mandá-la no prompt a entregaria ao modelo e aos logs dele.
+    const { geminiApiKey: _semChave, ...perfilParaPrompt } = planData.companyProfile;
 
     const prompt = `
         Você é um Consultor de Estratégia de Negócios (CSO) de classe mundial. Sua tarefa é analisar os dados abrangentes de planejamento da empresa e gerar uma análise estratégica acionável para 2026.
 
         **DADOS DA EMPRESA:**
-        - **Perfil:** ${serialize(planData.companyProfile)}
+        - **Perfil:** ${serialize(perfilParaPrompt)}
         - **Metas 2026:** Aumentar a receita para ${formatCurrency(sumMonthlyData(goals2026.financeiras.metaReceita))} com ${formatPercentage(goals2026.financeiras.metaMargemEbitda)} de margem EBITDA.
         - **Resumo 2025:** Receita de ${formatCurrency(summary2025.receitaTotal)}, ${summary2025.novosClientesTotal} novos clientes, ${formatPercentage(summary2025.margemEbitda)} margem EBITDA.
         - **Análise de Mercado:** ${serialize(planData.marketAnalysis)}

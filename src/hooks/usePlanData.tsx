@@ -80,6 +80,8 @@ export const authService = {
         return { user };
     },
     logout: async () => {
+        // O próximo usuário deste navegador não pode herdar a chave de quem saiu.
+        localStorage.removeItem('google_gemini_api_key');
         if (!isOfflineMode && auth) return signOut(auth);
         localStorage.removeItem('local_session_active');
     },
@@ -313,6 +315,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     const carregarPlano = async (): Promise<void> => {
         if (!user.uid) return;
         setEstadoDaCarga('carregando');
+        // O navegador só guarda a chave de quem acabou de entrar.
+        localStorage.removeItem('google_gemini_api_key');
             try {
                 let data: any = null;
                 if (!isOfflineMode && db) {
@@ -343,7 +347,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                             }
                         }));
                     }
-                    // Sync geminiApiKey do Firebase para localStorage
+                    // Só depois da leitura: a chave gravada é a do plano de quem entrou.
                     if (data.planData?.companyProfile?.geminiApiKey) {
                         localStorage.setItem('google_gemini_api_key', data.planData.companyProfile.geminiApiKey);
                     }
