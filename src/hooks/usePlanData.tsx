@@ -20,6 +20,7 @@ import {
     LiquidityMetrics, FinancialKPIs, SensitivityMatrix, SaveStatus, EstadoDaCarga, PricingItem, FinancialSheetRow, CustomLineItem,
     BlueOceanFactor, BlueOceanFourActions, ScenarioProjectionData, StrategicObjectives, CustomProjectionLineItem
 } from '../types';
+import { projetarCenario } from '../utils/calculos/cenario';
 
 // Firebase configuration - loaded from environment variables
 const firebaseConfig = {
@@ -635,17 +636,14 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         const newScenarios = { ...scenarios2026 };
 
         scenarioNames.forEach(name => {
+            // O que o cliente digitou no modo manual nunca é sobrescrito pelo recálculo automático.
+            if (planData.scenariosInputMode?.[name] === 'manual') return;
             const scenario = scenarios2026[name];
-            // Recalcula todos os cenários quando dados base mudam (inclusive manual)
-            
             const growthPct = scenario.growthPercentage || 0;
             const newProjection = calculateScenarioProjection(planData.financialSheet, growthPct, strategicScore);
-            
-            // Verifica se realmente mudou para evitar loops
-            const oldReceitaTotal = MONTHS.reduce((s, m) => s + (scenario.projection?.receitaBruta?.[m] || 0), 0);
-            const newReceitaTotal = MONTHS.reduce((s, m) => s + (newProjection.receitaBruta?.[m] || 0), 0);
-            
-            if (Math.abs(oldReceitaTotal - newReceitaTotal) > 1) {
+
+            // Compara a projeção inteira: inflação e impostos mudam linhas sem mudar a receita.
+            if (JSON.stringify(newProjection) !== JSON.stringify(scenario.projection)) {
                 newScenarios[name] = { ...scenario, projection: newProjection };
                 hasChanges = true;
             }
@@ -655,10 +653,12 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             setScenarios2026(newScenarios);
         }
     }, [
-        JSON.stringify(planData.financialSheet.receitaBruta.values2025),
-        JSON.stringify(planData.financialSheet.impostosSobreFaturamento.values2025),
+        JSON.stringify(planData.financialSheet),
         planData.analysis.strategicScore.total,
-        planData.analysis.peopleAnalytics.productivityGainFactor
+        planData.analysis.peopleAnalytics.productivityGainFactor,
+        goals2026.inflacaoPrevista,
+        JSON.stringify(taxes),
+        JSON.stringify(planData.scenariosInputMode)
     ]);
 
     // Declarado depois dos efeitos que olham acabouDeCarregar: só é limpo quando todos já viram o commit da carga.
@@ -1230,37 +1230,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     const calculateScenarioProjection = (baseSheet: FinancialSheetData, growthPct: number, strategicScore: number): ScenarioProjectionData => {
         // Fórmula completa: Crescimento Base + Fator Estratégico + Bônus de Produtividade
         const productivityBonus = planData.analysis.peopleAnalytics.productivityGainFactor || 0;
-        const growthFactor = 1 + ((growthPct + strategicScore + productivityBonus) / 100);
-        
-        const applyGrowth = (data: MonthlyData) => {
-            const result: MonthlyData = {};
-            MONTHS.forEach(m => {
-                result[m] = (data[m] || 0) * growthFactor;
-            });
-            return result;
-        };
-
-        const applyGrowthToCustom = (items: CustomLineItem[]) => {
-            return items.map(item => ({
-                ...item,
-                values: applyGrowth(item.values2025)
-            }));
-        };
-
-        return {
-            receitaBruta: applyGrowth(baseSheet.receitaBruta.values2025),
-            impostosSobreFaturamento: applyGrowth(baseSheet.impostosSobreFaturamento.values2025),
-            folhaPagamento: applyGrowth(baseSheet.folhaPagamento.values2025),
-            aluguel: applyGrowth(baseSheet.aluguel.values2025),
-            despesasOperacionais: applyGrowth(baseSheet.despesasOperacionais.values2025),
-            marketingFixo: applyGrowth(baseSheet.marketingFixo.values2025),
-            administrativo: applyGrowth(baseSheet.administrativo.values2025),
-            customCustosFixos: applyGrowthToCustom(baseSheet.customCustosFixos),
-            cmv: applyGrowth(baseSheet.cmv.values2025),
-            comissoes: applyGrowth(baseSheet.comissoes.values2025),
-            fretes: applyGrowth(baseSheet.fretes.values2025),
-            customCustosVariaveis: applyGrowthToCustom(baseSheet.customCustosVariaveis)
-        };
+        return projetarCenario(baseSheet, growthPct + strategicScore + productivityBonus, goals2026.inflacaoPrevista ?? 0, taxes);
     };
 
     const recalculateScenario = (scenario: ScenarioName) => {

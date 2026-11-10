@@ -276,3 +276,54 @@ describe('usePlanData — e-mail do admin', () => {
     expect(acessoMock).toHaveBeenCalledWith(expect.anything(), 'u1', 'c@x.com', 'C', true);
   });
 });
+
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const mesesIguais = (valor: number) => Object.fromEntries(MESES.map(m => [m, valor]));
+const linha = (valor: number) => ({ values2025: mesesIguais(valor) });
+
+// Base de exemplo da especificação (Parte 2): receita 100 mil, CMV 40 mil, aluguel 10 mil e folha 30 mil por mês.
+const baseDeExemplo = () => ({
+  receitaBruta: linha(100000),
+  impostosSobreFaturamento: linha(6000),
+  folhaPagamento: linha(30000),
+  aluguel: linha(10000),
+  despesasOperacionais: { values2025: {} },
+  marketingFixo: { values2025: {} },
+  administrativo: { values2025: {} },
+  customCustosFixos: [],
+  cmv: linha(40000),
+  comissoes: { values2025: {} },
+  fretes: { values2025: {} },
+  customCustosVariaveis: [],
+});
+
+const projecaoVazia = () => ({
+  receitaBruta: {}, impostosSobreFaturamento: {}, folhaPagamento: {}, aluguel: {}, despesasOperacionais: {},
+  marketingFixo: {}, administrativo: {}, customCustosFixos: [], cmv: {}, comissoes: {}, fretes: {}, customCustosVariaveis: [],
+});
+
+function documentoCom(dados: Record<string, any>) {
+  return { exists: () => true, data: () => dados } as any;
+}
+
+describe('usePlanData — cenários', () => {
+  it('cenário em modo manual não é recalculado quando a inflação muda', async () => {
+    getDocMock.mockResolvedValue(documentoCom({
+      planData: {
+        companyProfile: { name: 'Empresa', cnpj: '', industry: '', geminiApiKey: '' },
+        financialSheet: baseDeExemplo(),
+        scenariosInputMode: { Otimista: 'manual', Conservador: 'percentage', Disruptivo: 'percentage' },
+      },
+      taxes: { regimeTributario: 'Simples Nacional', simplesNacional: 6 },
+      scenarios2026: {
+        Otimista: { growthPercentage: 20, projection: { ...projecaoVazia(), receitaBruta: { ...mesesIguais(0), jan: 999 } } },
+      },
+    }));
+    const { result } = await montar();
+    act(() => result.current.updateInflation('10'));
+    await act(async () => {});
+    expect(result.current.scenarios2026.Otimista.projection.receitaBruta.jan).toBe(999);
+    expect(result.current.scenarios2026.Conservador.projection.aluguel.jan).toBeCloseTo(11000);
+    expect(result.current.scenarios2026.Conservador.projection.folhaPagamento.jan).toBeCloseTo(33000);
+  });
+});
