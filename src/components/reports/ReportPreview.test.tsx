@@ -61,6 +61,27 @@ describe('ReportPreview — números do relatório do plano', () => {
         expect(celulas[celulas.length - 1].textContent).toBe(formatCurrency(40000));
     });
 
+    it('custos variáveis da DRE somam os personalizados: CMV 30 mil + outros 5 mil = 35 mil, e líquida − custos = lucro bruto', () => {
+        montarPlano({ regimeTributario: 'Simples Nacional', simplesNacional: 6 }, 50000, {
+            receitaLiquida: { jan: 94000 }, custosVariaveis: { jan: 30000 },
+            outrosCustosVariaveis: { jan: 5000 }, lucroBruto: { jan: 59000 },
+        });
+        render(<ReportPreview reportType="plan" onClose={() => {}} />);
+        const celulas = screen.getByText('(-) Custos Variáveis').closest('tr')!.querySelectorAll('td');
+        expect(celulas[1].textContent).toBe(formatCurrency(35000));
+        expect(celulas[celulas.length - 1].textContent).toBe(formatCurrency(35000));
+        const jan = (rotulo: string) => screen.getByText(rotulo).closest('tr')!.querySelectorAll('td')[1].textContent;
+        expect(jan('(=) Receita Líquida')).toBe(formatCurrency(94000));
+        expect(jan('(=) Lucro Bruto')).toBe(formatCurrency(94000 - 35000));
+    });
+
+    it('sem custos personalizados, a linha mostra só os custos variáveis (30 mil)', () => {
+        montarPlano({ regimeTributario: 'Simples Nacional', simplesNacional: 6 }, 50000, { custosVariaveis: { jan: 30000 } });
+        render(<ReportPreview reportType="plan" onClose={() => {}} />);
+        const celulas = screen.getByText('(-) Custos Variáveis').closest('tr')!.querySelectorAll('td');
+        expect(celulas[1].textContent).toBe(formatCurrency(30000));
+    });
+
     it('Simples: o lucro líquido de 2025 é igual ao EBITDA de 2025', () => {
         montarPlano({ regimeTributario: 'Simples Nacional', simplesNacional: 6 }, 50000);
         render(<ReportPreview reportType="plan" onClose={() => {}} />);

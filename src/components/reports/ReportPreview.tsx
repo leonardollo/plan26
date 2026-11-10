@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { usePlan } from '../../hooks/usePlanData';
 import { formatCurrency, formatPercentage, formatNumber } from '../../utils/formatters';
 import { markdownSeguro } from '../../utils/markdownSeguro';
-import { despesasFixasDaDre } from '../../utils/calculos/planoFinanceiro';
+import { custosVariaveisDaDre, despesasFixasDaDre } from '../../utils/calculos/planoFinanceiro';
 import { lucroLiquidoMensal } from '../../utils/calculos/impostos';
 import clsx from 'clsx';
 import type { ActionPlanCategory, ActionPlanPriority, DRE2026, DFC2026, BP2026, MonthlyData } from '../../types';
@@ -103,7 +103,7 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
             ebitda: sumMonths(dre.ebitda || {}),
             lucroLiquido: sumMonths(dre.lucroLiquido || {}),
             receitaBruta: sumMonths(dre.receitaBruta || {}),
-            custosVariaveis: sumMonths(dre.custosVariaveis || {}),
+            custosVariaveis: sumMonths(custosVariaveisDaDre(dre) as Record<string, number>),
             // A DRE não grava um total de despesas fixas; ele é a soma das linhas.
             despesasFixas: sumMonths(despesasFixasDaDre(dre) as Record<string, number>),
             fco: sumMonths(dfc.fco || {}),
@@ -713,7 +713,9 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                                                 <tbody>
                                                     {dreRows.map(({ key, label, bold }, ri) => {
                                                         // despesasFixas não existe gravada na DRE: a linha usa a soma das despesas.
-                                                        const valores = (key === 'despesasFixas' ? despesasFixasDaDre(dre) : dre[key]) as Record<string, number>;
+                                                        // custosVariaveis gravado não tem os personalizados (outrosCustosVariaveis): a linha soma os dois.
+                                                        const valores = (key === 'despesasFixas' ? despesasFixasDaDre(dre)
+                                                            : key === 'custosVariaveis' ? custosVariaveisDaDre(dre) : dre[key]) as Record<string, number>;
                                                         return (
                                                         <tr key={key} className={clsx("border-b border-gray-200", bold ? "bg-gray-100 font-bold" : ri % 2 === 0 ? "bg-white" : "bg-gray-50")}>
                                                             <td className="py-1.5 px-2 text-gray-800 whitespace-nowrap">{label}</td>

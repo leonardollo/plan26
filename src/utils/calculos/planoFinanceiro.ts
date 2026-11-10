@@ -103,6 +103,13 @@ export const calcularPlanoFinanceiro2026 = (
     return { dre, dfc, bp };
 };
 
+/** Custos variáveis da DRE: CMV + comissões + fretes + custos variáveis personalizados. */
+export const custosVariaveisDaDre = (dre: Partial<DRE2026> | undefined): MonthlyData =>
+    MONTHS.reduce((acc, m) => ({
+        ...acc,
+        [m]: num(dre?.custosVariaveis?.[m]) + num(dre?.outrosCustosVariaveis?.[m]),
+    }), {} as MonthlyData);
+
 /** Despesas fixas da DRE: folha + marketing + operacionais (com aluguel) + outras despesas fixas. */
 export const despesasFixasDaDre = (dre: Partial<DRE2026> | undefined): MonthlyData =>
     MONTHS.reduce((acc, m) => ({
