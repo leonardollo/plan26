@@ -18,6 +18,7 @@ export const projetarCenario = (
     crescimentoPct: number,
     inflacaoPct: number,
     taxes: Partial<TaxesData>,
+    custoContratacoes?: MonthlyData,
 ): ScenarioProjectionData => {
     // Receita e custos variáveis acompanham o volume de vendas; custos fixos e despesas, só a inflação.
     const fatorCrescimento = 1 + num(crescimentoPct) / 100;
@@ -30,10 +31,16 @@ export const projetarCenario = (
         (acc, m) => ({ ...acc, [m]: num(receitaBruta[m]) * aliquota }), {} as MonthlyData,
     );
 
+    // Contratações entram depois da inflação: o custo médio digitado já é de 2026.
+    const folhaCorrigida = multiplicar(base.folhaPagamento?.values2025, fatorInflacao);
+    const folhaPagamento = MONTHS.reduce(
+        (acc, m) => ({ ...acc, [m]: num(folhaCorrigida[m]) + num(custoContratacoes?.[m]) }), {} as MonthlyData,
+    );
+
     return {
         receitaBruta,
         impostosSobreFaturamento,
-        folhaPagamento: multiplicar(base.folhaPagamento?.values2025, fatorInflacao),
+        folhaPagamento,
         aluguel: multiplicar(base.aluguel?.values2025, fatorInflacao),
         despesasOperacionais: multiplicar(base.despesasOperacionais?.values2025, fatorInflacao),
         marketingFixo: multiplicar(base.marketingFixo?.values2025, fatorInflacao),

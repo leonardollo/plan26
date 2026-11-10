@@ -266,6 +266,18 @@ export interface HiringProjectionItem {
     currentHeadcount: number | null;
     newHires: number | null;
     avgAnnualCost: number | null;
+    // Ausente em planos antigos: vale janeiro.
+    mesEntrada?: Month | null;
+}
+
+export interface Investimento2026 { id: string; descricao: string; valor: number | null; mes: Month | null; vidaUtilAnos: number | null }
+export interface Emprestimo2026 { id: string; descricao: string; valor: number | null; mes: Month | null; jurosMensalPct: number | null; parcelas: number | null }
+export interface Aporte2026 { id: string; descricao: string; valor: number | null; mes: Month | null }
+export interface InvestmentData2026 {
+    investimentos: Investimento2026[];
+    emprestimos: Emprestimo2026[];
+    aportes: Aporte2026[];
+    jurosDividaAtualPct: number | null; // juros médios a.m. da dívida que já existe em 31/12/25
 }
 
 export interface DriverBasedPlanningData {
@@ -358,6 +370,7 @@ export interface PlanData {
     people: PeopleData2025;
     marketing: MarketingData2025;
     investment: InvestmentData2025;
+    investment2026: InvestmentData2026;
     productPortfolio: ProductPortfolioItem[];
     marketAnalysis: {
         marketCompetition: MarketCompetitionData;

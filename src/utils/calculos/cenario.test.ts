@@ -71,6 +71,20 @@ describe('projetarCenario', () => {
         expect(p.customCustosVariaveis[0].values.jan).toBeCloseTo(1200);
     });
 
+    it('contratações somam na folha depois da inflação', () => {
+        const custo = MONTHS.reduce((acc, m, i) => ({ ...acc, [m]: i >= 6 ? 10000 : 0 }), {} as MonthlyData);
+        const com = projetarCenario(baseDeExemplo(), 0, 10, simples, custo);
+        const sem = projetarCenario(baseDeExemplo(), 0, 10, simples);
+        expect(com.folhaPagamento.jul).toBeCloseTo(sem.folhaPagamento.jul! + 10000);
+        expect(com.folhaPagamento.jun).toBe(sem.folhaPagamento.jun);
+    });
+
+    it('sem o 5º parâmetro a projeção não muda', () => {
+        const zero = MONTHS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {} as MonthlyData);
+        expect(projetarCenario(baseDeExemplo(), 20, 4.5, simples)).toEqual(projetarCenario(baseDeExemplo(), 20, 4.5, simples, zero));
+        expect(projetarCenario(baseDeExemplo(), 20, 4.5, simples).folhaPagamento.jan).toBeCloseTo(31350);
+    });
+
     it('crescimento 27 (20 + score 5 + bônus 2): receita 127 mil, aluguel continua 10.450', () => {
         const p = projetarCenario(baseDeExemplo(), 27, 4.5, simples);
         expect(p.receitaBruta.jan).toBeCloseTo(127000);
