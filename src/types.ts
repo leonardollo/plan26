@@ -280,6 +280,8 @@ export interface InvestmentData2026 {
     jurosDividaAtualPct: number | null; // juros médios a.m. da dívida que já existe em 31/12/25
 }
 
+export type ListaInvestimento2026 = 'investimentos' | 'emprestimos' | 'aportes';
+
 export interface DriverBasedPlanningData {
     leadsQualificados: MonthlyData;
     taxaConversao: MonthlyData;
@@ -760,6 +762,10 @@ export interface PlanContextType {
     updateHiringProjectionItem: (id: string, field: keyof Omit<HiringProjectionItem, 'id'>, value: string) => void;
     addHiringProjectionItem: () => void;
     removeHiringProjectionItem: (id: string) => void;
+    updateJurosDividaAtual: (value: string) => void;
+    addItemInvestimento2026: (lista: ListaInvestimento2026) => void;
+    updateItemInvestimento2026: (lista: ListaInvestimento2026, id: string, campo: string, value: string) => void;
+    removeItemInvestimento2026: (lista: ListaInvestimento2026, id: string) => void;
     generateFunnelSuggestions: () => Promise<void>;
     generateMarketingFunnelAnalysis: (funnel2025: any, funnel2026: any) => Promise<void>;
     addActionPlanItem: () => void;

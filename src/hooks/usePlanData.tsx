@@ -18,10 +18,13 @@ import {
     FinancialPlan2026, ProductPortfolioItem, MarketCompetitionData, SWOTData, BlueOceanData, BowmanClockProduct,
     ActionPlanItem, ScenarioData, DriverBasedPlanningData, MonthlyData, DRE2026, DFC2026, BP2026,
     LiquidityMetrics, FinancialKPIs, SensitivityMatrix, SaveStatus, EstadoDaCarga, PricingItem, FinancialSheetRow, CustomLineItem,
-    BlueOceanFactor, BlueOceanFourActions, ScenarioProjectionData, StrategicObjectives, CustomProjectionLineItem
+    BlueOceanFactor, BlueOceanFourActions, ScenarioProjectionData, StrategicObjectives, CustomProjectionLineItem,
+    ListaInvestimento2026
 } from '../types';
 import { projetarCenario } from '../utils/calculos/cenario';
 import { calcularPlanoFinanceiro2026 } from '../utils/calculos/planoFinanceiro';
+import { custoContratacoesMensal } from '../utils/calculos/contratacoes';
+import { investimento2026Vazio, normalizarInvestimento2026 } from '../utils/calculos/investimentos';
 import { aliquotaDeducao, irpjCsllAnual } from '../utils/calculos/impostos';
 import { nopat, paybackCacMeses } from '../utils/calculos/indicadores';
 import { resumoDoCenario } from '../utils/calculos/resumo';
@@ -183,6 +186,7 @@ const initialPlanData: PlanData = {
     people: initialPeople,
     marketing: initialMarketing,
     investment: initialInvestment,
+    investment2026: investimento2026Vazio(),
     productPortfolio: [],
     marketAnalysis: {
         marketCompetition: { tamanhoMercado: 0, taxaCrescimentoMercado: 0, suaParticipacao: 0, numConcorrentesDiretos: 0, principalConcorrente: '', seuDiferencial: '' },
@@ -238,11 +242,27 @@ const initialTaxes: TaxesData = {
 };
 
 // Cenários em modo percentual e DRE do plano lido, pelas regras atuais e com os mesmos padrões que os setters da carga usam.
+// Campo apagado ou inválido vira null (nunca NaN), como no resto do plano.
+const numeroOuNulo = (value: string): number | null => {
+    if (value === '') return null;
+    const n = parseFloat(value);
+    return Number.isNaN(n) ? null : n;
+};
+
+const novoItemInvestimento2026 = (lista: ListaInvestimento2026) => {
+    const base = { id: uuidv4(), descricao: '', mes: 'jan' as Month, valor: null };
+    if (lista === 'investimentos') return { ...base, vidaUtilAnos: null };
+    if (lista === 'emprestimos') return { ...base, jurosMensalPct: null, parcelas: null };
+    return base;
+};
+
 const recalcularPlanoLido = (data: any, baseScenario: ScenarioName) => {
     const lido = data.planData || {};
     const financialSheet: FinancialSheetData = lido.financialSheet ?? initialPlanData.financialSheet;
     const modos = lido.scenariosInputMode ?? initialPlanData.scenariosInputMode;
     const investment = lido.investment ?? initialPlanData.investment;
+    const investment2026 = normalizarInvestimento2026(lido.investment2026);
+    const custoContratacoes = custoContratacoesMensal(lido.hiringProjection);
     const inflacao = { ...initialGoals, ...data.goals2026 }.inflacaoPrevista ?? 0;
     const taxes: TaxesData = { ...initialTaxes, ...data.taxes };
     const cenarios: Scenarios2026 = { ...initialScenarios, ...data.scenarios2026 };
@@ -274,12 +294,12 @@ const recalcularPlanoLido = (data: any, baseScenario: ScenarioName) => {
             if (modos?.[nome] === 'manual') return;
             const cenario = cenarios[nome];
             const crescimento = (cenario?.growthPercentage || 0) + score + bonus;
-            recalculados[nome] = { ...cenario, projection: projetarCenario(financialSheet, crescimento, inflacao, taxes) };
+            recalculados[nome] = { ...cenario, projection: projetarCenario(financialSheet, crescimento, inflacao, taxes, custoContratacoes) };
         });
     }
     const projecaoBase = (recalculados[baseScenario] ?? cenarios[baseScenario])?.projection;
-    const financialPlan2026 = calcularPlanoFinanceiro2026(projecaoBase, taxes, investment);
-    return { recalculados, financialPlan2026, strategicScore, peopleAnalytics };
+    const financialPlan2026 = calcularPlanoFinanceiro2026(projecaoBase, taxes, investment, investment2026);
+    return { recalculados, financialPlan2026, strategicScore, peopleAnalytics, investment2026 };
 };
 
 const PlanContext = createContext<PlanContextType | undefined>(undefined);
@@ -401,6 +421,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                                 }
                             },
                             analysis: { ...(data.planData.analysis ?? prev.analysis), strategicScore, peopleAnalytics },
+                            // Bloco completado na própria carga: se um efeito o completasse depois, abrir o plano gravaria.
+                            investment2026: recalculado.investment2026,
                             financialPlan2026: recalculado.financialPlan2026
                         }));
                     } else {
@@ -616,7 +638,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         planData.analysis.peopleAnalytics.productivityGainFactor,
         goals2026.inflacaoPrevista,
         JSON.stringify(taxes),
-        JSON.stringify(planData.scenariosInputMode)
+        JSON.stringify(planData.scenariosInputMode),
+        JSON.stringify(planData.hiringProjection)
     ]);
 
     // === DRE/DFC/BP acompanham a projeção do cenário base e os impostos: o relatório nunca usa uma DRE velha ===
@@ -628,7 +651,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         baseScenario,
         JSON.stringify(scenarios2026[baseScenario]?.projection),
         JSON.stringify(taxes),
-        JSON.stringify(planData.investment)
+        JSON.stringify(planData.investment),
+        JSON.stringify(planData.investment2026)
     ]);
 
     // Declarado depois dos efeitos que olham acabouDeCarregar: só é limpo quando todos já viram o commit da carga.
@@ -1203,7 +1227,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     const calculateScenarioProjection = (baseSheet: FinancialSheetData, growthPct: number, strategicScore: number): ScenarioProjectionData => {
         // Fórmula completa: Crescimento Base + Fator Estratégico + Bônus de Produtividade
         const productivityBonus = planData.analysis.peopleAnalytics.productivityGainFactor || 0;
-        return projetarCenario(baseSheet, growthPct + strategicScore + productivityBonus, goals2026.inflacaoPrevista ?? 0, taxes);
+        return projetarCenario(baseSheet, growthPct + strategicScore + productivityBonus, goals2026.inflacaoPrevista ?? 0, taxes, custoContratacoesMensal(planData.hiringProjection));
     };
 
     const recalculateScenario = (scenario: ScenarioName) => {
@@ -1409,7 +1433,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     };
 
     const calculateFinancialPlan2026 = () => {
-        const plano = calcularPlanoFinanceiro2026(scenarios2026[baseScenario].projection, taxes, planData.investment);
+        const plano = calcularPlanoFinanceiro2026(scenarios2026[baseScenario].projection, taxes, planData.investment, planData.investment2026);
         // Liquidez e Indicadores chamam ao montar: sem mudança real, não mexe no estado nem dispara gravação.
         setPlanData(prev => JSON.stringify(prev.financialPlan2026) === JSON.stringify(plano)
             ? prev
@@ -1558,9 +1582,14 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         updateDemandChannel: (id, field, val) => setPlanData(p => ({...p, commercialPlanning: {...p.commercialPlanning, demandPlanning: {...p.commercialPlanning.demandPlanning, channels: p.commercialPlanning.demandPlanning.channels.map(c => c.id === id ? {...c, [field]: field === 'name' ? val : parseFloat(val)} : c)}}})),
         generateChannelAnalysis: async () => { const result = await api.getChannelMixAnalysis(planData.companyProfile, planData.commercialPlanning.demandPlanning.channels); setPlanData(p => ({...p, commercialPlanning: {...p.commercialPlanning, demandPlanning: {...p.commercialPlanning.demandPlanning, analysis: result}}})); },
         updateDriverBasedPlanning: (metric, month, value) => { setPlanData(p => ({ ...p, commercialPlanning: { ...p.commercialPlanning, driverBasedPlanning: { ...p.commercialPlanning.driverBasedPlanning, [metric]: { ...p.commercialPlanning.driverBasedPlanning[metric], [month]: value === '' ? null : parseFloat(value) } } } })); },
-        updateHiringProjectionItem: (id, field, value) => setPlanData(p => ({...p, hiringProjection: p.hiringProjection.map(i => i.id === id ? {...i, [field]: field === 'department' ? value : (value === '' ? null : parseFloat(value))} : i)})),
-        addHiringProjectionItem: () => setPlanData(p => ({...p, hiringProjection: [...p.hiringProjection, { id: uuidv4(), department: '', currentHeadcount: 0, newHires: 0, avgAnnualCost: 0 }]})),
+        // mesEntrada é um mês (texto); parseFloat o transformaria em NaN.
+        updateHiringProjectionItem: (id, field, value) => setPlanData(p => ({...p, hiringProjection: p.hiringProjection.map(i => i.id === id ? {...i, [field]: field === 'department' ? value : field === 'mesEntrada' ? (value === '' ? null : value) : (value === '' ? null : parseFloat(value))} : i)})),
+        addHiringProjectionItem: () => setPlanData(p => ({...p, hiringProjection: [...p.hiringProjection, { id: uuidv4(), department: '', currentHeadcount: 0, newHires: 0, avgAnnualCost: 0, mesEntrada: 'jan' }]})),
         removeHiringProjectionItem: (id) => setPlanData(p => ({...p, hiringProjection: p.hiringProjection.filter(i => i.id !== id)})),
+        updateJurosDividaAtual: (value) => setPlanData(p => ({...p, investment2026: {...p.investment2026, jurosDividaAtualPct: numeroOuNulo(value)}})),
+        addItemInvestimento2026: (lista) => setPlanData(p => ({...p, investment2026: {...p.investment2026, [lista]: [...p.investment2026[lista], novoItemInvestimento2026(lista)]}})),
+        updateItemInvestimento2026: (lista, id, campo, value) => setPlanData(p => ({...p, investment2026: {...p.investment2026, [lista]: (p.investment2026[lista] as { id: string }[]).map(i => i.id === id ? {...i, [campo]: campo === 'descricao' ? value : campo === 'mes' ? (value === '' ? null : value) : numeroOuNulo(value)} : i)}})),
+        removeItemInvestimento2026: (lista, id) => setPlanData(p => ({...p, investment2026: {...p.investment2026, [lista]: (p.investment2026[lista] as { id: string }[]).filter(i => i.id !== id)}})),
         generateFunnelSuggestions: async () => { const result = await api.getFunnelSuggestions(planData.commercialPlanning.salesFunnel); setPlanData(p => ({...p, commercialPlanning: {...p.commercialPlanning, funnelSuggestions: result}})); },
         generateMarketingFunnelAnalysis: async (f25, f26) => { const result = await api.generateMarketingFunnelAnalysis(f25, f26); setPlanData(p => ({...p, analysis: {...p.analysis, marketingFunnelAnalysis: result}})); },
         addActionPlanItem: () => setPlanData(p => ({...p, actionPlan: [...p.actionPlan, { id: uuidv4(), what: '', why: '', who: '', when: '', where: '', how: '', howMuch: 0, status: 'Não Iniciado', category: 'Estratégico' as const, priority: 'Média' as const, expectedResult: '' }]})),

@@ -49,6 +49,8 @@ import { getDoc, setDoc } from 'firebase/firestore';
 import { ehAdministrador, obterOuCriarAcesso } from '../services/acesso';
 import { signOut } from 'firebase/auth';
 import { PlanProvider, authService, usePlan } from './usePlanData';
+import { MONTHS } from '../types';
+import { investimento2026Vazio } from '../utils/calculos/investimentos';
 
 const getDocMock = vi.mocked(getDoc);
 const setDocMock = vi.mocked(setDoc);
@@ -505,5 +507,135 @@ describe('usePlanData — score e produtividade na abertura', () => {
     // Crescimento 10 + score −1,5 + bônus 3.
     expect(result.current.scenarios2026.Conservador.projection.receitaBruta.jan).toBeCloseTo(111500);
     expect(setDocMock).not.toHaveBeenCalled();
+  });
+});
+
+const emprestimo100mil = { id: 'e1', descricao: 'Banco', valor: 100000, mes: 'jan', jurosMensalPct: 2, parcelas: 24 };
+
+const semNaNNoPlano = (plano: any) => ['dre', 'dfc', 'bp'].forEach(parte =>
+  Object.values(plano[parte]).forEach((linha: any) =>
+    MONTHS.forEach(m => expect(Number.isNaN(linha?.[m])).toBe(false))));
+
+describe('usePlanData — investimentos, empréstimos e contratações de 2026', () => {
+  it('plano antigo sem investment2026 abre com o bloco vazio e não grava', async () => {
+    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    const { result } = await montar();
+    expect(result.current.planData.investment2026).toEqual(investimento2026Vazio());
+    await avancar(5000);
+    expect(setDocMock).not.toHaveBeenCalled();
+  });
+
+  it('bloco parcial é completado na carga', async () => {
+    const doc = documentoDePlanoAntigo();
+    const dados = doc.data();
+    dados.planData.investment2026 = { emprestimos: [emprestimo100mil] };
+    getDocMock.mockResolvedValue(documentoCom(dados));
+    const { result } = await montar();
+    const bloco = result.current.planData.investment2026;
+    expect(bloco.investimentos).toEqual([]);
+    expect(bloco.aportes).toEqual([]);
+    expect(bloco.emprestimos).toEqual([emprestimo100mil]);
+    expect(bloco.jurosDividaAtualPct).toBeNull();
+    expect(result.current.planData.financialPlan2026.dre.despesasFinanceiras.fev).toBeCloseTo(2000, 2);
+    await avancar(5000);
+    expect(setDocMock).not.toHaveBeenCalled();
+  });
+
+  it('contratações salvas entram na folha na carga, sem gravar', async () => {
+    const dados = documentoDePlanoAntigo().data();
+    dados.planData.hiringProjection = [
+      { id: 'h1', department: 'Vendas', currentHeadcount: 0, newHires: 2, avgAnnualCost: 60000, mesEntrada: 'jul' },
+    ];
+    getDocMock.mockResolvedValue(documentoCom(dados));
+    const { result } = await montar();
+    const folha = result.current.scenarios2026.Conservador.projection.folhaPagamento;
+    expect(folha.jul! - folha.jun!).toBeCloseTo(10000);
+    await avancar(5000);
+    expect(setDocMock).not.toHaveBeenCalled();
+  });
+
+  it('adicionar empréstimo recalcula a DRE, os indicadores e grava', async () => {
+    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    const { result } = await montar();
+    act(() => result.current.addItemInvestimento2026('emprestimos'));
+    const id = result.current.planData.investment2026.emprestimos[0].id;
+    act(() => {
+      result.current.updateItemInvestimento2026('emprestimos', id, 'valor', '100000');
+      result.current.updateItemInvestimento2026('emprestimos', id, 'jurosMensalPct', '2');
+      result.current.updateItemInvestimento2026('emprestimos', id, 'parcelas', '24');
+    });
+    await act(async () => {});
+    const plano = result.current.planData.financialPlan2026;
+    expect(plano.dre.despesasFinanceiras.fev).toBeCloseTo(2000, 2);
+    expect(plano.bp.emprestimosCurtoPrazo.dez).toBeGreaterThan(0);
+    expect(result.current.financialIndicators.ratios.solvency.debtToEquity).toBeGreaterThan(0);
+    await avancar(3500);
+    expect(setDocMock).toHaveBeenCalled();
+  });
+
+  it('mudar contratações recalcula cenários percentuais e não o manual', async () => {
+    getDocMock.mockResolvedValue(documentoComOtimistaManual());
+    const { result } = await montar();
+    const folhaAntes = result.current.scenarios2026.Conservador.projection.folhaPagamento.jul!;
+    const otimistaAntes = result.current.scenarios2026.Otimista.projection;
+    act(() => result.current.addHiringProjectionItem());
+    const id = result.current.planData.hiringProjection[0].id;
+    act(() => {
+      result.current.updateHiringProjectionItem(id, 'newHires', '2');
+      result.current.updateHiringProjectionItem(id, 'avgAnnualCost', '60000');
+      result.current.updateHiringProjectionItem(id, 'mesEntrada', 'jul');
+    });
+    await act(async () => {});
+    const conservador = result.current.scenarios2026.Conservador.projection.folhaPagamento;
+    expect(conservador.jul! - folhaAntes).toBeCloseTo(10000);
+    expect(conservador.jun).toBeCloseTo(folhaAntes);
+    expect(result.current.scenarios2026.Otimista.projection).toEqual(otimistaAntes);
+  });
+
+  it('mesEntrada: novo item vem jan; valor vazio vira null', async () => {
+    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    const { result } = await montar();
+    act(() => result.current.addHiringProjectionItem());
+    const item = result.current.planData.hiringProjection[0];
+    expect(item.mesEntrada).toBe('jan');
+    act(() => result.current.updateHiringProjectionItem(item.id, 'mesEntrada', 'jul'));
+    expect(result.current.planData.hiringProjection[0].mesEntrada).toBe('jul');
+    act(() => result.current.updateHiringProjectionItem(item.id, 'mesEntrada', ''));
+    expect(result.current.planData.hiringProjection[0].mesEntrada).toBeNull();
+  });
+
+  it('campo de empréstimo apagado vira null e não gera NaN', async () => {
+    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    const { result } = await montar();
+    act(() => result.current.addItemInvestimento2026('emprestimos'));
+    const novo = result.current.planData.investment2026.emprestimos[0];
+    expect(novo).toMatchObject({ descricao: '', mes: 'jan', valor: null, jurosMensalPct: null, parcelas: null });
+    act(() => {
+      result.current.updateItemInvestimento2026('emprestimos', novo.id, 'valor', '100000');
+      result.current.updateItemInvestimento2026('emprestimos', novo.id, 'parcelas', '24');
+      result.current.updateItemInvestimento2026('emprestimos', novo.id, 'descricao', 'Banco X');
+    });
+    act(() => {
+      result.current.updateItemInvestimento2026('emprestimos', novo.id, 'parcelas', '');
+      result.current.updateItemInvestimento2026('emprestimos', novo.id, 'mes', '');
+      result.current.updateItemInvestimento2026('emprestimos', novo.id, 'jurosMensalPct', 'abc');
+    });
+    await act(async () => {});
+    const item = result.current.planData.investment2026.emprestimos[0];
+    expect(item).toMatchObject({ descricao: 'Banco X', valor: 100000, parcelas: null, mes: null, jurosMensalPct: null });
+    semNaNNoPlano(result.current.planData.financialPlan2026);
+  });
+
+  it('juros da dívida atual e remoção de item', async () => {
+    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    const { result } = await montar();
+    act(() => result.current.updateJurosDividaAtual('1.5'));
+    expect(result.current.planData.investment2026.jurosDividaAtualPct).toBe(1.5);
+    act(() => result.current.updateJurosDividaAtual(''));
+    expect(result.current.planData.investment2026.jurosDividaAtualPct).toBeNull();
+    act(() => result.current.addItemInvestimento2026('aportes'));
+    const id = result.current.planData.investment2026.aportes[0].id;
+    act(() => result.current.removeItemInvestimento2026('aportes', id));
+    expect(result.current.planData.investment2026.aportes).toEqual([]);
   });
 });
