@@ -1,7 +1,11 @@
 import {
-    MONTHS, BP2026, DFC2026, DRE2026, FinancialPlan2026, MonthlyData, PlanData, ScenarioProjectionData, TaxesData,
+    MONTHS, BP2026, DFC2026, DRE2026, FinancialPlan2026, InvestmentData2026, MonthlyData, PlanData,
+    ScenarioProjectionData, TaxesData,
 } from '../../types';
 import { irpjCsllMensal, num } from './impostos';
+import {
+    aportes2026, dividaAtual, emprestimosNovos, investimento2026Vazio, investimentos2026,
+} from './investimentos';
 
 const somaDosItens = (itens: { values?: MonthlyData }[] | undefined, m: string) =>
     (itens || []).reduce((s, i) => s + num(i?.values?.[m]), 0);
@@ -11,9 +15,15 @@ export const calcularPlanoFinanceiro2026 = (
     proj: ScenarioProjectionData,
     taxes: Partial<TaxesData>,
     investment: PlanData['investment'],
+    investment2026?: InvestmentData2026,
 ): FinancialPlan2026 => {
     // Planos antigos podem trazer a projeção incompleta; linha ausente vale 0.
     const p = (proj || {}) as Partial<ScenarioProjectionData>;
+    const bloco = investment2026 ?? investimento2026Vazio();
+    const inv = investimentos2026(bloco.investimentos);
+    const emp = emprestimosNovos(bloco.emprestimos);
+    const divida = dividaAtual(investment?.financing, bloco.jurosDividaAtualPct);
+    const aportes = aportes2026(bloco.aportes);
     const linha = (dados: MonthlyData | undefined): MonthlyData =>
         MONTHS.reduce((acc, m) => ({ ...acc, [m]: num(dados?.[m]) }), {} as MonthlyData);
 
@@ -56,9 +66,9 @@ export const calcularPlanoFinanceiro2026 = (
         const totalDespesas = dre.despesasFolha[m]! + dre.despesasMarketing[m]! + dre.despesasOperacionais[m]! + dre.outrasDespesasFixas[m]!;
         dre.ebitda[m] = dre.lucroBruto[m]! - totalDespesas;
 
-        dre.depreciacao[m] = 0;
+        dre.depreciacao[m] = num(inv.depreciacao[m]);
         dre.ebit[m] = dre.ebitda[m]! - dre.depreciacao[m]!;
-        dre.despesasFinanceiras[m] = 0;
+        dre.despesasFinanceiras[m] = num(emp.juros[m]) + num(divida.juros[m]);
         dre.lucroAntesImpostos[m] = dre.ebit[m]! - dre.despesasFinanceiras[m]!;
     });
 
@@ -73,8 +83,11 @@ export const calcularPlanoFinanceiro2026 = (
 
     MONTHS.forEach(m => {
         dfc.fco[m] = dre.ebitda[m]! - num(dre.irpjCsll[m]);
-        dfc.fci[m] = -num(investment?.capex?.totalCapex) / 12;
-        dfc.fcf[m] = 0;
+        // O CAPEX de 2025 não entra mais: já foi gasto em 2025. Só os investimentos de 2026 saem do caixa.
+        dfc.fci[m] = num(inv.fci[m]);
+        // Os juros saem aqui no FCF, e não no FCO (que parte do EBITDA), para não contar duas vezes.
+        dfc.fcf[m] = num(emp.entradas[m]) + num(aportes[m])
+            - num(emp.parcelas[m]) - num(divida.amortizacao[m]) - num(divida.juros[m]);
 
         dfc.variacaoCaixa[m] = dfc.fco[m]! + dfc.fci[m]! + dfc.fcf[m]!;
         dfc.saldoInicialCaixa[m] = currentCash;
@@ -90,12 +103,15 @@ export const calcularPlanoFinanceiro2026 = (
         bp.contasAReceber[m] = dre.receitaBruta[m]! * (capitalDeGiro?.prazoMedioRecebimento || 30) / 30;
         bp.estoques[m] = dre.custosVariaveis[m]! * (capitalDeGiro?.prazoMedioEstocagem || 30) / 30;
         bp.ativoCirculante[m] = bp.caixa[m]! + bp.contasAReceber[m]! + bp.estoques[m]!;
-        bp.ativoNaoCirculante[m] = 0;
+        bp.ativoNaoCirculante[m] = num(inv.ativoNaoCirculante[m]);
         bp.totalAtivos[m] = bp.ativoCirculante[m]! + bp.ativoNaoCirculante[m]!;
 
         bp.fornecedores[m] = (dre.custosVariaveis[m]! + dre.despesasOperacionais[m]!) * (capitalDeGiro?.prazoMedioPagamento || 30) / 30;
-        bp.passivoCirculante[m] = bp.fornecedores[m];
-        bp.passivoNaoCirculante[m] = 0;
+        bp.emprestimosCurtoPrazo[m] = num(divida.curtoPrazo[m]) + num(emp.curtoPrazo[m]);
+        bp.emprestimosLongoPrazo[m] = num(divida.longoPrazo[m]) + num(emp.longoPrazo[m]);
+        bp.passivoCirculante[m] = bp.fornecedores[m]! + bp.emprestimosCurtoPrazo[m]!;
+        bp.passivoNaoCirculante[m] = bp.emprestimosLongoPrazo[m];
+        // O PL continua como fechamento; capital social e lucros acumulados seguem fora (fora do escopo).
         bp.patrimonioLiquido[m] = bp.totalAtivos[m]! - bp.passivoCirculante[m]! - bp.passivoNaoCirculante[m]!;
         bp.totalPassivoPL[m] = bp.passivoCirculante[m]! + bp.passivoNaoCirculante[m]! + bp.patrimonioLiquido[m]!;
     });
