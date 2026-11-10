@@ -3,6 +3,31 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
+## 2026-11-10 — Ajustes pequenos (imposto 2025, abertura sem gravar, custos variáveis)
+
+- **O quê:** três pendências da entrega 2. (A) Mudar um campo na aba Impostos só preenche o imposto de 2025
+  se a linha estiver vazia; o botão "Calcular" da Coleta continua sobrescrevendo, com confirmação.
+  (B) Score estratégico e bônus de produtividade passam a ser calculados por funções puras
+  (`src/utils/calculos/analise.ts`) e recalculados dentro de `carregarPlano`, no mesmo commit da carga:
+  abrir o plano mostra os valores e não grava; a gravação vem na próxima edição. (C) A linha
+  "(-) Custos Variáveis" da DRE 2026 no relatório soma os custos variáveis personalizados
+  (`custosVariaveisDaDre`).
+- **Por quê:** decisões do usuário ("Só preencher se vazio", "Corrigir") sobre os itens em aberto da
+  entrega 2; (C) fazia Receita Líquida − Custos ≠ Lucro Bruto no relatório.
+- **Efeito visível:** plano sem análise de mercado preenchida passa a abrir com score −1,5 (crescimento de
+  mercado 0 vale −1 × 1,5), igual ao que já valia após a primeira edição. Ex.: Conservador 10% → 8,5%.
+  Dois testes da entrega 2 foram atualizados por isso (6.600 → 6.510; 120.000 → 118.500).
+- **Verificação:** em `bd9cad1`: `npm run typecheck` sem erros; `npm test` 91/91; `npm run test:rules`
+  33/33; `npm run build` ok (built in 1.76s); `npm audit --audit-level=high` ok (13 moderadas). Testes de
+  regressão vistos falhando antes da correção: Taxes (2), ReportPreview (1), usePlanData abertura (2).
+  Preview do build: login no celular (390×844) e no desktop (1440×900), sem erros.
+- **Revisão:** Codex, Normal + Sensível (toca `usePlanData.tsx`). Base: sem achados. Segurança: sem
+  achados (o Codex não rodou Vitest nem o emulador: sandbox).
+- **Em aberto:** telas com números (Impostos, Cenários, Relatório) não vistas no navegador, sem conta de
+  teste. Se o estado antes da carga diferir do inicial (troca de usuário na mesma aba), os efeitos ainda
+  podem gravar uma vez. Publicação depende dos acessos da entrega 1.
+- **Commit/PR:** branch `fix/ajustes-numeros`: `470091f`, `1a0dd16`, `bd9cad1`. Sem PR.
+
 ## 2026-11-10 — Entrega 2: números certos
 
 - **O quê:** plano `docs/superpowers/plans/2026-11-10-numeros-certos.md` (spec `…/specs/2026-11-10-numeros-certos-design.md`).
