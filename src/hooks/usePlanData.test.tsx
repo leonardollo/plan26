@@ -327,3 +327,61 @@ describe('usePlanData — cenários', () => {
     expect(result.current.scenarios2026.Conservador.projection.folhaPagamento.jan).toBeCloseTo(33000);
   });
 });
+
+// Plano salvo pela regra antiga: Conservador (10%) com tudo crescido pelo fator, inclusive aluguel e impostos.
+function documentoDePlanoAntigo() {
+  return documentoCom({
+    planData: {
+      companyProfile: { name: 'Empresa', cnpj: '', industry: '', geminiApiKey: '' },
+      financialSheet: baseDeExemplo(),
+    },
+    taxes: { regimeTributario: 'Simples Nacional', simplesNacional: 6 },
+    scenarios2026: {
+      Conservador: {
+        growthPercentage: 10,
+        projection: {
+          ...projecaoVazia(),
+          receitaBruta: mesesIguais(110000), impostosSobreFaturamento: mesesIguais(6600),
+          aluguel: mesesIguais(11000), folhaPagamento: mesesIguais(33000), cmv: mesesIguais(44000),
+        },
+      },
+    },
+  });
+}
+
+describe('usePlanData — DRE e plano antigo', () => {
+  it('plano antigo aberto sem edição mostra os números novos e não grava', async () => {
+    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    const { result } = await montar();
+    await avancar(10000);
+    const conservador = result.current.scenarios2026.Conservador.projection;
+    expect(conservador.aluguel.jan).toBeCloseTo(10450);
+    expect(conservador.impostosSobreFaturamento.jan).toBeCloseTo(6600);
+    expect(result.current.planData.financialPlan2026.dre.irpjCsll.jan).toBe(0);
+    expect(setDocMock).not.toHaveBeenCalled();
+
+    act(() => result.current.updateCompanyProfile('name', 'X'));
+    await avancar(3500);
+    expect(setDocMock).toHaveBeenCalledTimes(1);
+    const gravado = setDocMock.mock.calls[0][1] as any;
+    expect(gravado.scenarios2026.Conservador.projection.aluguel.jan).toBeCloseTo(10450);
+  });
+
+  it('calcular a DRE já em dia (Liquidez, Indicadores) não muda estado nem grava', async () => {
+    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    const { result } = await montar();
+    const antes = result.current.planData;
+    act(() => result.current.calculateFinancialPlan2026());
+    await avancar(10000);
+    expect(result.current.planData).toBe(antes);
+    expect(setDocMock).not.toHaveBeenCalled();
+  });
+
+  it('trocar o cenário base faz a DRE refletir a projeção do novo cenário', async () => {
+    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    const { result } = await montar();
+    act(() => result.current.setBaseScenario('Otimista'));
+    await act(async () => {});
+    expect(result.current.planData.financialPlan2026.dre.receitaBruta.jan).toBeCloseTo(120000);
+  });
+});

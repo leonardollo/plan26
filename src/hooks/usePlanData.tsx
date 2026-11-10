@@ -21,6 +21,7 @@ import {
     BlueOceanFactor, BlueOceanFourActions, ScenarioProjectionData, StrategicObjectives, CustomProjectionLineItem
 } from '../types';
 import { projetarCenario } from '../utils/calculos/cenario';
+import { calcularPlanoFinanceiro2026 } from '../utils/calculos/planoFinanceiro';
 
 // Firebase configuration - loaded from environment variables
 const firebaseConfig = {
@@ -227,6 +228,40 @@ const initialScenarios: Scenarios2026 = {
     'Disruptivo': { ...initialScenarioData, growthPercentage: -5 }
 };
 
+const initialTaxes: TaxesData = {
+    regimeTributario: 'Simples Nacional', anexoSimples: '', aliquotaEfetiva: 0, simplesNacional: 0,
+    iss: 0, icms: 0, pis: 0, cofins: 0, irpj: 0, csll: 0, inssPatronal: 0, fgts: 0, ratTerceiros: 0,
+    totalEncargosFolha: 0, totalImpostos2024: 0, totalImpostos2025: 0
+};
+
+// Cenários em modo percentual e DRE do plano lido, pelas regras atuais e com os mesmos padrões que os setters da carga usam.
+const recalcularPlanoLido = (data: any, baseScenario: ScenarioName) => {
+    const lido = data.planData || {};
+    const financialSheet: FinancialSheetData = lido.financialSheet ?? initialPlanData.financialSheet;
+    const analysis = lido.analysis ?? initialPlanData.analysis;
+    const modos = lido.scenariosInputMode ?? initialPlanData.scenariosInputMode;
+    const investment = lido.investment ?? initialPlanData.investment;
+    const inflacao = { ...initialGoals, ...data.goals2026 }.inflacaoPrevista ?? 0;
+    const taxes: TaxesData = { ...initialTaxes, ...data.taxes };
+    const cenarios: Scenarios2026 = { ...initialScenarios, ...data.scenarios2026 };
+    const recalculados: Partial<Scenarios2026> = {};
+    const score = analysis?.strategicScore?.total || 0;
+    const bonus = analysis?.peopleAnalytics?.productivityGainFactor || 0;
+    // Mesma condição do efeito de cenários: sem receita de 2025 não há base para projetar.
+    const temReceita = MONTHS.some(m => (financialSheet.receitaBruta?.values2025?.[m] || 0) > 0);
+    if (temReceita) {
+        (['Otimista', 'Conservador', 'Disruptivo'] as ScenarioName[]).forEach(nome => {
+            if (modos?.[nome] === 'manual') return;
+            const cenario = cenarios[nome];
+            const crescimento = (cenario?.growthPercentage || 0) + score + bonus;
+            recalculados[nome] = { ...cenario, projection: projetarCenario(financialSheet, crescimento, inflacao, taxes) };
+        });
+    }
+    const projecaoBase = (recalculados[baseScenario] ?? cenarios[baseScenario])?.projection;
+    const financialPlan2026 = calcularPlanoFinanceiro2026(projecaoBase, taxes, investment);
+    return { recalculados, financialPlan2026 };
+};
+
 const PlanContext = createContext<PlanContextType | undefined>(undefined);
 
 export const usePlan = () => {
@@ -243,11 +278,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     const [scenarios2026, setScenarios2026] = useState<Scenarios2026>(initialScenarios);
     const [tracking2026, setTracking2026] = useState<Tracking2026>({});
     const [pricingItems, setPricingItems] = useState<PricingItem[]>([]);
-    const [taxes, setTaxes] = useState<TaxesData>({
-        regimeTributario: 'Simples Nacional', anexoSimples: '', aliquotaEfetiva: 0, simplesNacional: 0,
-        iss: 0, icms: 0, pis: 0, cofins: 0, irpj: 0, csll: 0, inssPatronal: 0, fgts: 0, ratTerceiros: 0,
-        totalEncargosFolha: 0, totalImpostos2024: 0, totalImpostos2025: 0
-    });
+    const [taxes, setTaxes] = useState<TaxesData>(initialTaxes);
     const [baseScenario, setBaseScenario] = useState<ScenarioName>('Conservador');
     const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>('loading');
     const [souAdmin, setSouAdmin] = useState(false);
@@ -331,6 +362,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                     if (stored) data = JSON.parse(stored);
                 }
                 if (data) {
+                    // Recalcula na própria carga: o commit da carga não é gravado (entrega 1), então abrir não salva.
+                    const recalculado = recalcularPlanoLido(data, baseScenario);
                     if (data.planData) {
                         const loadedFactors = data.planData.marketAnalysis?.blueOcean?.factors;
                         const validFactors = (loadedFactors && loadedFactors.length > 0) ? loadedFactors : defaultBlueOceanFactors;
@@ -345,15 +378,18 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                                     ...data.planData.marketAnalysis?.blueOcean,
                                     factors: validFactors
                                 }
-                            }
+                            },
+                            financialPlan2026: recalculado.financialPlan2026
                         }));
+                    } else {
+                        setPlanData(prev => ({ ...prev, financialPlan2026: recalculado.financialPlan2026 }));
                     }
+                    setScenarios2026(prev => ({ ...prev, ...data.scenarios2026, ...recalculado.recalculados }));
                     // Só depois da leitura: a chave gravada é a do plano de quem entrou.
                     if (data.planData?.companyProfile?.geminiApiKey) {
                         localStorage.setItem('google_gemini_api_key', data.planData.companyProfile.geminiApiKey);
                     }
                     if (data.goals2026) setGoals2026(prev => ({ ...prev, ...data.goals2026 }));
-                    if (data.scenarios2026) setScenarios2026(prev => ({ ...prev, ...data.scenarios2026 }));
                     if (data.tracking2026) setTracking2026(prev => ({ ...prev, ...data.tracking2026 }));
                     if (data.taxes) setTaxes(prev => ({ ...prev, ...data.taxes }));
                     if (data.pricingItems) setPricingItems(data.pricingItems);
@@ -659,6 +695,18 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         goals2026.inflacaoPrevista,
         JSON.stringify(taxes),
         JSON.stringify(planData.scenariosInputMode)
+    ]);
+
+    // === DRE/DFC/BP acompanham a projeção do cenário base e os impostos: o relatório nunca usa uma DRE velha ===
+    useEffect(() => {
+        // A carga já traz a DRE recalculada; o commit dela não é edição.
+        if (estadoDaCargaRef.current !== 'carregado' || acabouDeCarregar.current) return;
+        calculateFinancialPlan2026();
+    }, [
+        baseScenario,
+        JSON.stringify(scenarios2026[baseScenario]?.projection),
+        JSON.stringify(taxes),
+        JSON.stringify(planData.investment)
     ]);
 
     // Declarado depois dos efeitos que olham acabouDeCarregar: só é limpo quando todos já viram o commit da carga.
@@ -1444,96 +1492,11 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     };
 
     const calculateFinancialPlan2026 = () => {
-        const scenario = scenarios2026[baseScenario];
-        const proj = scenario.projection;
-
-        const dre: DRE2026 = {} as any;
-        dre.receitaBruta = proj.receitaBruta;
-        dre.impostosVendas = proj.impostosSobreFaturamento;
-        dre.receitaLiquida = {};
-        dre.custosVariaveis = {}; 
-        dre.outrosCustosVariaveis = {}; 
-        dre.lucroBruto = {};
-        dre.despesasFolha = {};
-        dre.despesasMarketing = {};
-        dre.despesasOperacionais = {};
-        dre.outrasDespesasFixas = {};
-        dre.ebitda = {};
-        dre.depreciacao = {};
-        dre.ebit = {};
-        dre.despesasFinanceiras = {};
-        dre.lucroAntesImpostos = {};
-        dre.irpjCsll = {};
-        dre.lucroLiquido = {};
-
-        MONTHS.forEach(m => {
-            const rb = proj.receitaBruta[m] || 0;
-            const imp = proj.impostosSobreFaturamento[m] || 0;
-            dre.receitaLiquida[m] = rb - imp;
-            
-            const cmv = proj.cmv[m] || 0;
-            const com = proj.comissoes[m] || 0;
-            const fre = proj.fretes[m] || 0;
-            dre.custosVariaveis[m] = cmv + com + fre;
-            
-            const custVarCustom = proj.customCustosVariaveis.reduce((s, i) => s + (i.values[m] || 0), 0);
-            dre.outrosCustosVariaveis[m] = custVarCustom;
-            
-            dre.lucroBruto[m] = dre.receitaLiquida[m] - dre.custosVariaveis[m] - custVarCustom;
-            
-            dre.despesasFolha[m] = proj.folhaPagamento[m] || 0;
-            dre.despesasMarketing[m] = proj.marketingFixo[m] || 0;
-            dre.despesasOperacionais[m] = (proj.despesasOperacionais[m] || 0) + (proj.aluguel[m] || 0);
-            dre.outrasDespesasFixas[m] = (proj.administrativo[m] || 0) + proj.customCustosFixos.reduce((s, i) => s + (i.values[m] || 0), 0);
-            
-            const totalDespesas = dre.despesasFolha[m] + dre.despesasMarketing[m] + dre.despesasOperacionais[m] + dre.outrasDespesasFixas[m];
-            dre.ebitda[m] = dre.lucroBruto[m] - totalDespesas;
-            
-            dre.depreciacao[m] = 0; 
-            dre.ebit[m] = dre.ebitda[m] - dre.depreciacao[m];
-            dre.despesasFinanceiras[m] = 0;
-            dre.lucroAntesImpostos[m] = dre.ebit[m] - dre.despesasFinanceiras[m];
-            
-            const taxRate = 0.34;
-            dre.irpjCsll[m] = dre.lucroAntesImpostos[m] > 0 ? dre.lucroAntesImpostos[m] * taxRate : 0;
-            dre.lucroLiquido[m] = dre.lucroAntesImpostos[m] - dre.irpjCsll[m];
-        });
-
-        const dfc: DFC2026 = { fco: {}, fci: {}, fcf: {}, variacaoCaixa: {}, saldoInicialCaixa: {}, saldoFinalCaixa: {} } as any;
-        let currentCash = planData.investment.financing.saldoCaixaFinal2025 || 0;
-        
-        MONTHS.forEach(m => {
-            dfc.fco[m] = dre.ebitda[m] - dre.irpjCsll[m];
-            dfc.fci[m] = -(planData.investment.capex.totalCapex || 0) / 12;
-            dfc.fcf[m] = 0;
-            
-            dfc.variacaoCaixa[m] = dfc.fco[m] + dfc.fci[m] + dfc.fcf[m];
-            dfc.saldoInicialCaixa[m] = currentCash;
-            currentCash += dfc.variacaoCaixa[m];
-            dfc.saldoFinalCaixa[m] = currentCash;
-        });
-
-        const bp: BP2026 = { caixa: {}, contasAReceber: {}, estoques: {}, ativoCirculante: {}, ativoNaoCirculante: {}, totalAtivos: {}, fornecedores: {}, emprestimosCurtoPrazo: {}, passivoCirculante: {}, emprestimosLongoPrazo: {}, passivoNaoCirculante: {}, capitalSocial: {}, lucrosAcumulados: {}, patrimonioLiquido: {}, totalPassivoPL: {} } as any;
-        
-        MONTHS.forEach(m => {
-            bp.caixa[m] = dfc.saldoFinalCaixa[m];
-            bp.contasAReceber[m] = dre.receitaBruta[m] * (planData.investment.workingCapital.prazoMedioRecebimento || 30) / 30;
-            bp.estoques[m] = dre.custosVariaveis[m] * (planData.investment.workingCapital.prazoMedioEstocagem || 30) / 30;
-            bp.ativoCirculante[m] = bp.caixa[m] + bp.contasAReceber[m] + bp.estoques[m];
-            bp.ativoNaoCirculante[m] = 0; 
-            bp.totalAtivos[m] = bp.ativoCirculante[m] + bp.ativoNaoCirculante[m];
-            
-            bp.fornecedores[m] = (dre.custosVariaveis[m] + dre.despesasOperacionais[m]) * (planData.investment.workingCapital.prazoMedioPagamento || 30) / 30;
-            bp.passivoCirculante[m] = bp.fornecedores[m];
-            bp.passivoNaoCirculante[m] = 0;
-            bp.patrimonioLiquido[m] = bp.totalAtivos[m] - bp.passivoCirculante[m] - bp.passivoNaoCirculante[m];
-            bp.totalPassivoPL[m] = bp.passivoCirculante[m] + bp.passivoNaoCirculante[m] + bp.patrimonioLiquido[m];
-        });
-
-        setPlanData(prev => ({
-            ...prev,
-            financialPlan2026: { dre, dfc, bp }
-        }));
+        const plano = calcularPlanoFinanceiro2026(scenarios2026[baseScenario].projection, taxes, planData.investment);
+        // Liquidez e Indicadores chamam ao montar: sem mudança real, não mexe no estado nem dispara gravação.
+        setPlanData(prev => JSON.stringify(prev.financialPlan2026) === JSON.stringify(plano)
+            ? prev
+            : { ...prev, financialPlan2026: plano });
     };
 
     const updateTracking2026 = (month: Month, field: string, value: string) => {
