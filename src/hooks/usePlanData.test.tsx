@@ -557,6 +557,7 @@ describe('usePlanData — investimentos, empréstimos e contratações de 2026',
   it('adicionar empréstimo recalcula a DRE, os indicadores e grava', async () => {
     getDocMock.mockResolvedValue(documentoDePlanoAntigo());
     const { result } = await montar();
+    const liquidezAntes = result.current.financialIndicators.ratios.liquidity.currentRatio;
     act(() => result.current.addItemInvestimento2026('emprestimos'));
     const id = result.current.planData.investment2026.emprestimos[0].id;
     act(() => {
@@ -569,6 +570,8 @@ describe('usePlanData — investimentos, empréstimos e contratações de 2026',
     expect(plano.dre.despesasFinanceiras.fev).toBeCloseTo(2000, 2);
     expect(plano.bp.emprestimosCurtoPrazo.dez).toBeGreaterThan(0);
     expect(result.current.financialIndicators.ratios.solvency.debtToEquity).toBeGreaterThan(0);
+    expect(liquidezAntes).toBeGreaterThan(0);
+    expect(result.current.financialIndicators.ratios.liquidity.currentRatio).toBeLessThan(liquidezAntes);
     await avancar(3500);
     expect(setDocMock).toHaveBeenCalled();
   });
@@ -624,6 +627,44 @@ describe('usePlanData — investimentos, empréstimos e contratações de 2026',
     const item = result.current.planData.investment2026.emprestimos[0];
     expect(item).toMatchObject({ descricao: 'Banco X', valor: 100000, parcelas: null, mes: null, jurosMensalPct: null });
     semNaNNoPlano(result.current.planData.financialPlan2026);
+  });
+
+  it('valor de empréstimo e valor/vida útil de investimento apagados viram null e não geram NaN', async () => {
+    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    const { result } = await montar();
+    act(() => {
+      result.current.addItemInvestimento2026('emprestimos');
+      result.current.addItemInvestimento2026('investimentos');
+      result.current.addItemInvestimento2026('investimentos');
+    });
+    const emp = result.current.planData.investment2026.emprestimos[0].id;
+    const [inv1, inv2] = result.current.planData.investment2026.investimentos.map((i: any) => i.id);
+    act(() => {
+      result.current.updateItemInvestimento2026('emprestimos', emp, 'valor', '100000');
+      result.current.updateItemInvestimento2026('emprestimos', emp, 'jurosMensalPct', '2');
+      result.current.updateItemInvestimento2026('emprestimos', emp, 'parcelas', '24');
+      result.current.updateItemInvestimento2026('investimentos', inv1, 'valor', '60000');
+      result.current.updateItemInvestimento2026('investimentos', inv1, 'vidaUtilAnos', '10');
+      result.current.updateItemInvestimento2026('investimentos', inv2, 'valor', '30000');
+      result.current.updateItemInvestimento2026('investimentos', inv2, 'vidaUtilAnos', '3');
+    });
+    act(() => {
+      result.current.updateItemInvestimento2026('emprestimos', emp, 'valor', '');
+      // Sem vida útil o investimento 1 continua valendo, com o padrão de 5 anos.
+      result.current.updateItemInvestimento2026('investimentos', inv1, 'vidaUtilAnos', '');
+      result.current.updateItemInvestimento2026('investimentos', inv2, 'valor', '');
+      result.current.updateItemInvestimento2026('investimentos', inv2, 'vidaUtilAnos', '');
+    });
+    await act(async () => {});
+    const bloco = result.current.planData.investment2026;
+    expect(bloco.emprestimos[0]).toMatchObject({ valor: null, jurosMensalPct: 2, parcelas: 24 });
+    expect(bloco.investimentos[0]).toMatchObject({ valor: 60000, vidaUtilAnos: null });
+    expect(bloco.investimentos[1]).toMatchObject({ valor: null, vidaUtilAnos: null });
+    const plano = result.current.planData.financialPlan2026;
+    semNaNNoPlano(plano);
+    // Empréstimo sem valor não gera juros; investimento de 60 mil em 5 anos deprecia 1 mil por mês.
+    expect(plano.dre.despesasFinanceiras.fev).toBeCloseTo(0, 2);
+    expect(plano.dre.depreciacao.fev).toBeCloseTo(1000, 2);
   });
 
   it('juros da dívida atual e remoção de item', async () => {

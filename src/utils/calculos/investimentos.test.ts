@@ -166,6 +166,17 @@ describe('emprestimosNovos', () => {
         expect(r.parcelas.fev).toBeCloseTo(1000);
         expect(soma(r.juros)).toBe(0);
     });
+
+    it('nº de parcelas enorme (100.000.000×) dá resultado finito e rápido', () => {
+        const inicio = performance.now();
+        const r = emprestimosNovos([emp({ valor: 100000, mes: 'jan', jurosMensalPct: 2, parcelas: 100000000 })]);
+        expect(performance.now() - inicio).toBeLessThan(100);
+        Object.values(r).forEach(linha => MONTHS.forEach(m => expect(Number.isFinite(linha[m])).toBe(true)));
+        // Com prazo quase infinito a parcela é só juros (2 mil) e o saldo fica em 100 mil.
+        expect(r.parcelas.fev).toBeCloseTo(2000);
+        expect(r.juros.fev).toBeCloseTo(2000);
+        expect(r.curtoPrazo.dez! + r.longoPrazo.dez!).toBeCloseTo(100000);
+    });
 });
 
 describe('dividaAtual', () => {

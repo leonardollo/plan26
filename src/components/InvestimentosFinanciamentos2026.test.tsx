@@ -59,11 +59,51 @@ describe('InvestimentosFinanciamentos2026', () => {
         expect(planoFalso.updateItemInvestimento2026).toHaveBeenCalledWith('emprestimos', 'e1', 'mes', 'mar');
     });
 
-    it('remover chama removeItemInvestimento2026', () => {
-        montarPlano({ aportes: [{ id: 'a1', descricao: 'Sócio', valor: 50000, mes: 'mai' }] });
-        render(<InvestimentosFinanciamentos2026 />);
-        fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
-        expect(planoFalso.removeItemInvestimento2026).toHaveBeenCalledWith('aportes', 'a1');
+    // Cada lista sozinha, com valor vazio, para o CurrencyInput aceitar a digitação.
+    const listas = [
+        {
+            lista: 'investimentos', sufixo: 'investimento',
+            item: { id: 'i1', descricao: '', valor: null, mes: 'jan', vidaUtilAnos: null },
+            numericos: [['Vida útil (anos)', 'vidaUtilAnos', '10']],
+        },
+        {
+            lista: 'emprestimos', sufixo: 'empréstimo',
+            item: { id: 'e1', descricao: '', valor: null, mes: 'jan', jurosMensalPct: null, parcelas: null },
+            numericos: [['Juros a.m. do empréstimo (%)', 'jurosMensalPct', '1.5'], ['Nº de parcelas', 'parcelas', '36']],
+        },
+        {
+            lista: 'aportes', sufixo: 'aporte',
+            item: { id: 'a1', descricao: '', valor: null, mes: 'jan' },
+            numericos: [],
+        },
+    ];
+
+    listas.forEach(({ lista, sufixo, item, numericos }) => {
+        it(`${lista}: editar cada campo chama updateItemInvestimento2026 com os argumentos exatos`, () => {
+            montarPlano({ [lista]: [item] });
+            render(<InvestimentosFinanciamentos2026 />);
+            fireEvent.change(screen.getByLabelText(`Descrição do ${sufixo}`), { target: { value: 'Novo' } });
+            const valor = screen.getByLabelText(`Valor do ${sufixo}`);
+            fireEvent.focus(valor);
+            fireEvent.change(valor, { target: { value: '50000' } });
+            fireEvent.blur(valor);
+            fireEvent.change(screen.getByLabelText(`Mês do ${sufixo}`), { target: { value: 'jun' } });
+            numericos.forEach(([rotulo, , digitado]) =>
+                fireEvent.change(screen.getByLabelText(rotulo), { target: { value: digitado } }));
+            expect(planoFalso.updateItemInvestimento2026.mock.calls).toEqual([
+                [lista, item.id, 'descricao', 'Novo'],
+                [lista, item.id, 'valor', '50000'],
+                [lista, item.id, 'mes', 'jun'],
+                ...numericos.map(([, campo, digitado]) => [lista, item.id, campo, digitado]),
+            ]);
+        });
+
+        it(`${lista}: remover chama removeItemInvestimento2026 com a lista e o id`, () => {
+            montarPlano({ [lista]: [item] });
+            render(<InvestimentosFinanciamentos2026 />);
+            fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
+            expect(planoFalso.removeItemInvestimento2026.mock.calls).toEqual([[lista, item.id]]);
+        });
     });
 
     it('empréstimo mostra a parcela calculada', () => {

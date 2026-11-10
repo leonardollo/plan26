@@ -798,6 +798,7 @@ const CommercialPlanning: React.FC = () => {
     }, [demandTotals, salesFunnel, planData.hiringProjection]);
 
      // Suggest sales headcount in hiring projection
+    // Sem laço: repsNeeded vem de canais, funil e headcount atual, nunca da folha/projeção que newHires altera.
     useEffect(() => {
         const repsNeeded = Math.ceil(funnelCalculations.repsNeeded);
         const commercialDept = (planData.hiringProjection || []).find(d => (d.department || '').toLowerCase() === 'comercial');

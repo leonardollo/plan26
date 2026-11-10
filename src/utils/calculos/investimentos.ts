@@ -92,12 +92,14 @@ export const emprestimosNovos = (itens: Emprestimo2026[] | undefined) => {
         const i = taxaMensal(item?.jurosMensalPct);
         const pmt = parcelaPrice(valor, item?.jurosMensalPct ?? null, n);
 
-        // Cronograma inteiro, mesmo além de dezembro: o Balanço precisa das amortizações de 2027.
-        // amortizacao[k] e saldoApos[k] referem-se à parcela k (1..n), que vence no índice contrato + k.
+        // Cronograma só até dez/2027 (índice 23): 2026 mais as 12 amortizações do curto prazo de dezembro.
+        // Percorrer as n parcelas travaria a tela com n enorme; o saldo depois do horizonte é longo prazo.
+        // amortizacao[k] e saldoApos[k] referem-se à parcela k, que vence no índice contrato + k.
+        const horizonte = Math.min(n, 23 - contrato);
         const amortizacao: number[] = [0];
         const saldoApos: number[] = [valor];
         let saldo = valor;
-        for (let k = 1; k <= n; k++) {
+        for (let k = 1; k <= horizonte; k++) {
             const jurosK = saldo * i;
             // A última parcela amortiza o saldo restante, para fechar em 0 sem resto de ponto flutuante.
             const amortK = k === n ? saldo : pmt - jurosK;
