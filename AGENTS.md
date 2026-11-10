@@ -19,7 +19,7 @@ code, identifiers and commit messages follow the project's conventions.
   - test, full: `npm test && npm run test:rules` (rules need Java 21 and run in the Firestore
     emulator, project `demo-plan`)
   - build: `npm run build` (typecheck + `vite build`)
-  - audit: `npm audit --audit-level=high` (fails today: 13 vulns, fixable by `npm audit fix`)
+  - audit: `npm audit --audit-level=high` (passes at high; 13 moderate remain, from the `firebase-tools` devDependency)
   - disposable local DB: `npm run test:rules` starts and discards the Firestore emulator
 - **Sensitive paths** (a diff touching them triggers the security review): `firestore.rules`,
   `firebase.json`, `.firebaserc`, `.env.example`, `src/App.tsx`, `src/hooks/usePlanData.tsx`,

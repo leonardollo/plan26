@@ -260,6 +260,16 @@ describe('usePlanData — e-mail do admin', () => {
     expect(result.current.subscriptionStatus).toBe('verificar_email');
   });
 
+  it('recarregarUsuario recarrega o usuário e só depois força um token novo', async () => {
+    const reload = vi.fn().mockResolvedValue(undefined);
+    const getIdToken = vi.fn().mockResolvedValue('token');
+    authFalso.currentUser = { emailVerified: false, reload, getIdToken };
+    await authService.recarregarUsuario();
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(getIdToken).toHaveBeenCalledWith(true);
+    expect(reload.mock.invocationCallOrder[0]).toBeLessThan(getIdToken.mock.invocationCallOrder[0]);
+  });
+
   it('cliente grava emailVerificado no pedido', async () => {
     ehAdminMock.mockResolvedValue(false);
     await montar();

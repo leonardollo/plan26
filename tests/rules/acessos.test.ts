@@ -55,6 +55,13 @@ describe('acessos/{uid}', () => {
     await assertSucceeds(setDoc(doc(bancoDe(NOVO), 'acessos/uid-novo'), pedido({ emailVerificado: false })));
   });
 
+  it('pedido com emailVerificado true e token verificado é aceito', async () => {
+    const verificado = { uid: 'uid-novo2', token: { email: 'novo2@x.com', email_verified: true } };
+    await assertSucceeds(
+      setDoc(doc(bancoDe(verificado), 'acessos/uid-novo2'), pedido({ email: 'novo2@x.com', emailVerificado: true })),
+    );
+  });
+
   it('pedido sem emailVerificado é aceito (bundle antigo)', async () => {
     await assertSucceeds(setDoc(doc(bancoDe(NOVO), 'acessos/uid-novo'), pedido()));
   });
