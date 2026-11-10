@@ -3,6 +3,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { usePlan } from '../../hooks/usePlanData';
 import { formatCurrency, formatPercentage, formatNumber } from '../../utils/formatters';
+import { markdownSeguro } from '../../utils/markdownSeguro';
 import clsx from 'clsx';
 import type { ActionPlanCategory, ActionPlanPriority, DRE2026, DFC2026, BP2026 } from '../../types';
 
@@ -236,13 +237,7 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                         <SectionHeader number="01" title={isDiagnosis ? "Sumário Executivo" : "Sumário Executivo (CSO Analysis)"} subtitle="Análise consolidada gerada por Inteligência Artificial" />
                         {analysisText ? (
                             <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed report-markdown"
-                                dangerouslySetInnerHTML={{
-                                    __html: analysisText
-                                        .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-gray-900">$1</strong>')
-                                        .replace(/### (.*?)\n/g, '<h3 class="text-lg font-bold text-gray-800 mt-6 mb-2 border-l-4 border-brand-orange pl-3">$1</h3>\n')
-                                        .replace(/#### (.*?)\n/g, '<h4 class="text-base font-bold text-gray-700 mt-4 mb-1">$1</h4>\n')
-                                        .replace(/\n/g, '<br/>')
-                                }} />
+                                dangerouslySetInnerHTML={{ __html: markdownSeguro(analysisText, 'relatorio') }} />
                         ) : (
                             <div className="p-8 bg-gray-50 rounded-xl border border-gray-200 text-center">
                                 <p className="text-gray-400 italic">Nenhuma análise gerada. Clique em "Gerar com IA" antes de visualizar o relatório.</p>

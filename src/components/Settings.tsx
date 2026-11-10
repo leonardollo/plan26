@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { usePlan } from '../hooks/usePlanData';
 import { CompanyProfile } from '../types';
 import { getIndustryFromCnpj, getMarketResearchFromCnpj, CnpjData } from '../services/geminiService';
+import { markdownSeguro } from '../utils/markdownSeguro';
 
 const Settings: React.FC = () => {
     const { planData, updateCompanyProfile, updateMarketCompetitionData, saveDataNow, resetAllData } = usePlan();
@@ -318,7 +319,7 @@ const Settings: React.FC = () => {
                                         prose-strong:text-gray-900
                                         prose-ul:my-2 prose-li:my-0.5
                                         prose-p:my-2"
-                                    dangerouslySetInnerHTML={{ __html: formatMarkdown(marketAnalysis) }}
+                                    dangerouslySetInnerHTML={{ __html: markdownSeguro(marketAnalysis, 'analise') }}
                                 />
                                 <div className="mt-6 p-4 bg-amber-50 rounded-lg border border-amber-200">
                                     <p className="text-xs text-amber-700">
@@ -433,30 +434,5 @@ const Settings: React.FC = () => {
         </div>
     );
 };
-
-// Simple markdown to HTML converter
-function formatMarkdown(text: string): string {
-    if (!text) return '';
-    let html = text
-        // Headers
-        .replace(/^### (.*$)/gm, '<h4>$1</h4>')
-        .replace(/^## (.*$)/gm, '<h3>$1</h3>')
-        .replace(/^# (.*$)/gm, '<h2>$1</h2>')
-        // Bold and italic
-        .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        // Lists
-        .replace(/^\s*[-*]\s+(.*$)/gm, '<li>$1</li>')
-        .replace(/^\s*\d+\.\s+(.*$)/gm, '<li>$1</li>')
-        // Paragraphs
-        .replace(/\n\n/g, '</p><p>')
-        .replace(/\n/g, '<br/>');
-    
-    // Wrap consecutive <li> in <ul>
-    html = html.replace(/(<li>.*?<\/li>)+/gs, (match) => `<ul>${match}</ul>`);
-    
-    return `<p>${html}</p>`;
-}
 
 export default Settings;
