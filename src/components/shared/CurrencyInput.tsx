@@ -7,6 +7,7 @@ interface CurrencyInputProps {
     placeholder?: string;
     disabled?: boolean;
     step?: string;
+    'aria-label'?: string;
 }
 
 /**
@@ -20,6 +21,7 @@ const CurrencyInput: React.FC<CurrencyInputProps> = ({
     className = '',
     placeholder = '0',
     disabled = false,
+    'aria-label': ariaLabel,
 }) => {
     const [displayValue, setDisplayValue] = useState('');
     const [isFocused, setIsFocused] = useState(false);
@@ -99,6 +101,7 @@ const CurrencyInput: React.FC<CurrencyInputProps> = ({
             className={className}
             placeholder={placeholder}
             disabled={disabled}
+            aria-label={ariaLabel}
         />
     );
 };

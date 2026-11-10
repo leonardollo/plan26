@@ -6,8 +6,9 @@ import type { FinancialPlan2026, Month, DRE2026, DFC2026, BP2026, FinancialPlanS
 import { MONTHS, MONTH_LABELS } from '../types';
 import { formatCurrency } from '../utils/formatters';
 import clsx from 'clsx';
+import InvestimentosFinanciamentos2026 from './InvestimentosFinanciamentos2026';
 
-type FinancialStatement = 'dre' | 'dfc' | 'bp';
+type FinancialStatement = 'dre' | 'dfc' | 'bp' | 'investimentos';
 
 // Helper component to render a financial statement table
 // FIX: Converted from React.FC to a generic function component to correctly handle union types for data and rows.
@@ -92,6 +93,7 @@ const FinancialPlanning2026: React.FC = () => {
         { id: 'dre', label: 'DRE (Resultados)' },
         { id: 'dfc', label: 'Fluxo de Caixa (DFC)' },
         { id: 'bp', label: 'Balanço Patrimonial' },
+        { id: 'investimentos', label: 'Investimentos e Financiamentos' },
     ];
     
     // FIX: Added explicit types to row definitions for better type safety and to help the generic component.
@@ -174,7 +176,8 @@ const FinancialPlanning2026: React.FC = () => {
             </div>
 
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                <div className="border-b border-gray-200">
+                {/* Com a 4ª aba, a barra rola na horizontal no celular em vez de alargar a página. */}
+                <div className="border-b border-gray-200 overflow-x-auto">
                     <nav className="-mb-px flex space-x-8" aria-label="Tabs">
                         {TABS.map((tab) => (
                             <button
@@ -221,6 +224,7 @@ const FinancialPlanning2026: React.FC = () => {
                             </ExplanationBox>
                         </>
                     )}
+                    {activeTab === 'investimentos' && <InvestimentosFinanciamentos2026 />}
                 </div>
             </div>
         </div>
