@@ -1,8 +1,9 @@
 
 import React, { useMemo, useState } from 'react';
 import { usePlan } from '../hooks/usePlanData';
-import { MONTHS, MONTH_LABELS, Month } from '../types';
+import { MONTHS, MONTH_LABELS, Month, MonthlyData } from '../types';
 import { formatCurrency, formatPercentage } from '../utils/formatters';
+import { lucroLiquidoMensal } from '../utils/calculos/impostos';
 import CurrencyInput from './shared/CurrencyInput';
 import clsx from 'clsx';
 
@@ -119,7 +120,7 @@ const DreRow: React.FC<{
 };
 
 const DreComparison: React.FC = () => {
-    const { scenarios2026, tracking2026, updateTracking2026, baseScenario } = usePlan();
+    const { scenarios2026, tracking2026, updateTracking2026, baseScenario, taxes } = usePlan();
     const scenario = scenarios2026[baseScenario];
     const projection = scenario.projection;
     
@@ -181,9 +182,14 @@ const DreComparison: React.FC = () => {
         });
 
 
+        const receitaPlanejada: MonthlyData = {};
+        const ebitdaPlanejado: MonthlyData = {};
+        const receitaRealizada: MonthlyData = {};
+        const ebitdaRealizado: MonthlyData = {};
+
         MONTHS.forEach(m => {
             const track = tracking2026[m];
-            
+
             const pRb = projection.receitaBruta?.[m] || 0;
             const pImp = projection.impostosSobreFaturamento?.[m] || 0;
             const pRl = pRb - pImp;
@@ -205,7 +211,6 @@ const DreComparison: React.FC = () => {
             const pDespFixTotal = pFolha + pAluguel + pOps + pMkt + pAdmin + pDespFixCustom;
 
             const pEbitda = pMc - pDespFixTotal;
-            const pLucro = pEbitda * 0.85;
 
             const getVal = (key: string): number | null => {
                 if (!track) return null;
@@ -253,7 +258,13 @@ const DreComparison: React.FC = () => {
             }
 
             const aEbitda = (aMc !== null && aDespFixTotal !== null) ? aMc - aDespFixTotal : null;
-            const aLucro = aEbitda !== null ? aEbitda * 0.85 : null;
+
+            receitaPlanejada[m] = pRb;
+            ebitdaPlanejado[m] = pEbitda;
+            // Sem receita bruta realizada, usa a receita informada no lugar (o Presumido tributa a receita).
+            receitaRealizada[m] = aRb ?? aRl ?? 0;
+            // Mês sem EBITDA realizado conta 0 no acumulado do IR, mas continua aparecendo vazio.
+            ebitdaRealizado[m] = aEbitda ?? 0;
 
             data.receitaBruta[m] = { planned: pRb, actual: aRb };
             data.impostos[m] = { planned: pImp, actual: aImp };
@@ -274,11 +285,20 @@ const DreComparison: React.FC = () => {
             subItems.ops[m] = { planned: pOps, actual: aOps };
 
             data.ebitda[m] = { planned: pEbitda, actual: aEbitda };
-            data.lucroLiquido[m] = { planned: pLucro, actual: aLucro };
+        });
+
+        // IR pelo regime sobre o ano (no Real, o acumulado decide o adicional), então vem depois dos 12 meses.
+        const lucroPlanejado = lucroLiquidoMensal(taxes || {}, receitaPlanejada, ebitdaPlanejado);
+        const lucroRealizado = lucroLiquidoMensal(taxes || {}, receitaRealizada, ebitdaRealizado);
+        MONTHS.forEach(m => {
+            data.lucroLiquido[m] = {
+                planned: lucroPlanejado[m] ?? 0,
+                actual: data.ebitda[m].actual !== null ? lucroRealizado[m] ?? 0 : null,
+            };
         });
 
         return { main: data, subs: subItems, customVariaveis, customFixos };
-    }, [scenarios2026, tracking2026, baseScenario]);
+    }, [scenarios2026, tracking2026, baseScenario, taxes]);
 
     // --- YTD Calculation ---
     const ytd = useMemo(() => {

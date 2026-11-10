@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { usePlan } from '../hooks/usePlanData';
 import type { TaxesData } from '../types';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
+import { aliquotaDeducao } from '../utils/calculos/impostos';
 import CurrencyInput from './shared/CurrencyInput';
 import { getTaxRecommendation } from '../services/geminiService';
 import ReactMarkdown from 'react-markdown';
@@ -49,13 +50,9 @@ const Taxes: React.FC = () => {
         }
     };
 
-    // Calcula a alíquota efetiva atual
-    const calculatedRate = (() => {
-        const { regimeTributario, simplesNacional, iss, icms, pis, cofins, irpj, csll, aliquotaEfetiva } = taxes;
-        if (aliquotaEfetiva > 0) return aliquotaEfetiva;
-        if (regimeTributario === 'Simples Nacional') return simplesNacional || 0;
-        return (iss || 0) + (icms || 0) + (pis || 0) + (cofins || 0) + (irpj || 0) + (csll || 0);
-    })();
+    // Alíquota sobre a receita, sem IRPJ/CSLL fora do Simples: eles entram na DRE, sobre o lucro.
+    // Por isso a simulação da reforma (aba Simulador) compara só os tributos sobre consumo, que a reforma substitui.
+    const calculatedRate = aliquotaDeducao(taxes);
 
     const totalEncargos = (taxes.inssPatronal || 0) + (taxes.fgts || 0) + (taxes.ratTerceiros || 0);
 
@@ -208,7 +205,7 @@ const Taxes: React.FC = () => {
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
                     <h2 className="text-lg font-bold text-gray-900 border-b pb-2">Impostos sobre Faturamento</h2>
                     <div className="space-y-4">
-                        {renderPercentInput('aliquotaEfetiva', 'Alíquota Efetiva Total (%)', 'Se souber a alíquota total, preencha aqui.')}
+                        {renderPercentInput('aliquotaEfetiva', 'Alíquota Efetiva Total (%)', 'Se souber a alíquota total, preencha aqui. No Lucro Real, não inclua IRPJ e CSLL: eles são calculados sobre o lucro.')}
                         {taxes.regimeTributario === 'Simples Nacional' &&
                             renderPercentInput('simplesNacional', 'Simples Nacional (%)', 'Alíquota única do Simples')
                         }

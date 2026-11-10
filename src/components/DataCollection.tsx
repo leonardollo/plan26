@@ -8,6 +8,7 @@ import PeopleDataSheet from './shared/PeopleDataSheet';
 import MarketingDataSheet from './shared/MarketingDataSheet';
 import InvestmentDataSheet from './shared/InvestmentDataSheet';
 import PasteDataModal from './shared/PasteDataModal';
+import { lucroLiquidoMensal } from '../utils/calculos/impostos';
 
 type DataCategory = 'financialSheet' | 'commercial' | 'people' | 'marketing' | 'investment';
 const sumMonthlyData = (data: MonthlyData): number => data ? Object.values(data).reduce((sum, val) => sum + (val || 0), 0) : 0;
@@ -97,19 +98,11 @@ const DataCollection: React.FC = () => {
     }, [summary2025.monthlySummary]);
 
     const lucroLiquidoRow = useMemo(() => {
-        const irpj = taxes?.irpj == null ? 15 : taxes.irpj;
-        const csll = taxes?.csll == null ? 9 : taxes.csll;
-        const taxRate = (irpj + csll) / 100;
-        const values: MonthlyData = {};
-        summary2025.monthlySummary.forEach(m => {
-            const ebitda = m.ebitda;
-            // Approximation as Depreciation and Financial Expenses for 2025 are not available
-            const lucroAntesImpostos = ebitda;
-            const impostoRenda = lucroAntesImpostos > 0 ? lucroAntesImpostos * taxRate : 0;
-            values[m.month as Month] = lucroAntesImpostos - impostoRenda;
-        });
-        return { values2025: values };
-    }, [summary2025.monthlySummary, taxes]);
+        // 2025 não tem depreciação nem despesa financeira: o LAIR é o próprio EBITDA.
+        const lair: MonthlyData = {};
+        summary2025.monthlySummary.forEach(m => { lair[m.month as Month] = m.ebitda; });
+        return { values2025: lucroLiquidoMensal(taxes || {}, financialSheet.receitaBruta.values2025, lair) };
+    }, [summary2025.monthlySummary, financialSheet.receitaBruta.values2025, taxes]);
 
     const ticketMedioRow = useMemo(() => {
         const values: MonthlyData = {};

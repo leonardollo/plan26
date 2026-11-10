@@ -3,11 +3,12 @@ import React, { useState, useMemo } from 'react';
 import { usePlan } from '../hooks/usePlanData';
 import { formatCurrency, formatPercentage } from '../utils/formatters';
 import { MonthlyData } from '../types';
+import { irpjCsllAnual } from '../utils/calculos/impostos';
 
 const sumMonthlyData = (data: MonthlyData): number => data ? Object.values(data).reduce((s, v) => s + (v || 0), 0) : 0;
 
 const SensitivityAnalysis: React.FC = () => {
-    const { calculateSensitivityAnalysis, scenarios2026, baseScenario } = usePlan();
+    const { calculateSensitivityAnalysis, scenarios2026, baseScenario, taxes } = usePlan();
     const [range, setRange] = useState(20); 
 
     const projection = scenarios2026[baseScenario].projection;
@@ -23,7 +24,7 @@ const SensitivityAnalysis: React.FC = () => {
         (projection.customCustosFixos || []).reduce((s, i) => s + sumMonthlyData(i.values), 0);
 
     const baseEbit = baseRevenue - baseVariableCost - baseFixedCost;
-    const baseNetProfit = baseEbit > 0 ? baseEbit * (1 - 0.24) : baseEbit;
+    const baseNetProfit = baseEbit - irpjCsllAnual(taxes || {}, sumMonthlyData(projection.receitaBruta), baseEbit);
 
     const contributionMarginRatio = baseRevenue > 0 ? (baseRevenue - baseVariableCost) / baseRevenue : 0;
     const breakevenRevenue = contributionMarginRatio > 0 ? baseFixedCost / contributionMarginRatio : 0;

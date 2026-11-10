@@ -22,6 +22,8 @@ import {
 } from '../types';
 import { projetarCenario } from '../utils/calculos/cenario';
 import { calcularPlanoFinanceiro2026 } from '../utils/calculos/planoFinanceiro';
+import { aliquotaDeducao, irpjCsllAnual } from '../utils/calculos/impostos';
+import { nopat, paybackCacMeses } from '../utils/calculos/indicadores';
 
 // Firebase configuration - loaded from environment variables
 const firebaseConfig = {
@@ -873,17 +875,19 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         const netDebt = endDebt - endCash;
         const investedCapital = endEquity + endDebt - endCash;
         const { margemBrutaPercent, cac, ticketMedio } = summary2025;
-        const monthlyGrossProfitPerCustomer = (ticketMedio / 12) * (margemBrutaPercent / 100);
-        const cacPayback = monthlyGrossProfitPerCustomer > 0 ? cac / monthlyGrossProfitPerCustomer : 0;
+        const cacPayback = paybackCacMeses(cac, ticketMedio, margemBrutaPercent);
+        const receitaBrutaAnual = MONTHS.reduce((s, m) => s + (dre.receitaBruta?.[m] || 0), 0);
         return { 
             liquidity: { monthlyNCG, cashBurnRate, runwayMonths, cashBalanceProjection: bp.caixa || {}, cycleSummary: { pmr: workingCapital.prazoMedioRecebimento || 0, pme: workingCapital.prazoMedioEstocagem || 0, pmp: workingCapital.prazoMedioPagamento || 0, financialCycle: workingCapital.cicloFinanceiro || 0 } }, 
-            ratios: { liquidity: { currentRatio: endCurrentLiabilities > 0 ? endCurrentAssets / endCurrentLiabilities : 0, quickRatio: endCurrentLiabilities > 0 ? (endCurrentAssets - endInventory) / endCurrentLiabilities : 0, cashRatio: endCurrentLiabilities > 0 ? endCash / endCurrentLiabilities : 0 }, solvency: { debtToEbitda: totalEbitda > 0 ? netDebt / totalEbitda : 0, debtToEquity: endEquity > 0 ? endDebt / endEquity : 0 }, profitability: { roe: endEquity > 0 ? (totalNetProfit / endEquity) * 100 : 0, roic: investedCapital > 0 ? ((totalEbitda * 0.76) / investedCapital) * 100 : 0, netMargin: totalRevenue > 0 ? (totalNetProfit / totalRevenue) * 100 : 0 }, efficiency: { cacPayback, assetTurnover: endAssets > 0 ? totalRevenue / endAssets : 0 } }
+            ratios: { liquidity: { currentRatio: endCurrentLiabilities > 0 ? endCurrentAssets / endCurrentLiabilities : 0, quickRatio: endCurrentLiabilities > 0 ? (endCurrentAssets - endInventory) / endCurrentLiabilities : 0, cashRatio: endCurrentLiabilities > 0 ? endCash / endCurrentLiabilities : 0 }, solvency: { debtToEbitda: totalEbitda > 0 ? netDebt / totalEbitda : 0, debtToEquity: endEquity > 0 ? endDebt / endEquity : 0 }, profitability: { roe: endEquity > 0 ? (totalNetProfit / endEquity) * 100 : 0, roic: investedCapital > 0 ? (nopat(taxes, receitaBrutaAnual, totalEbitda) / investedCapital) * 100 : 0, netMargin: totalRevenue > 0 ? (totalNetProfit / totalRevenue) * 100 : 0 }, efficiency: { cacPayback, assetTurnover: endAssets > 0 ? totalRevenue / endAssets : 0 } }
         };
-    }, [planData.financialPlan2026, planData.investment, summary2025]);
+    }, [planData.financialPlan2026, planData.investment, summary2025, taxes]);
 
     const calculateSensitivityAnalysis = (baseRevenue: number, baseVariableCost: number, baseFixedCost: number, range: number = 20): SensitivityMatrix => {
         const steps = [-range, -range/2, 0, range/2, range];
         const matrix: SensitivityMatrix = [];
+        // A matriz recebe receita líquida; o Presumido cobra IRPJ/CSLL sobre a bruta, então ela é reconstruída.
+        const fracaoLiquida = 1 - aliquotaDeducao(taxes) / 100;
         steps.forEach(volumeChangePct => {
             const row: any[] = [];
             steps.forEach(priceChangePct => {
@@ -893,8 +897,9 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                 const newVariableCost = baseVariableCost * volMult;
                 const newFixedCost = baseFixedCost;
                 const newEbit = newRevenue - newVariableCost - newFixedCost;
-                const taxes = newEbit > 0 ? newEbit * 0.24 : 0;
-                const newNetProfit = newEbit - taxes;
+                const receitaBruta = fracaoLiquida > 0 ? newRevenue / fracaoLiquida : newRevenue;
+                const impostoDeRenda = irpjCsllAnual(taxes, receitaBruta, newEbit);
+                const newNetProfit = newEbit - impostoDeRenda;
                 const newMargin = newRevenue > 0 ? (newNetProfit / newRevenue) * 100 : 0;
                 row.push({ priceChange: priceChangePct, volumeChange: volumeChangePct, revenue: newRevenue, ebit: newEbit, netProfit: newNetProfit, margin: newMargin });
             });
@@ -1331,16 +1336,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
 
     const applyTaxesTo2025 = () => {
         const { receitaBruta } = planData.financialSheet;
-        const { regimeTributario, simplesNacional, iss, icms, pis, cofins, irpj, csll, aliquotaEfetiva } = taxes;
-        
-        let rate = 0;
-        if (aliquotaEfetiva > 0) {
-            rate = aliquotaEfetiva / 100;
-        } else if (regimeTributario === 'Simples Nacional') {
-            rate = (simplesNacional || 0) / 100;
-        } else {
-            rate = ((iss || 0) + (icms || 0) + (pis || 0) + (cofins || 0) + (irpj || 0) + (csll || 0)) / 100;
-        }
+        // Só os impostos sobre a receita: IRPJ/CSLL do Presumido e do Real entram na DRE, sobre o lucro.
+        const rate = aliquotaDeducao(taxes) / 100;
 
         const newImpostos: MonthlyData = {};
         MONTHS.forEach(m => {

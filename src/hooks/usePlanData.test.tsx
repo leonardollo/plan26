@@ -385,3 +385,14 @@ describe('usePlanData — DRE e plano antigo', () => {
     expect(result.current.planData.financialPlan2026.dre.receitaBruta.jan).toBeCloseTo(120000);
   });
 });
+
+describe('usePlanData — sensibilidade', () => {
+  it('conta nova (Simples): a célula central tem EBIT 30 mil e lucro líquido 30 mil', async () => {
+    getDocMock.mockResolvedValue(documento());
+    const { result } = await montar();
+    const matriz = result.current.calculateSensitivityAnalysis(100000, 40000, 30000);
+    const centro = matriz[2][2];
+    expect(centro.ebit).toBeCloseTo(30000);
+    expect(centro.netProfit).toBeCloseTo(30000);
+  });
+});
