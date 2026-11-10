@@ -1101,6 +1101,7 @@ const CommercialPlanning: React.FC = () => {
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Departamento</th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Headcount Atual</th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Novas Contratações</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mês de entrada</th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Headcount 2026</th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Custo Medio Unitario (R$/ano)</th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Budget Total R$</th>
@@ -1116,6 +1117,12 @@ const CommercialPlanning: React.FC = () => {
                                     <td className="px-4 py-2"><input type="text" value={item.department} onChange={(e) => updateHiringProjectionItem(item.id, 'department', e.target.value)} className="w-full bg-transparent border-b border-transparent focus:border-brand-orange focus:outline-none" /></td>
                                     <td className="px-4 py-2"><CurrencyInput value={item.currentHeadcount ?? null} onChange={(v) => updateHiringProjectionItem(item.id, 'currentHeadcount', v)} className="w-28 p-2 text-right border-none bg-transparent focus:ring-2 focus:ring-brand-orange focus:ring-inset rounded-md" /></td>
                                     <td className="px-4 py-2"><CurrencyInput value={item.newHires ?? null} onChange={(v) => updateHiringProjectionItem(item.id, 'newHires', v)} className="w-28 p-2 text-right border-none bg-transparent focus:ring-2 focus:ring-brand-orange focus:ring-inset rounded-md" /></td>
+                                    <td className="px-4 py-2">
+                                        {/* Item antigo sem mesEntrada vale janeiro, como no cálculo da folha. */}
+                                        <select aria-label="Mês de entrada" value={item.mesEntrada ?? 'jan'} onChange={(e) => updateHiringProjectionItem(item.id, 'mesEntrada', e.target.value)} className="p-2 bg-transparent border-none focus:ring-2 focus:ring-brand-orange focus:ring-inset rounded-md">
+                                            {MONTHS.map(m => <option key={m} value={m}>{MONTH_LABELS[m].substring(0, 3)}</option>)}
+                                        </select>
+                                    </td>
                                     <td className="px-4 py-2 text-right font-semibold text-gray-700">{formatNumber(headcount2026)}</td>
                                     <td className="px-4 py-2"><CurrencyInput value={item.avgAnnualCost ?? null} onChange={(v) => updateHiringProjectionItem(item.id, 'avgAnnualCost', v)} className="w-32 p-2 text-right border-none bg-transparent focus:ring-2 focus:ring-brand-orange focus:ring-inset rounded-md" /></td>
                                     <td className="px-4 py-2 text-right font-semibold text-gray-900">{formatCurrency(budgetTotal, true)}</td>
@@ -1129,6 +1136,7 @@ const CommercialPlanning: React.FC = () => {
                             <td className="px-4 py-3">TOTAL</td>
                             <td className="px-4 py-3 text-right">{formatNumber(hiringTotals.totalCurrent)}</td>
                             <td className="px-4 py-3 text-right">{formatNumber(hiringTotals.totalNew)}</td>
+                            <td className="px-4 py-3"></td>
                             <td className="px-4 py-3 text-right">{formatNumber(hiringTotals.totalCurrent + hiringTotals.totalNew)}</td>
                             <td className="px-4 py-3"></td>
                             <td className="px-4 py-3 text-right">{formatCurrency(hiringTotals.totalBudget, true)}</td>
@@ -1137,6 +1145,7 @@ const CommercialPlanning: React.FC = () => {
                     </tfoot>
                 </table>
             </div>
+            <p className="mt-2 text-xs text-gray-500">O custo das novas contratações entra na folha a partir deste mês</p>
              <div className="mt-4"><button onClick={addHiringProjectionItem} className="text-brand-orange font-semibold hover:text-orange-700">+ Adicionar Departamento</button></div>
         </div>
     );
