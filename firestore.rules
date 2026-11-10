@@ -68,16 +68,25 @@ service cloud.firestore {
     // ---------- os dados de planejamento ----------
     // O espaço de cada pessoa. Duas condições, as duas obrigatórias:
     // ser dona do espaço, e estar com o acesso liberado.
+    // O administrador NÃO entra na fila — ele é quem libera os outros. Sem o
+    // `souAdmin()` aqui, quem administra ficava sem poder salvar o próprio
+    // planejamento: a regra exigia um documento em `acessos` que administrador
+    // nenhum chega a ter. Repare que `request.auth.uid == uid` continua em pé:
+    // ser administrador dá acesso ao PRÓPRIO espaço, nunca ao dos outros.
+    function podeUsarOEspaco() {
+      return meuAcessoEsta('liberado') || souAdmin();
+    }
+
     match /users/{uid} {
       allow read, write: if request.auth != null
         && request.auth.uid == uid
-        && meuAcessoEsta('liberado');
+        && podeUsarOEspaco();
 
       // subcoleções seguem a mesma regra do dono
       match /{documento=**} {
         allow read, write: if request.auth != null
           && request.auth.uid == uid
-          && meuAcessoEsta('liberado');
+          && podeUsarOEspaco();
       }
     }
 

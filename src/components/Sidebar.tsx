@@ -49,7 +49,7 @@ const SectionTitle: React.FC<{ title: string; icon?: string }> = ({ title, icon 
 );
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, onLogout }) => {
-  const { saveStatus, saveDataNow, souAdmin } = usePlan();
+  const { saveStatus, saveDataNow, souAdmin, motivoDoErroAoSalvar } = usePlan();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   
@@ -154,10 +154,16 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, on
                     {saveStatus === 'saved' && <span className="w-2 h-2 rounded-full bg-green-400"></span>}
                     {saveStatus === 'unsaved' && <span className="w-2 h-2 rounded-full bg-red-400"></span>}
                     {saveStatus === 'error' && <span className="w-2 h-2 rounded-full bg-red-600"></span>}
-                    <span className="text-xs text-gray-400">
-                        {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'saved' ? 'Salvo' : saveStatus === 'unsaved' ? 'Alterado' : saveStatus === 'error' ? 'Erro' : ''}
+                    <span
+                      className="text-xs text-gray-400"
+                      title={saveStatus === 'error' ? motivoDoErroAoSalvar : undefined}
+                    >
+                        {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'saved' ? 'Salvo' : saveStatus === 'unsaved' ? 'Alterado' : saveStatus === 'error' ? 'Não salvou' : ''}
                     </span>
                 </div>
+                {saveStatus === 'error' && motivoDoErroAoSalvar && !isCollapsed && (
+                    <p className="text-[11px] leading-snug text-red-300 mt-1.5">{motivoDoErroAoSalvar}</p>
+                )}
                 <button 
                     onClick={() => saveDataNow()}
                     disabled={saveStatus === 'saving'}

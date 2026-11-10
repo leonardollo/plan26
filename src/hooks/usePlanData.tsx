@@ -238,6 +238,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     const [baseScenario, setBaseScenario] = useState<ScenarioName>('Conservador');
     const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>('loading');
     const [souAdmin, setSouAdmin] = useState(false);
+    const [motivoDoErroAoSalvar, setMotivoDoErroAoSalvar] = useState('');
     const [statusAcesso, setStatusAcesso] = useState<StatusAcesso | null>(null);
     const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -254,6 +255,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                 localStorage.setItem(`plan_data_${user.uid}`, JSON.stringify({ planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems }));
             }
             setSaveStatus('saved');
+            setMotivoDoErroAoSalvar('');
             setLastSaved(new Date());
             if (!manual) {
                 setTimeout(() => setSaveStatus('idle'), 3000);
@@ -261,6 +263,17 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             return Promise.resolve();
         } catch (error) {
             console.error("Error saving data:", error);
+            // "Erro" sozinho não ajuda ninguém. Quando o banco recusa por
+            // permissão, o problema é de acesso e não de rede — e a pessoa
+            // precisa saber disso para não ficar tentando de novo à toa.
+            const bruto = error instanceof Error ? error.message : String(error);
+            setMotivoDoErroAoSalvar(
+                /permission|insufficient/i.test(bruto)
+                    ? 'O banco recusou a gravação: seu acesso não está liberado. Fale com a Gestão de Impacto.'
+                    : /offline|network|unavailable/i.test(bruto)
+                        ? 'Sem conexão com o banco. O que você escreveu não se perdeu; assim que voltar, salvo de novo.'
+                        : bruto
+            );
             setSaveStatus('error');
             return Promise.reject(error);
         }
@@ -1598,7 +1611,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
 
     // ... (value object definition) ...
     const value: PlanContextType = {
-        souAdmin, statusAcesso, listarAcessosDoBanco, mudarStatusDeAcesso,
+        souAdmin, statusAcesso, listarAcessosDoBanco, mudarStatusDeAcesso, motivoDoErroAoSalvar,
         aplicarImportacaoDpe,
         planData, goals2026, scenarios2026, tracking2026, taxes, baseScenario, summary2025, subscriptionStatus,
         progressStatus: {} as any, 
