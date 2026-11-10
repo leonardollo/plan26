@@ -15,11 +15,12 @@ code, identifiers and commit messages follow the project's conventions.
   - install: `npm ci`
   - lint: _none_
   - typecheck: `npm run typecheck`
-  - test, affected only: _none_
-  - test, full: _none_
+  - test, affected only: `npx vitest related --run <files>`
+  - test, full: `npm test && npm run test:rules` (rules need Java 21 and run in the Firestore
+    emulator, project `demo-plan`)
   - build: `npm run build` (typecheck + `vite build`)
   - audit: `npm audit --audit-level=high` (fails today: 13 vulns, fixable by `npm audit fix`)
-  - disposable local DB: _none_ (no Firebase emulator configured)
+  - disposable local DB: `npm run test:rules` starts and discards the Firestore emulator
 - **Sensitive paths** (a diff touching them triggers the security review): `firestore.rules`,
   `firebase.json`, `.firebaserc`, `.env.example`, `src/App.tsx`, `src/hooks/usePlanData.tsx`,
   `src/services/**`, `src/components/Login.tsx`, `src/components/GestaoDeAcessos.tsx`,
