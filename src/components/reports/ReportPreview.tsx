@@ -4,8 +4,10 @@ import { createPortal } from 'react-dom';
 import { usePlan } from '../../hooks/usePlanData';
 import { formatCurrency, formatPercentage, formatNumber } from '../../utils/formatters';
 import { markdownSeguro } from '../../utils/markdownSeguro';
+import { despesasFixasDaDre } from '../../utils/calculos/planoFinanceiro';
+import { lucroLiquidoMensal } from '../../utils/calculos/impostos';
 import clsx from 'clsx';
-import type { ActionPlanCategory, ActionPlanPriority, DRE2026, DFC2026, BP2026 } from '../../types';
+import type { ActionPlanCategory, ActionPlanPriority, DRE2026, DFC2026, BP2026, MonthlyData } from '../../types';
 
 interface ReportPreviewProps {
   reportType: 'diagnosis' | 'plan';
@@ -61,7 +63,7 @@ const DataTable: React.FC<{ headers: string[]; rows: (string | React.ReactNode)[
 // ===== MAIN COMPONENT =====
 
 const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) => {
-    const { planData, goals2026, summary2025, baseScenario } = usePlan();
+    const { planData, goals2026, summary2025, baseScenario, taxes } = usePlan();
 
     // As metas mensais somam o ano. Antes esta seção lia planData.goals2026,
     // que não existe — goals2026 é estado separado —, e com nomes de campo que
@@ -102,11 +104,19 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
             lucroLiquido: sumMonths(dre.lucroLiquido || {}),
             receitaBruta: sumMonths(dre.receitaBruta || {}),
             custosVariaveis: sumMonths(dre.custosVariaveis || {}),
-            despesasFixas: sumMonths(dre.despesasFixas || {}),
+            // A DRE não grava um total de despesas fixas; ele é a soma das linhas.
+            despesasFixas: sumMonths(despesasFixasDaDre(dre) as Record<string, number>),
             fco: sumMonths(dfc.fco || {}),
             saldoFinalCaixa: sumMonths(dfc.saldoFinalCaixa || {}),
         };
     }, [planData.financialPlan2026]);
+
+    // Lucro líquido de 2025 pela mesma regra de IRPJ/CSLL da Coleta de Dados, e não o EBITDA.
+    const lucroLiquido2025 = useMemo(() => {
+        const ebitdaMensal = (summary2025.monthlySummary || []).reduce((acc, linha) => ({ ...acc, [linha.month]: linha.ebitda }), {} as MonthlyData);
+        const lucro = lucroLiquidoMensal(taxes || {}, planData.financialSheet?.receitaBruta?.values2025 || {}, ebitdaMensal);
+        return Object.values(lucro).reduce<number>((s, v) => s + (v || 0), 0);
+    }, [summary2025.monthlySummary, taxes, planData.financialSheet]);
 
     // Sections config for TOC
     const diagnosisSections = [
@@ -665,9 +675,9 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                                                 {summary2025.ebitda > 0 ? `${(((financialTotals2026.ebitda / summary2025.ebitda) - 1) * 100).toFixed(1).replace('.', ',')}%` : '-'}
                                             </span>
                                         ],
-                                        ['Lucro Líquido', formatCurrency(summary2025.ebitda), formatCurrency(financialTotals2026.lucroLiquido),
-                                            <span className={clsx("font-bold", financialTotals2026.lucroLiquido >= summary2025.ebitda ? "text-green-600" : "text-red-600")}>
-                                                {summary2025.ebitda > 0 ? `${(((financialTotals2026.lucroLiquido / summary2025.ebitda) - 1) * 100).toFixed(1).replace('.', ',')}%` : '-'}
+                                        ['Lucro Líquido', formatCurrency(lucroLiquido2025), formatCurrency(financialTotals2026.lucroLiquido),
+                                            <span className={clsx("font-bold", financialTotals2026.lucroLiquido >= lucroLiquido2025 ? "text-green-600" : "text-red-600")}>
+                                                {lucroLiquido2025 > 0 ? `${(((financialTotals2026.lucroLiquido / lucroLiquido2025) - 1) * 100).toFixed(1).replace('.', ',')}%` : '-'}
                                             </span>
                                         ],
                                     ]}
@@ -701,19 +711,23 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {dreRows.map(({ key, label, bold }, ri) => (
+                                                    {dreRows.map(({ key, label, bold }, ri) => {
+                                                        // despesasFixas não existe gravada na DRE: a linha usa a soma das despesas.
+                                                        const valores = (key === 'despesasFixas' ? despesasFixasDaDre(dre) : dre[key]) as Record<string, number>;
+                                                        return (
                                                         <tr key={key} className={clsx("border-b border-gray-200", bold ? "bg-gray-100 font-bold" : ri % 2 === 0 ? "bg-white" : "bg-gray-50")}>
                                                             <td className="py-1.5 px-2 text-gray-800 whitespace-nowrap">{label}</td>
                                                             {months.map(m => (
                                                                 <td key={m} className="py-1.5 px-1 text-right text-gray-700">
-                                                                    {formatCurrency((dre[key] as Record<string, number>)?.[m] || 0)}
+                                                                    {formatCurrency(valores?.[m] || 0)}
                                                                 </td>
                                                             ))}
                                                             <td className="py-1.5 px-2 text-right font-bold text-gray-900 bg-gray-100">
-                                                                {formatCurrency(sumMonths(dre[key] as Record<string, number> || {}))}
+                                                                {formatCurrency(sumMonths(valores || {}))}
                                                             </td>
                                                         </tr>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </tbody>
                                             </table>
                                         </div>

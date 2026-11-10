@@ -343,7 +343,7 @@ const ExecutionPlanTab: React.FC = () => {
                             <Tooltip formatter={(value: number) => formatCurrency(value)} />
                             <Legend />
                             <Area type="monotone" dataKey="meta" name="Meta" stroke="#EE7533" fill="#EE7533" fillOpacity={0.1} strokeWidth={2} strokeDasharray="5 5" />
-                            <Area type="monotone" dataKey="projeção" name="Projeção" stroke="#213242" fill="#213242" fillOpacity={0.15} strokeWidth={2} />
+                            <Area type="monotone" dataKey="projecao" name="Projeção" stroke="#213242" fill="#213242" fillOpacity={0.15} strokeWidth={2} />
                         </AreaChart>
                     </ResponsiveContainer>
                 </div>
