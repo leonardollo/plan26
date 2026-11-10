@@ -25,6 +25,7 @@ import { calcularPlanoFinanceiro2026 } from '../utils/calculos/planoFinanceiro';
 import { aliquotaDeducao, irpjCsllAnual } from '../utils/calculos/impostos';
 import { nopat, paybackCacMeses } from '../utils/calculos/indicadores';
 import { resumoDoCenario } from '../utils/calculos/resumo';
+import { bonusDeProdutividade, scoreEstrategico } from '../utils/calculos/analise';
 
 // Firebase configuration - loaded from environment variables
 const firebaseConfig = {
@@ -240,15 +241,32 @@ const initialTaxes: TaxesData = {
 const recalcularPlanoLido = (data: any, baseScenario: ScenarioName) => {
     const lido = data.planData || {};
     const financialSheet: FinancialSheetData = lido.financialSheet ?? initialPlanData.financialSheet;
-    const analysis = lido.analysis ?? initialPlanData.analysis;
     const modos = lido.scenariosInputMode ?? initialPlanData.scenariosInputMode;
     const investment = lido.investment ?? initialPlanData.investment;
     const inflacao = { ...initialGoals, ...data.goals2026 }.inflacaoPrevista ?? 0;
     const taxes: TaxesData = { ...initialTaxes, ...data.taxes };
     const cenarios: Scenarios2026 = { ...initialScenarios, ...data.scenarios2026 };
     const recalculados: Partial<Scenarios2026> = {};
-    const score = analysis?.strategicScore?.total || 0;
-    const bonus = analysis?.peopleAnalytics?.productivityGainFactor || 0;
+    // Score e bônus recalculados dos dados lidos, mesclados como no setter da carga: o valor gravado pode
+    // estar desatualizado, e se os efeitos o corrigissem depois da carga, abrir o plano gravaria.
+    const loadedFactors = lido.marketAnalysis?.blueOcean?.factors;
+    const marketAnalysis: PlanData['marketAnalysis'] = {
+        ...initialPlanData.marketAnalysis,
+        ...lido.marketAnalysis,
+        blueOcean: {
+            ...initialPlanData.marketAnalysis.blueOcean,
+            ...lido.marketAnalysis?.blueOcean,
+            factors: (loadedFactors && loadedFactors.length > 0) ? loadedFactors : defaultBlueOceanFactors,
+        },
+    };
+    const strategicScore = scoreEstrategico(marketAnalysis, lido.productPortfolio ?? initialPlanData.productPortfolio);
+    const peopleAnalytics = bonusDeProdutividade(
+        lido.people ?? initialPlanData.people,
+        financialSheet.receitaBruta?.values2025,
+        { ...initialGoals, ...data.goals2026 }.pessoas,
+    );
+    const score = strategicScore.total;
+    const bonus = peopleAnalytics.productivityGainFactor;
     // Mesma condição do efeito de cenários: sem receita de 2025 não há base para projetar.
     const temReceita = MONTHS.some(m => (financialSheet.receitaBruta?.values2025?.[m] || 0) > 0);
     if (temReceita) {
@@ -261,7 +279,7 @@ const recalcularPlanoLido = (data: any, baseScenario: ScenarioName) => {
     }
     const projecaoBase = (recalculados[baseScenario] ?? cenarios[baseScenario])?.projection;
     const financialPlan2026 = calcularPlanoFinanceiro2026(projecaoBase, taxes, investment);
-    return { recalculados, financialPlan2026 };
+    return { recalculados, financialPlan2026, strategicScore, peopleAnalytics };
 };
 
 const PlanContext = createContext<PlanContextType | undefined>(undefined);
@@ -366,6 +384,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                 if (data) {
                     // Recalcula na própria carga: o commit da carga não é gravado (entrega 1), então abrir não salva.
                     const recalculado = recalcularPlanoLido(data, baseScenario);
+                    const { strategicScore, peopleAnalytics } = recalculado;
                     if (data.planData) {
                         const loadedFactors = data.planData.marketAnalysis?.blueOcean?.factors;
                         const validFactors = (loadedFactors && loadedFactors.length > 0) ? loadedFactors : defaultBlueOceanFactors;
@@ -381,10 +400,11 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                                     factors: validFactors
                                 }
                             },
+                            analysis: { ...(data.planData.analysis ?? prev.analysis), strategicScore, peopleAnalytics },
                             financialPlan2026: recalculado.financialPlan2026
                         }));
                     } else {
-                        setPlanData(prev => ({ ...prev, financialPlan2026: recalculado.financialPlan2026 }));
+                        setPlanData(prev => ({ ...prev, analysis: { ...prev.analysis, strategicScore, peopleAnalytics }, financialPlan2026: recalculado.financialPlan2026 }));
                     }
                     setScenarios2026(prev => ({ ...prev, ...data.scenarios2026, ...recalculado.recalculados }));
                     // Só depois da leitura: a chave gravada é a do plano de quem entrou.
@@ -513,58 +533,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     };
 
     useEffect(() => {
-        const { swot, blueOcean, marketCompetition, bowmanClockProducts } = planData.marketAnalysis;
-        const products = planData.productPortfolio;
-        
-        const swotRaw = (swot.strengthsImpact || 0) - (swot.weaknessesImpact || 0) + (swot.opportunitiesImpact || 0) - (swot.threatsImpact || 0);
-        const swotImpact = swotRaw * 1.5;
-
-        let blueOceanRaw = 0;
-        if (blueOcean.factors.length > 0) {
-            const totalDiff = blueOcean.factors.reduce((acc, f) => acc + ((f.yourCompanyScore || 0) - (f.competitorScore || 0)), 0);
-            blueOceanRaw = totalDiff / blueOcean.factors.length;
-        }
-        const blueOceanImpact = blueOceanRaw * 1.2;
-
-        const growth = marketCompetition.taxaCrescimentoMercado || 0;
-        const marketRaw = growth > 10 ? 2 : (growth > 5 ? 1 : (growth > 0 ? 0.5 : -1));
-        const marketImpact = marketRaw * 1.5; 
-
-        let abcRaw = 0;
-        const totalRev = products.reduce((s, p) => s + (p.revenue2025 || 0), 0);
-        if (totalRev > 0) {
-            const sorted = [...products].sort((a,b) => (b.revenue2025||0) - (a.revenue2025||0));
-            const top1Rev = sorted[0]?.revenue2025 || 0;
-            const concentration = top1Rev / totalRev;
-            abcRaw = concentration > 0.5 ? -2 : (concentration > 0.3 ? -0.5 : 1); 
-        }
-        const abcImpact = abcRaw;
-
-        // Bowman: considera a relação valor/preço (não apenas valor)
-        // Valor alto + Preço baixo = excelente posição (diferenciação)
-        // Valor baixo + Preço alto = péssima posição (destinado ao fracasso)
-        let clockRaw = 0;
-        if (bowmanClockProducts.length > 0) {
-            const avgVal = bowmanClockProducts.reduce((s, p) => s + (p.perceivedValue || 0), 0) / bowmanClockProducts.length;
-            const avgPrice = bowmanClockProducts.reduce((s, p) => s + (p.priceLevel || 0), 0) / bowmanClockProducts.length;
-            const relacao = avgVal - avgPrice; // Positivo = valor > preço (bom)
-            if (relacao >= 2) clockRaw = 2;       // Valor muito acima do preço
-            else if (relacao >= 1) clockRaw = 1.5; // Valor acima do preço
-            else if (relacao >= 0) clockRaw = 0.5; // Valor = preço (híbrido)
-            else if (relacao >= -1) clockRaw = -0.5; // Preço acima do valor
-            else clockRaw = -2;                    // Preço muito acima do valor
-        }
-        const clockImpact = clockRaw * 1.2; 
-
-        const totalScore = swotImpact + blueOceanImpact + marketImpact + abcImpact + clockImpact;
-
-        const components = [
-            { name: "Análise SWOT", score: swotImpact, weight: 0 },
-            { name: "Oceano Azul (Diferenciação)", score: blueOceanImpact, weight: 0 },
-            { name: "Tendência de Mercado", score: marketImpact, weight: 0 },
-            { name: "Risco de Portfólio (ABC)", score: abcImpact, weight: 0 },
-            { name: "Percepção de Valor (Bowman)", score: clockImpact, weight: 0 }
-        ];
+        const { total: totalScore, components } = scoreEstrategico(planData.marketAnalysis, planData.productPortfolio);
 
         setPlanData(prev => {
             if (Math.abs(prev.analysis.strategicScore.total - totalScore) < 0.01) return prev;
@@ -585,57 +554,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     // === CÁLCULO AUTOMÁTICO DO BÔNUS DE PRODUTIVIDADE ===
     // Baseado em: redução de turnover, ROI de treinamento e investimento em T&D
     useEffect(() => {
-        const { people } = planData;
-        const sumRaw = (data: MonthlyData): number => Object.values(data || {}).reduce((acc: number, val: number | null) => acc + (val || 0), 0);
-        
-        // Dados de People 2025
-        const headcountValues = Object.values(people.headcount.totalColaboradores || {}).filter(v => v !== undefined && v !== null) as number[];
-        const headcountMedio = headcountValues.length > 0 ? headcountValues.reduce((a, b) => a + b, 0) / headcountValues.length : 0;
-        const totalDesligamentos = sumRaw(people.headcount.desligamentosVoluntarios) + sumRaw(people.headcount.desligamentosInvoluntarios);
-        const turnoverAtual = headcountMedio > 0 ? (totalDesligamentos / headcountMedio) * 100 : 0;
-        const investTD = sumRaw(people.treinamento.investimentoTD);
-        const ganhoTD = sumRaw(people.treinamento.ganhoTreinamento);
-        const roiTreinamentoAtual = investTD > 0 ? ganhoTD / investTD : 0;
-        const receitaTotal = (() => {
-            const { financialSheet } = planData;
-            return MONTHS.reduce((acc, m) => acc + (Number(financialSheet.receitaBruta.values2025?.[m]) || 0), 0);
-        })();
-        const receitaPorColab = headcountMedio > 0 ? receitaTotal / headcountMedio : 0;
-
-        // Metas 2026
-        const metaTurnover = goals2026.pessoas.metaTurnover || 0;
-        const metaRoiTD = goals2026.pessoas.metaRoiTreinamento || 0;
-        const metaHeadcount = goals2026.pessoas.metaHeadcount || 0;
-
-        // Componente 1: Redução de Turnover (até 3%)
-        // Cada 1pp de redução de turnover = ~0.5% de ganho de produtividade
-        let turnoverBonus = 0;
-        if (turnoverAtual > 0 && metaTurnover < turnoverAtual) {
-            const reducao = turnoverAtual - metaTurnover;
-            turnoverBonus = Math.min(reducao * 0.5, 3); // Máximo 3%
-        }
-
-        // Componente 2: ROI de Treinamento (até 3%)
-        // Se ROI de treinamento melhora, indica equipe mais capacitada
-        let treinamentoBonus = 0;
-        if (metaRoiTD > roiTreinamentoAtual) {
-            const melhoria = metaRoiTD - roiTreinamentoAtual;
-            treinamentoBonus = Math.min(melhoria * 1.5, 3); // Máximo 3%
-        } else if (roiTreinamentoAtual > 0) {
-            treinamentoBonus = Math.min(roiTreinamentoAtual * 0.5, 2); // Mantém ROI positivo = até 2%
-        }
-
-        // Componente 3: Investimento em T&D como % da folha (até 2%)
-        const folhaTotal = sumRaw(people.custos.folhaTotalAnual);
-        let investTDBonus = 0;
-        if (folhaTotal > 0 && investTD > 0) {
-            const tdPercentFolha = (investTD / folhaTotal) * 100;
-            // Benchmark: empresas top investem 3-5% da folha em T&D
-            investTDBonus = tdPercentFolha >= 5 ? 2 : (tdPercentFolha >= 3 ? 1.5 : (tdPercentFolha >= 1 ? 0.5 : 0));
-        }
-
-        const totalProductivityGain = Math.round((turnoverBonus + treinamentoBonus + investTDBonus) * 10) / 10;
-        const projectedRevenueCalc = receitaPorColab * (1 + totalProductivityGain / 100) * (metaHeadcount || headcountMedio);
+        const { productivityGainFactor: totalProductivityGain, projectedRevenue: projectedRevenueCalc } =
+            bonusDeProdutividade(planData.people, planData.financialSheet.receitaBruta.values2025, goals2026.pessoas);
 
         setPlanData(prev => {
             const prevGain = prev.analysis.peopleAnalytics.productivityGainFactor;

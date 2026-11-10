@@ -392,7 +392,8 @@ describe('usePlanData — DRE e plano antigo', () => {
     await avancar(10000);
     const conservador = result.current.scenarios2026.Conservador.projection;
     expect(conservador.aluguel.jan).toBeCloseTo(10450);
-    expect(conservador.impostosSobreFaturamento.jan).toBeCloseTo(6600);
+    // Mercado não preenchido vale −1,5 no score já na carga: 10% − 1,5 = 8,5% → 108.500 × 6% = 6.510.
+    expect(conservador.impostosSobreFaturamento.jan).toBeCloseTo(6510);
     expect(result.current.planData.financialPlan2026.dre.irpjCsll.jan).toBe(0);
     expect(setDocMock).not.toHaveBeenCalled();
 
@@ -418,7 +419,8 @@ describe('usePlanData — DRE e plano antigo', () => {
     const { result } = await montar();
     act(() => result.current.setBaseScenario('Otimista'));
     await act(async () => {});
-    expect(result.current.planData.financialPlan2026.dre.receitaBruta.jan).toBeCloseTo(120000);
+    // Otimista 20% − 1,5 do score (mercado não preenchido) = 18,5%.
+    expect(result.current.planData.financialPlan2026.dre.receitaBruta.jan).toBeCloseTo(118500);
   });
 });
 
@@ -430,5 +432,78 @@ describe('usePlanData — sensibilidade', () => {
     const centro = matriz[2][2];
     expect(centro.ebit).toBeCloseTo(30000);
     expect(centro.netProfit).toBeCloseTo(30000);
+  });
+});
+
+// Score e bônus gravados antes de uma mudança de regra (ou de dados) ficam desatualizados no documento.
+const analiseDesatualizada = (score: number) => ({
+  strategicSummary: 'resumo salvo',
+  strategicScore: { total: score, components: [] },
+  peopleAnalytics: { productivityGainFactor: 0, projectedRevenue: 0 },
+});
+
+function documentoComScoreDesatualizado() {
+  return documentoCom({
+    planData: {
+      companyProfile: { name: 'Empresa', cnpj: '', industry: '', geminiApiKey: '' },
+      financialSheet: baseDeExemplo(),
+      // Mercado crescendo 12% vale +3 no score (2 × 1,5); SWOT e Oceano Azul padrão valem 0.
+      marketAnalysis: { marketCompetition: { taxaCrescimentoMercado: 12 } },
+      analysis: analiseDesatualizada(0),
+    },
+    taxes: { regimeTributario: 'Simples Nacional', simplesNacional: 6 },
+    scenarios2026: { Conservador: { growthPercentage: 10, projection: projecaoVazia() } },
+  });
+}
+
+function documentoComBonusDesatualizado() {
+  return documentoCom({
+    planData: {
+      companyProfile: { name: 'Empresa', cnpj: '', industry: '', geminiApiKey: '' },
+      financialSheet: baseDeExemplo(),
+      // 10 pessoas e 2 desligamentos: turnover 20%, meta 0 → bônus de produtividade 3 (teto).
+      people: {
+        headcount: { totalColaboradores: { jan: 10 }, contratacoes: {}, desligamentosVoluntarios: { jan: 2 }, desligamentosInvoluntarios: {} },
+        custos: { folhaTotalAnual: {} },
+        treinamento: { investimentoTD: {}, horasTreinamento: {}, ganhoTreinamento: {} },
+        clima: { taxaAbsenteismo: {}, eNPS: {} },
+      },
+      // Mercado não preenchido (crescimento 0) vale −1,5 no score: este já está certo.
+      analysis: analiseDesatualizada(-1.5),
+    },
+    taxes: { regimeTributario: 'Simples Nacional', simplesNacional: 6 },
+    scenarios2026: { Conservador: { growthPercentage: 10, projection: projecaoVazia() } },
+  });
+}
+
+describe('usePlanData — score e produtividade na abertura', () => {
+  it('score desatualizado: abrir mostra o score novo (3) no cenário e não grava; a próxima edição grava', async () => {
+    getDocMock.mockResolvedValue(documentoComScoreDesatualizado());
+    const { result } = await montar();
+    await avancar(10000);
+    expect(result.current.planData.analysis.strategicScore.total).toBeCloseTo(3);
+    expect(result.current.planData.analysis.strategicSummary).toBe('resumo salvo');
+    // Crescimento 10 + score 3 + bônus 0.
+    expect(result.current.scenarios2026.Conservador.projection.receitaBruta.jan).toBeCloseTo(113000);
+    expect(setDocMock).not.toHaveBeenCalled();
+
+    act(() => result.current.updateCompanyProfile('name', 'X'));
+    await avancar(3500);
+    expect(setDocMock).toHaveBeenCalledTimes(1);
+    const gravado = setDocMock.mock.calls[0][1] as any;
+    expect(gravado.planData.analysis.strategicScore.total).toBeCloseTo(3);
+  });
+
+  it('bônus de produtividade desatualizado: abrir mostra o bônus novo (3) no cenário e não grava', async () => {
+    getDocMock.mockResolvedValue(documentoComBonusDesatualizado());
+    const { result } = await montar();
+    await avancar(10000);
+    const pessoas = result.current.planData.analysis.peopleAnalytics;
+    expect(pessoas.productivityGainFactor).toBeCloseTo(3);
+    // Receita por colaborador 120 mil × 1,03 × 10 pessoas.
+    expect(pessoas.projectedRevenue).toBeCloseTo(1236000);
+    // Crescimento 10 + score −1,5 + bônus 3.
+    expect(result.current.scenarios2026.Conservador.projection.receitaBruta.jan).toBeCloseTo(111500);
+    expect(setDocMock).not.toHaveBeenCalled();
   });
 });
