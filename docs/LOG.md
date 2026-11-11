@@ -3,6 +3,50 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
+## 2026-11-11 — Layout no celular
+
+- **O quê:**
+  - **Gaveta** (`Sidebar.tsx`): abaixo de `lg`, a barra lateral sai da tela. Um topo fixo mostra o botão de menu, o logo e
+    "PLAN {ano}". A gaveta abre por cima com fundo escuro e fecha ao escolher uma tela, ao tocar no fundo, no X ou com Esc.
+    Aberta, ela é modal para o teclado: o foco vai ao X, Tab e Shift+Tab ficam presos nela, e ao fechar o foco volta ao botão do
+    menu. Fechada, fica `invisible` para o Tab não passar pelos botões escondidos. No desktop nada muda.
+  - **App** (`App.tsx`): a raiz vira coluna no celular (`flex-col lg:flex-row`), e o `main` ganhou `min-h-0 min-w-0` e
+    padding menor em telas pequenas.
+  - **Telas que estouravam 390 px:** as abas de OKRs e de Coleta de Dados rolam na horizontal. Os filtros, o cabeçalho e a
+    legenda da DRE comparativa quebram linha. O cabeçalho e os botões de Orçamento e Cenários empilham.
+- **Por quê:** pendência da entrega anterior. No celular a barra lateral fixa ocupava quase toda a tela.
+- **Testes** (`Sidebar.test.tsx`, 6 novos, que falharam antes da implementação):
+  - a gaveta começa fechada e o menu abre;
+  - escolher uma tela navega e fecha;
+  - o fundo e o Esc fecham;
+  - o foco vai ao X ao abrir e volta ao menu ao fechar;
+  - o Tab dá a volta (último → X, e com Shift o caminho inverso);
+  - fechada, o Tab não é interceptado.
+- **Verificação:** em `6aa7630`:
+  - `npm test`: 31 arquivos, 297/297;
+  - `npm run test:rules`: 91/91;
+  - `npm run build` (typecheck + vite): ok, em 1.79s;
+  - `npm audit --audit-level=high`: passa, com 13 moderadas.
+- **Navegador** (emuladores, `cliente@exemplo.com`):
+  - **Celular 390:**
+    - nenhuma tela do menu estoura o `main` (`scrollWidth` igual a `clientWidth` em todas);
+    - a gaveta abre com fundo;
+    - escolher Impostos navega e fecha a gaveta.
+  - **Teclado:**
+    - Enter no menu põe o foco no X;
+    - Shift+Tab leva a "Sair", e Tab volta ao X;
+    - Esc fecha e devolve o foco ao menu.
+  - **Desktop 1440:** a barra lateral fica fixa com 288 px, o topo do celular fica oculto e a tela é igual à de antes.
+  - **Achado só no navegador:** a regra global `button { transition: all }` (`index.css`) também anima `visibility`. No
+    primeiro quadro depois de abrir, o X ainda está oculto e recusa o foco. O jsdom não aplica CSS, então os testes não pegaram
+    isso. A correção tira `visibility` da transição do X.
+- **Revisão:** Codex, Normal + Sensível (`App.tsx`).
+  - **Segurança:** sem achados; a mudança é só de layout e navegação.
+  - **Base:** um P2, "confinar o foco na gaveta móvel", corrigido em `6aa7630`. Não era bloqueador, e a correção não toca
+    caminho sensível, então não houve re-revisão.
+- **Em aberto:** o teste foi em viewport de celular no Chrome headless, não num aparelho de toque real.
+- **Commits:** `de7ff91`, `6aa7630`.
+
 ## 2026-11-11 — Plano sempre do ano seguinte ao atual
 
 - **O quê:**
