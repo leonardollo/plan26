@@ -19,7 +19,7 @@ const timelineData = [
 ];
 
 const Taxes: React.FC = () => {
-    const { taxes, updateTaxes, applyTaxesTo2025, summary2025, planData } = usePlan();
+    const { taxes, updateTaxes, applyTaxesTo2025, summary2025, planData, anoPlano, anoBase } = usePlan();
     const prevTaxesRef = useRef<string>('');
     const [activeTab, setActiveTab] = useState<TaxTab>('config');
     const [taxRecommendation, setTaxRecommendation] = useState<string>('');
@@ -40,7 +40,8 @@ const Taxes: React.FC = () => {
                 cnpj,
                 taxes.regimeTributario || 'Não informado',
                 calculatedRate,
-                receitaBruta2025
+                receitaBruta2025,
+                { anoPlano, anoBase }
             );
             setTaxRecommendation(result);
         } catch (error) {

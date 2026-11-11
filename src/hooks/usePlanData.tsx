@@ -1295,8 +1295,12 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         }));
     };
 
+    // Antes de a carga terminar, o ano mostrado é o pedido; antes da lista, o do primeiro plano.
+    const anosAbertos = anosDoPlano(anoCarregado ?? anoPedido ?? anoDoPrimeiroPlano(new Date()));
+    const { anoPlano, anoBase } = anosAbertos;
+
     const generateGoalSuggestions = async () => {
-        const suggestions = await api.getGoalSuggestions(planData, summary2025);
+        const suggestions = await api.getGoalSuggestions(planData, summary2025, anosAbertos);
         setGoals2026(prev => ({ ...prev, ...suggestions }));
     };
 
@@ -1512,7 +1516,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     };
 
     const generateDecisionTriggers = async (scenario: ScenarioName) => {
-        const result = await api.getDecisionTriggers(planData, summary2025, scenario);
+        const result = await api.getDecisionTriggers(planData, summary2025, scenario, anosAbertos);
         updateDecisionTrigger(scenario, result);
     };
 
@@ -1527,12 +1531,12 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             'Conservador': planData.scenarioRelatedData.Conservador.strategicActions,
             'Disruptivo': planData.scenarioRelatedData.Disruptivo.strategicActions
         };
-        const result = await api.getScenarioAnalysis(scenarios2026, triggers, actions);
+        const result = await api.getScenarioAnalysis(scenarios2026, triggers, actions, anosAbertos);
         setPlanData(p => ({...p, analysis: {...p.analysis, strategicSummary: result}}));
     };
 
     const getStrategicScoreAnalysis = async (scenarioName: ScenarioName) => {
-        const result = await api.getStrategicScoreImpactAnalysis(planData.analysis.strategicScore);
+        const result = await api.getStrategicScoreImpactAnalysis(planData.analysis.strategicScore, anosAbertos);
         setPlanData(prev => ({
             ...prev,
             scenarioRelatedData: {
@@ -1665,8 +1669,6 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     };
 
     // ... (value object definition) ...
-    // Antes de a carga terminar, o ano mostrado é o pedido; antes da lista, o do primeiro plano.
-    const { anoPlano, anoBase } = anosDoPlano(anoCarregado ?? anoPedido ?? anoDoPrimeiroPlano(new Date()));
     const anosDisponiveis = [...new Set([...anosSalvosState, anoPlano])].sort((a, b) => a - b);
 
     const value: PlanContextType = {
@@ -1683,7 +1685,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         updateCompanyProfile, updateSheetValue, updateSheetAllValues, updateCustomItem, updateCustomItemAllValues, addCustomItem, removeCustomItem, importFinancialDataFromTsv,
         updateCommercialData, updatePeopleData, updateMarketingData, updateInvestmentData, updateProductPortfolioItem, addProductPortfolioItem, removeProductPortfolioItem,
         updateMarketCompetitionData, updateSWOTData, updateSwotImpact, updateBlueOceanFactor, addBlueOceanFactor, removeBlueOceanFactor, updateBlueOceanFourActions, updateBowmanClockProduct, addBowmanClockProduct, removeBowmanClockProduct,
-        generateOkrKpiSuggestions: async () => { const s = await api.getOkrKpiSuggestions(planData, goals2026, summary2025); setPlanData(p => ({...p, okrsAndKpis: s})); },
+        generateOkrKpiSuggestions: async () => { const s = await api.getOkrKpiSuggestions(planData, goals2026, summary2025, anosAbertos); setPlanData(p => ({...p, okrsAndKpis: s})); },
         addOkr: () => setPlanData(p => ({...p, okrsAndKpis: {...p.okrsAndKpis, okrs: [...p.okrsAndKpis.okrs, { id: uuidv4(), objective: '', keyResults: [] }]}})),
         updateOkr: (id, val) => setPlanData(p => ({...p, okrsAndKpis: {...p.okrsAndKpis, okrs: p.okrsAndKpis.okrs.map(o => o.id === id ? {...o, objective: val} : o)}})),
         removeOkr: (id) => setPlanData(p => ({...p, okrsAndKpis: {...p.okrsAndKpis, okrs: p.okrsAndKpis.okrs.filter(o => o.id !== id)}})),
@@ -1707,8 +1709,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         addItemInvestimento2026: (lista) => setPlanData(p => ({...p, investment2026: {...p.investment2026, [lista]: [...p.investment2026[lista], novoItemInvestimento2026(lista)]}})),
         updateItemInvestimento2026: (lista, id, campo, value) => setPlanData(p => ({...p, investment2026: {...p.investment2026, [lista]: (p.investment2026[lista] as { id: string }[]).map(i => i.id === id ? {...i, [campo]: campo === 'descricao' ? value : campo === 'mes' ? (value === '' ? null : value) : numeroOuNulo(value)} : i)}})),
         removeItemInvestimento2026: (lista, id) => setPlanData(p => ({...p, investment2026: {...p.investment2026, [lista]: (p.investment2026[lista] as { id: string }[]).filter(i => i.id !== id)}})),
-        generateFunnelSuggestions: async () => { const result = await api.getFunnelSuggestions(planData.commercialPlanning.salesFunnel); setPlanData(p => ({...p, commercialPlanning: {...p.commercialPlanning, funnelSuggestions: result}})); },
-        generateMarketingFunnelAnalysis: async (f25, f26) => { const result = await api.generateMarketingFunnelAnalysis(f25, f26); setPlanData(p => ({...p, analysis: {...p.analysis, marketingFunnelAnalysis: result}})); },
+        generateFunnelSuggestions: async () => { const result = await api.getFunnelSuggestions(planData.commercialPlanning.salesFunnel, undefined, anosAbertos); setPlanData(p => ({...p, commercialPlanning: {...p.commercialPlanning, funnelSuggestions: result}})); },
+        generateMarketingFunnelAnalysis: async (f25, f26) => { const result = await api.generateMarketingFunnelAnalysis(f25, f26, anosAbertos); setPlanData(p => ({...p, analysis: {...p.analysis, marketingFunnelAnalysis: result}})); },
         addActionPlanItem: () => setPlanData(p => ({...p, actionPlan: [...p.actionPlan, { id: uuidv4(), what: '', why: '', who: '', when: '', where: '', how: '', howMuch: 0, status: 'Não Iniciado', category: 'Estratégico' as const, priority: 'Média' as const, expectedResult: '' }]})),
         removeActionPlanItem: (id) => setPlanData(p => ({...p, actionPlan: p.actionPlan.filter(i => i.id !== id)})),
         updateActionPlanItem: (id, field, val) => setPlanData(p => ({...p, actionPlan: p.actionPlan.map(i => i.id === id ? {...i, [field]: field === 'howMuch' ? parseFloat(val) : val} : i)})),
@@ -1718,8 +1720,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         applyWhatIfSimulation: (t, v) => {}, 
         updateDecisionTrigger, updateStrategicAction, generateDecisionTriggers, getScenarioAnalysis, getStrategicScoreAnalysis,
         calculateFinancialPlan2026, setBaseScenario, updateTracking2026, updateTaxes,
-        generateBenchmarkAnalysis: async () => { const result = await api.getBenchmarkAnalysis(planData.companyProfile, summary2025); setPlanData(p => ({...p, analysis: {...p.analysis, benchmarkAnalysis: result}})); },
-        generateStrategicSummaryAndActions: async () => { const result = await api.generateComprehensiveStrategicAnalysis(planData, summary2025, goals2026); setPlanData(p => ({...p, analysis: {...p.analysis, strategicSummary: result.analysisText}, actionPlan: [...p.actionPlan, ...result.actionPlanItems.map(i => ({...i, id: uuidv4(), status: 'Não Iniciado' as const, category: i.category || 'Estratégico' as const, priority: i.priority || 'Alta' as const, expectedResult: i.expectedResult || ''}))]})); },
+        generateBenchmarkAnalysis: async () => { const result = await api.getBenchmarkAnalysis(planData.companyProfile, summary2025, anosAbertos); setPlanData(p => ({...p, analysis: {...p.analysis, benchmarkAnalysis: result}})); },
+        generateStrategicSummaryAndActions: async () => { const result = await api.generateComprehensiveStrategicAnalysis(planData, summary2025, goals2026, anosAbertos); setPlanData(p => ({...p, analysis: {...p.analysis, strategicSummary: result.analysisText}, actionPlan: [...p.actionPlan, ...result.actionPlanItems.map(i => ({...i, id: uuidv4(), status: 'Não Iniciado' as const, category: i.category || 'Estratégico' as const, priority: i.priority || 'Alta' as const, expectedResult: i.expectedResult || ''}))]})); },
         generateMonthlyAnalysis: async (m) => { const actual = tracking2026[m]; const resumo = resumoDoCenario(scenarios2026[baseScenario]?.projection); const projected = { receita: resumo.receita[m], custos: resumo.custos[m], despesas: resumo.despesas[m] }; 
             const pMC = (projected.receita||0) - (projected.custos||0);
             const pPE = pMC > 0 ? (projected.despesas||0) / (pMC / (projected.receita||1)) : 0;
@@ -1728,8 +1730,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             const result = await api.getMonthlyVarianceAnalysis(m, {receita: projected.receita, custosVariaveis: projected.custos, despesasFixas: projected.despesas, margemContribuicao: pMC, pontoEquilibrio: pPE}, {receita: actual?.receitaRealizada || 0, custosVariaveis: actual?.custosRealizados||0, despesasFixas: actual?.despesasRealizadas||0, margemContribuicao: aMC, pontoEquilibrio: aPE});
             updateTracking2026(m, 'analysisText', result);
         },
-        generateDiagnosisReport: async () => { const result = await api.generateDiagnosisReportAnalysis(planData, summary2025); setPlanData(p => ({...p, analysis: {...p.analysis, diagnosisReportAnalysis: result}})); },
-        generatePlanReport: async () => { const result = await api.generatePlanReportAnalysis(planData, goals2026, scenarios2026, baseScenario); setPlanData(p => ({...p, analysis: {...p.analysis, planReportAnalysis: result}})); },
+        generateDiagnosisReport: async () => { const result = await api.generateDiagnosisReportAnalysis(planData, summary2025, anosAbertos); setPlanData(p => ({...p, analysis: {...p.analysis, diagnosisReportAnalysis: result}})); },
+        generatePlanReport: async () => { const result = await api.generatePlanReportAnalysis(planData, goals2026, scenarios2026, baseScenario, anosAbertos); setPlanData(p => ({...p, analysis: {...p.analysis, planReportAnalysis: result}})); },
         resetAllData: async () => {
             setPlanData(initialPlanData);
             setGoals2026(initialGoals);

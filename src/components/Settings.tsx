@@ -6,7 +6,7 @@ import { getIndustryFromCnpj, getMarketResearchFromCnpj, CnpjData } from '../ser
 import { markdownSeguro } from '../utils/markdownSeguro';
 
 const Settings: React.FC = () => {
-    const { planData, updateCompanyProfile, updateMarketCompetitionData, saveDataNow, resetAllData } = usePlan();
+    const { planData, updateCompanyProfile, updateMarketCompetitionData, saveDataNow, resetAllData, anoPlano, anoBase } = usePlan();
     const [isSearching, setIsSearching] = useState(false);
     const [isResearching, setIsResearching] = useState(false);
     const [showKey, setShowKey] = useState(false);
@@ -68,7 +68,7 @@ const Settings: React.FC = () => {
         setMarketAnalysis('');
         setCnpjData(null);
         try {
-            const result = await getMarketResearchFromCnpj(planData.companyProfile.cnpj);
+            const result = await getMarketResearchFromCnpj(planData.companyProfile.cnpj, { anoPlano, anoBase });
             setCnpjData(result.cnpjData);
             setMarketAnalysis(result.marketAnalysis);
             

@@ -3,6 +3,7 @@ import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { PlanData, Summary2025, FinancialGoals, CommercialGoals, PeopleGoals, SalesFunnelData, ScenarioName, Scenarios2026, ScenarioData, OKR, KPI, Goals2026, CompanyProfile, DemandChannel, ActionPlanItem, FinancialPlanSheetRow, MonthlyData } from '../types';
 import { formatCurrency, formatNumber, formatPercentage } from '../utils/formatters';
 import { resumoDoCenario } from '../utils/calculos/resumo';
+import type { AnosDoPlano } from './planos';
 
 const sumMonthlyData = (data: MonthlyData): number => data ? Object.values(data).reduce((sum, val) => sum + (Number(val) || 0), 0) : 0;
 
@@ -158,7 +159,7 @@ export const getIndustryFromCnpj = async (cnpj: string): Promise<string> => {
     }
 };
 
-export const getMarketResearchFromCnpj = async (cnpj: string): Promise<MarketResearchResult> => {
+export const getMarketResearchFromCnpj = async (cnpj: string, anos: AnosDoPlano): Promise<MarketResearchResult> => {
     // Step 1: Buscar dados oficiais do CNPJ
     const cnpjData = await fetchCnpjFromBrasilAPI(cnpj);
     
@@ -179,7 +180,7 @@ PESQUISE NA INTERNET e faca uma analise completa cobrindo:
 
 1. **TAMANHO DO MERCADO**: Estime o tamanho do mercado (TAM, SAM, SOM) para o setor ${cnpjData.cnaeDescricao} na regiao de ${cnpjData.municipio}/${cnpjData.uf} e no Rio Grande do Sul. Use dados reais de pesquisas, IBGE, SEBRAE, associacoes setoriais.
 
-2. **CRESCIMENTO DO SETOR**: Taxa de crescimento anual do setor nos ultimos 3 anos e projecao para 2026. Cite fontes.
+2. **CRESCIMENTO DO SETOR**: Taxa de crescimento anual do setor nos ultimos 3 anos e projecao para ${anos.anoPlano}. Cite fontes.
 
 3. **CONCORRENCIA REGIONAL**: Quantos concorrentes diretos existem na regiao? Quais sao os principais? Qual o nivel de concentracao do mercado?
 
@@ -189,7 +190,7 @@ PESQUISE NA INTERNET e faca uma analise completa cobrindo:
 
 6. **BENCHMARKS DO SETOR**: Margem de lucro media, ticket medio, taxa de crescimento tipica, numero medio de funcionarios para empresas similares.
 
-7. **RECOMENDACOES ESTRATEGICAS**: 3 a 5 acoes concretas que o empresario deveria considerar para 2026.
+7. **RECOMENDACOES ESTRATEGICAS**: 3 a 5 acoes concretas que o empresario deveria considerar para ${anos.anoPlano}.
 
 Formate a resposta em Markdown com titulos claros. Seja especifico com numeros e dados. Cite fontes quando possivel.
 Escreva em portugues brasileiro.
@@ -218,9 +219,20 @@ Escreva em portugues brasileiro.
 };
 
 
-export const getTaxRecommendation = async (cnpj: string, regimeTributario: string, aliquotaEfetiva: number, receitaBruta: number): Promise<string> => {
+export const getTaxRecommendation = async (cnpj: string, regimeTributario: string, aliquotaEfetiva: number, receitaBruta: number, anos: AnosDoPlano): Promise<string> => {
     const cnpjData = await fetchCnpjFromBrasilAPI(cnpj);
-    
+
+    // Calendário da Reforma Tributária: são os anos da lei, que não seguem o ano do plano.
+    // ano-real:início
+    const calendarioDaReforma = `CONTEXTO 2026-2027:
+- Reforma Tributaria em transicao (EC 132/2023, LC 214/2025)
+- 2026: Fase de testes com aliquota 1% (0,9% CBS + 0,1% IBS)
+- 2027: Extincao de PIS/COFINS, CBS com aliquota cheia (~8,8%)
+- Split Payment obrigatorio a partir de 2027
+- Ajuste fiscal do governo com ampliacao da base tributavel
+- Simples Nacional com regime hibrido opcional (setembro/2026)`;
+    // ano-real:fim
+
     const prompt = `
 Voce e um especialista em planejamento tributario e engenharia contabil no Brasil. Com base nos dados abaixo, faca uma ANALISE TRIBUTARIA PERSONALIZADA e de recomendacoes praticas.
 
@@ -239,13 +251,9 @@ DADOS TRIBUTARIOS ATUAIS:
 - Aliquota Efetiva Atual: ${aliquotaEfetiva.toFixed(2).replace('.', ',')}%
 - Receita Bruta Anual Estimada: R$ ${receitaBruta.toLocaleString('pt-BR')}
 
-CONTEXTO 2026-2027:
-- Reforma Tributaria em transicao (EC 132/2023, LC 214/2025)
-- 2026: Fase de testes com aliquota 1% (0,9% CBS + 0,1% IBS)
-- 2027: Extincao de PIS/COFINS, CBS com aliquota cheia (~8,8%)
-- Split Payment obrigatorio a partir de 2027
-- Ajuste fiscal do governo com ampliacao da base tributavel
-- Simples Nacional com regime hibrido opcional (setembro/2026)
+PLANO DE ${anos.anoPlano}: as recomendacoes sao para o planejamento de ${anos.anoPlano}.
+
+${calendarioDaReforma}
 
 ANALISE E RECOMENDE:
 
@@ -261,7 +269,7 @@ ANALISE E RECOMENDE:
    - Incentivos setoriais para o CNAE ${cnpjData.cnaeCodigo}
    - Reestruturacao societaria se aplicavel
 
-5. **PLANO DE ACAO TRIBUTARIO**: Cronograma com acoes especificas para 2026 (preparacao) e 2027 (transicao), com prazos e prioridades.
+5. **PLANO DE ACAO TRIBUTARIO**: Cronograma com acoes especificas para ${anos.anoPlano}, conforme a fase da reforma nesse ano (calendario acima), com prazos e prioridades.
 
 6. **ALERTAS**: Riscos tributarios especificos para este tipo de empresa que o empresario deve ficar atento.
 
@@ -288,17 +296,17 @@ Escreva em portugues brasileiro.
     }
 };
 
-export const getGoalSuggestions = async (planData: PlanData, summary: Summary2025): Promise<{ financeiras: FinancialGoals, comerciais: CommercialGoals, pessoas: PeopleGoals }> => {
+export const getGoalSuggestions = async (planData: PlanData, summary: Summary2025, anos: AnosDoPlano): Promise<{ financeiras: FinancialGoals, comerciais: CommercialGoals, pessoas: PeopleGoals }> => {
     const { companyProfile, marketAnalysis } = planData;
 
     const prompt = `
-        Você é um consultor de estratégia de negócios de classe mundial. Com base nos seguintes dados de uma empresa, forneça sugestões de metas realistas e ambiciosas para o próximo ano (2026).
+        Você é um consultor de estratégia de negócios de classe mundial. Com base nos seguintes dados de uma empresa, forneça sugestões de metas realistas e ambiciosas para o próximo ano (${anos.anoPlano}).
 
         Perfil da Empresa:
         - Nome: ${companyProfile.name || 'Não informado'}
         - Ramo de Atividade: ${companyProfile.industry || 'Não informado'}
 
-        Resumo do Desempenho em 2025:
+        Resumo do Desempenho em ${anos.anoBase}:
         - Receita Total: ${formatCurrency(summary.receitaTotal)}
         - Margem EBITDA: ${formatPercentage(summary.margemEbitda)}
         - Novos Clientes: ${formatNumber(summary.novosClientesTotal)}
@@ -311,7 +319,7 @@ export const getGoalSuggestions = async (planData: PlanData, summary: Summary202
         - Taxa de Crescimento do Setor: ${formatPercentage(marketAnalysis.marketCompetition.taxaCrescimentoMercado)}
         - Principal Força da Empresa (SWOT): ${marketAnalysis.swot.strengths.split('\n')[0] || 'Não informada'}
 
-        Com base nisso, gere um objeto JSON com metas para 2026 para as seguintes categorias: 'financeiras', 'comerciais' e 'pessoas'.
+        Com base nisso, gere um objeto JSON com metas para ${anos.anoPlano} para as seguintes categorias: 'financeiras', 'comerciais' e 'pessoas'.
         Seja otimista, mas realista. A meta de receita deve considerar a taxa de crescimento do setor e o desempenho passado da empresa. As outras métricas devem estar alinhadas com a meta de receita.
         Retorne apenas números nos campos, sem formatação de moeda ou percentual.
     `;
@@ -379,7 +387,7 @@ export const getGoalSuggestions = async (planData: PlanData, summary: Summary202
     }
 };
 
-export const getOkrKpiSuggestions = async (planData: PlanData, goals: Goals2026, summary: Summary2025): Promise<{ okrs: OKR[], kpis: { financeiro: KPI[], comercial: KPI[], pessoas: KPI[], operacoes: KPI[] } }> => {
+export const getOkrKpiSuggestions = async (planData: PlanData, goals: Goals2026, summary: Summary2025, anos: AnosDoPlano): Promise<{ okrs: OKR[], kpis: { financeiro: KPI[], comercial: KPI[], pessoas: KPI[], operacoes: KPI[] } }> => {
     const { companyProfile } = planData;
     const { financeiras, comerciais, pessoas } = goals;
 
@@ -389,13 +397,13 @@ export const getOkrKpiSuggestions = async (planData: PlanData, goals: Goals2026,
         Perfil da Empresa:
         - Ramo de Atividade: ${companyProfile.industry || 'Não informado'}
 
-        Principais Metas para 2026:
+        Principais Metas para ${anos.anoPlano}:
         - Aumentar a Receita para ${formatCurrency(sumMonthlyData(financeiras.metaReceita))}.
         - Atingir ${formatPercentage(financeiras.metaMargemEbitda)} de Margem EBITDA.
         - Conquistar ${formatNumber(sumMonthlyData(comerciais.metaNumClientes))} novos clientes.
         - Aumentar o headcount para ${formatNumber(pessoas.metaHeadcount)} colaboradores.
 
-        Desempenho de 2025 (para referência):
+        Desempenho de ${anos.anoBase} (para referência):
         - Receita: ${formatCurrency(summary.receitaTotal)}
         - Margem EBITDA: ${formatPercentage(summary.margemEbitda)}
 
@@ -497,9 +505,9 @@ export const getOkrKpiSuggestions = async (planData: PlanData, goals: Goals2026,
     }
 };
 
-export const getFunnelSuggestions = async (funnel: SalesFunnelData, revenueGoal?: number): Promise<string> => {
+export const getFunnelSuggestions = async (funnel: SalesFunnelData, revenueGoal: number | undefined, anos: AnosDoPlano): Promise<string> => {
     const prompt = `
-        Você é um especialista em otimização de funil de vendas (growth hacking). Analise os seguintes dados de um funil de vendas e a meta de receita para 2026.
+        Você é um especialista em otimização de funil de vendas (growth hacking). Analise os seguintes dados de um funil de vendas e a meta de receita para ${anos.anoPlano}.
 
         Dados do Funil de Vendas Simulado:
         - Meta de Receita Anual: ${revenueGoal ? formatCurrency(revenueGoal) : 'Não definida'}
@@ -574,7 +582,7 @@ export const getChannelMixAnalysis = async (companyProfile: CompanyProfile, chan
     }
 };
 
-export const getDecisionTriggers = async (planData: PlanData, summary2025: Summary2025, scenarioName?: ScenarioName): Promise<string> => {
+export const getDecisionTriggers = async (planData: PlanData, summary2025: Summary2025, scenarioName: ScenarioName | undefined, anos: AnosDoPlano): Promise<string> => {
     const { companyProfile } = planData;
     
     const context = scenarioName 
@@ -582,8 +590,8 @@ export const getDecisionTriggers = async (planData: PlanData, summary2025: Summa
         : `Sugira 3 a 4 "Gatilhos de Decisão" para cada um dos 3 cenários (Otimista, Conservador, Disruptivo).`;
 
     const prompt = `
-        Você é um consultor de negócios experiente. Para a empresa '${companyProfile.name}' do ramo de '${companyProfile.industry}', estou criando um planejamento por cenários para 2026 (Otimista, Conservador, Disruptivo).
-        O desempenho em 2025 teve uma receita de ${formatCurrency(summary2025.receitaTotal)} e ${summary2025.novosClientesTotal} novos clientes.
+        Você é um consultor de negócios experiente. Para a empresa '${companyProfile.name}' do ramo de '${companyProfile.industry}', estou criando um planejamento por cenários para ${anos.anoPlano} (Otimista, Conservador, Disruptivo).
+        O desempenho em ${anos.anoBase} teve uma receita de ${formatCurrency(summary2025.receitaTotal)} e ${summary2025.novosClientesTotal} novos clientes.
 
         ${context}
         
@@ -612,9 +620,9 @@ export const getDecisionTriggers = async (planData: PlanData, summary2025: Summa
 const receitaAnualDoCenario = (cenario: ScenarioData | undefined): number =>
     Object.values(resumoDoCenario(cenario?.projection).receita).reduce((a: number, b) => a + (Number(b) || 0), 0);
 
-export const getScenarioAnalysis = async (scenarios: Scenarios2026, triggers: { [key in ScenarioName]: string }, actions: { [key in ScenarioName]: string }): Promise<string> => {
+export const getScenarioAnalysis = async (scenarios: Scenarios2026, triggers: { [key in ScenarioName]: string }, actions: { [key in ScenarioName]: string }, anos: AnosDoPlano): Promise<string> => {
      const prompt = `
-        Você é um analista estratégico sênior. Analise o seguinte plano de cenários para 2026 e forneça uma análise sobre os caminhos estratégicos.
+        Você é um analista estratégico sênior. Analise o seguinte plano de cenários para ${anos.anoPlano} e forneça uma análise sobre os caminhos estratégicos.
 
         **Cenário Otimista:**
         - Orçamento: Receita projetada de ${formatCurrency(receitaAnualDoCenario(scenarios.Otimista))}.
@@ -651,10 +659,10 @@ export const getScenarioAnalysis = async (scenarios: Scenarios2026, triggers: { 
     }
 }
 
-export const getStrategicScoreImpactAnalysis = async (score: PlanData['analysis']['strategicScore']): Promise<string> => {
+export const getStrategicScoreImpactAnalysis = async (score: PlanData['analysis']['strategicScore'], anos: AnosDoPlano): Promise<string> => {
     const componentsText = score.components.map(c => `- ${c.name}: Pontuação ${c.score.toFixed(2)} (Peso: ${formatPercentage(c.weight * 100, 0)})`).join('\n');
     const prompt = `
-        Você é um consultor de estratégia sênior. Analise a seguinte Pontuação Estratégica Consolidada de uma empresa e explique o que ela significa para o orçamento de 2026.
+        Você é um consultor de estratégia sênior. Analise a seguinte Pontuação Estratégica Consolidada de uma empresa e explique o que ela significa para o orçamento de ${anos.anoPlano}.
 
         **Fator de Crescimento Estratégico Total: ${formatPercentage(score.total, 1)}**
 
@@ -682,11 +690,11 @@ export const getStrategicScoreImpactAnalysis = async (score: PlanData['analysis'
 };
 
 
-export const getBenchmarkAnalysis = async (companyProfile: CompanyProfile, summary: Summary2025): Promise<string> => {
+export const getBenchmarkAnalysis = async (companyProfile: CompanyProfile, summary: Summary2025, anos: AnosDoPlano): Promise<string> => {
     const prompt = `
-        Você é um analista de negócios e especialista em benchmarking de mercado. Analise os seguintes KPIs de 2025 para a empresa '${companyProfile.name}', que atua no ramo de '${companyProfile.industry}'.
+        Você é um analista de negócios e especialista em benchmarking de mercado. Analise os seguintes KPIs de ${anos.anoBase} para a empresa '${companyProfile.name}', que atua no ramo de '${companyProfile.industry}'.
 
-        KPIs da Empresa (2025):
+        KPIs da Empresa (${anos.anoBase}):
         - Margem EBITDA: ${formatPercentage(summary.margemEbitda)}
         - Custo de Aquisição de Clientes (CAC): ${formatCurrency(summary.cac)}
         - Lifetime Value (LTV): ${formatCurrency(summary.ltv)}
@@ -699,7 +707,7 @@ export const getBenchmarkAnalysis = async (companyProfile: CompanyProfile, summa
         2. Forneça uma análise estratégica concisa em texto.
         3. Destaque 1 ou 2 pontos fortes (onde a empresa está acima da média).
         4. Aponte 1 ou 2 pontos de atenção (onde a empresa pode melhorar em relação ao mercado).
-        5. Termine com uma recomendação chave para o planejamento de 2026.
+        5. Termine com uma recomendação chave para o planejamento de ${anos.anoPlano}.
 
         A resposta deve ser um texto corrido, bem estruturado, usando negrito para destacar os pontos fortes e de atenção.
     `;
@@ -719,7 +727,8 @@ export const getBenchmarkAnalysis = async (companyProfile: CompanyProfile, summa
 export const generateComprehensiveStrategicAnalysis = async (
     planData: PlanData,
     summary2025: Summary2025,
-    goals2026: Goals2026
+    goals2026: Goals2026,
+    anos: AnosDoPlano
 ): Promise<{ analysisText: string; actionPlanItems: Omit<ActionPlanItem, 'id' | 'status'>[] }> => {
     
     const serialize = (obj: any) => JSON.stringify(obj, null, 2);
@@ -727,16 +736,16 @@ export const generateComprehensiveStrategicAnalysis = async (
     const { geminiApiKey: _semChave, ...perfilParaPrompt } = planData.companyProfile;
 
     const prompt = `
-        Você é um Consultor de Estratégia de Negócios (CSO) de classe mundial. Sua tarefa é analisar os dados abrangentes de planejamento da empresa e gerar uma análise estratégica acionável para 2026.
+        Você é um Consultor de Estratégia de Negócios (CSO) de classe mundial. Sua tarefa é analisar os dados abrangentes de planejamento da empresa e gerar uma análise estratégica acionável para ${anos.anoPlano}.
 
         **DADOS DA EMPRESA:**
         - **Perfil:** ${serialize(perfilParaPrompt)}
-        - **Metas 2026:** Aumentar a receita para ${formatCurrency(sumMonthlyData(goals2026.financeiras.metaReceita))} com ${formatPercentage(goals2026.financeiras.metaMargemEbitda)} de margem EBITDA.
-        - **Resumo 2025:** Receita de ${formatCurrency(summary2025.receitaTotal)}, ${summary2025.novosClientesTotal} novos clientes, ${formatPercentage(summary2025.margemEbitda)} margem EBITDA.
+        - **Metas ${anos.anoPlano}:** Aumentar a receita para ${formatCurrency(sumMonthlyData(goals2026.financeiras.metaReceita))} com ${formatPercentage(goals2026.financeiras.metaMargemEbitda)} de margem EBITDA.
+        - **Resumo ${anos.anoBase}:** Receita de ${formatCurrency(summary2025.receitaTotal)}, ${summary2025.novosClientesTotal} novos clientes, ${formatPercentage(summary2025.margemEbitda)} margem EBITDA.
         - **Análise de Mercado:** ${serialize(planData.marketAnalysis)}
-        - **Custos 2025:** CMV Total de ${formatCurrency(summary2025.cmvTotal)}, Custos Variáveis de ${formatCurrency(summary2025.custosVariaveisTotal)}, Custos Fixos de ${formatCurrency(summary2025.custosFixosTotal)}.
-        - **Plano Comercial 2026:** O funil de vendas precisa gerar ${formatNumber(planData.commercialPlanning.demandPlanning.channels.reduce((s,c) => s + (c.leads || 0), 0))} leads.
-        - **Plano de RH 2026:** Planeja contratar ${planData.hiringProjection.reduce((s, d) => s + (d.newHires || 0), 0)} novas pessoas.
+        - **Custos ${anos.anoBase}:** CMV Total de ${formatCurrency(summary2025.cmvTotal)}, Custos Variáveis de ${formatCurrency(summary2025.custosVariaveisTotal)}, Custos Fixos de ${formatCurrency(summary2025.custosFixosTotal)}.
+        - **Plano Comercial ${anos.anoPlano}:** O funil de vendas precisa gerar ${formatNumber(planData.commercialPlanning.demandPlanning.channels.reduce((s,c) => s + (c.leads || 0), 0))} leads.
+        - **Plano de RH ${anos.anoPlano}:** Planeja contratar ${planData.hiringProjection.reduce((s, d) => s + (d.newHires || 0), 0)} novas pessoas.
 
         **SUA TAREFA:**
         Com base em TODOS os dados fornecidos, retorne um único objeto JSON com duas chaves: "analysisText" e "actionPlanItems".
@@ -745,7 +754,7 @@ export const generateComprehensiveStrategicAnalysis = async (
         Uma análise estratégica em formato de texto (use quebras de linha para parágrafos). Estruture sua análise com os seguintes títulos:
         
         **Análise Estratégica Holística:**
-        (Faça um parágrafo inicial resumindo a situação da empresa e o principal desafio para 2026).
+        (Faça um parágrafo inicial resumindo a situação da empresa e o principal desafio para ${anos.anoPlano}).
 
         **Diagnóstico do Posicionamento:**
         (Analise o SWOT, Curva ABC, Oceano Azul e Bowman. A empresa está bem posicionada? Onde estão os maiores riscos e oportunidades no portfólio e no mercado?).
@@ -970,12 +979,12 @@ export const getPricingModelRecommendation = async (
     }
 };
 
-export const generateDiagnosisReportAnalysis = async (planData: PlanData, summary2025: Summary2025): Promise<string> => {
+export const generateDiagnosisReportAnalysis = async (planData: PlanData, summary2025: Summary2025, anos: AnosDoPlano): Promise<string> => {
     const prompt = `
-        Você é um consultor sênior de negócios. Analise os dados de 2025 da empresa "${planData.companyProfile.name}" do setor de "${planData.companyProfile.industry}".
+        Você é um consultor sênior de negócios. Analise os dados de ${anos.anoBase} da empresa "${planData.companyProfile.name}" do setor de "${planData.companyProfile.industry}".
         Gere um relatório de diagnóstico conciso.
 
-        **Resumo Financeiro 2025:**
+        **Resumo Financeiro ${anos.anoBase}:**
         - Receita Líquida: ${formatCurrency(summary2025.receitaTotal)}
         - Margem EBITDA: ${formatPercentage(summary2025.margemEbitda)}
         - Ponto de Equilíbrio (mensal): ${formatCurrency(summary2025.pontoEquilibrioContabil)}
@@ -987,9 +996,9 @@ export const generateDiagnosisReportAnalysis = async (planData: PlanData, summar
         - Ameaças: ${planData.marketAnalysis.swot.threats}
         
         **Sua Tarefa:**
-        1. **Diagnóstico Geral:** Dê um parecer sobre a saúde financeira e estratégica da empresa em 2025.
+        1. **Diagnóstico Geral:** Dê um parecer sobre a saúde financeira e estratégica da empresa em ${anos.anoBase}.
         2. **Pontos Fortes:** Destaque os principais pontos positivos do ano.
-        3. **Pontos de Atenção:** Identifique os principais riscos e fraquezas que precisam ser abordados no planejamento de 2026.
+        3. **Pontos de Atenção:** Identifique os principais riscos e fraquezas que precisam ser abordados no planejamento de ${anos.anoPlano}.
         4. **Recomendação Principal:** Qual deve ser o foco estratégico número 1 para o próximo ano?
 
         Seja direto e use uma linguagem de negócios. Formate a resposta para ser lida facilmente.
@@ -1007,7 +1016,7 @@ export const generateDiagnosisReportAnalysis = async (planData: PlanData, summar
     }
 };
 
-export const generatePlanReportAnalysis = async (planData: PlanData, goals2026: Goals2026, scenarios2026: Scenarios2026, baseScenario: ScenarioName): Promise<string> => {
+export const generatePlanReportAnalysis = async (planData: PlanData, goals2026: Goals2026, scenarios2026: Scenarios2026, baseScenario: ScenarioName, anos: AnosDoPlano): Promise<string> => {
     
     // Aggregate key financial data for the prompt
     const projection = scenarios2026[baseScenario].projection;
@@ -1016,7 +1025,7 @@ export const generatePlanReportAnalysis = async (planData: PlanData, goals2026: 
     const ebitdaProjetado = sumMonthlyData(resumo.ebitda);
     
     const prompt = `
-        Você é um **Chief Strategy Officer (CSO)** de classe mundial. Sua missão é criar um **"Relatório de Plano de Jogo"** definitivo para 2026 da empresa "${planData.companyProfile.name}".
+        Você é um **Chief Strategy Officer (CSO)** de classe mundial. Sua missão é criar um **"Relatório de Plano de Jogo"** definitivo para ${anos.anoPlano} da empresa "${planData.companyProfile.name}", que parte dos resultados de ${anos.anoBase}.
         
         Este não é um resumo comum. É uma análise crítica e profunda que deve conectar todos os pontos do planejamento para validar se a estratégia é vencedora.
 
@@ -1028,7 +1037,7 @@ export const generatePlanReportAnalysis = async (planData: PlanData, goals2026: 
            - Oportunidades: ${planData.marketAnalysis.swot.opportunities}
            - Fator Estratégico (Score): ${planData.analysis.strategicScore.total.toFixed(1).replace('.', ',')}%
 
-        2. **O Alvo (Metas 2026):**
+        2. **O Alvo (Metas ${anos.anoPlano}):**
            - Receita Alvo: ${formatCurrency(sumMonthlyData(goals2026.financeiras.metaReceita))}
            - Novos Clientes: ${formatNumber(sumMonthlyData(goals2026.comerciais.metaNumClientes))}
            - Objetivos Qualitativos: ${goals2026.objetivosEstrategicos.objective1}, ${goals2026.objetivosEstrategicos.objective2}.
@@ -1046,8 +1055,8 @@ export const generatePlanReportAnalysis = async (planData: PlanData, goals2026: 
 
         Gere um relatório em Markdown bem formatado (use **negrito**, listas, títulos h3 \`###\` e h4 \`####\`).
 
-        **1. Tese de Crescimento 2026 (Executive Summary)**
-        Resuma em 1 parágrafo poderoso: Qual é a "Grande Aposta" deste plano? Ex: "Em 2026, a [Empresa] deixará de ser generalista para dominar o nicho X, alavancando sua força em Y para crescer 30% com margem saudável."
+        **1. Tese de Crescimento ${anos.anoPlano} (Executive Summary)**
+        Resuma em 1 parágrafo poderoso: Qual é a "Grande Aposta" deste plano? Ex: "Em ${anos.anoPlano}, a [Empresa] deixará de ser generalista para dominar o nicho X, alavancando sua força em Y para crescer 30% com margem saudável."
 
         **2. Diagnóstico de Riscos Ocultos (Pre-Mortem)**
         Analise a coerência entre as Metas (Desejo) e a Projeção Financeira (Realidade).
@@ -1079,11 +1088,11 @@ export const generatePlanReportAnalysis = async (planData: PlanData, goals2026: 
     }
 };
 
-export const generateMarketingFunnelAnalysis = async (funnel2025: any, funnel2026: any): Promise<string> => {
+export const generateMarketingFunnelAnalysis = async (funnel2025: any, funnel2026: any, anos: AnosDoPlano): Promise<string> => {
     const prompt = `
-        Você é um CMO (Chief Marketing Officer) experiente. Analise a evolução do funil de marketing e vendas de 2025 para 2026.
+        Você é um CMO (Chief Marketing Officer) experiente. Analise a evolução do funil de marketing e vendas de ${anos.anoBase} para ${anos.anoPlano}.
 
-        **Funil 2025 (Realizado):**
+        **Funil ${anos.anoBase} (Realizado):**
         - Impressões: ${formatNumber(funnel2025.impressoes)}
         - Cliques: ${formatNumber(funnel2025.cliques)} (CTR: ${formatPercentage(funnel2025.ctr * 100)})
         - Leads: ${formatNumber(funnel2025.conversoes)} (Taxa Conv.: ${formatPercentage(funnel2025.cvr * 100)})
@@ -1091,7 +1100,7 @@ export const generateMarketingFunnelAnalysis = async (funnel2025: any, funnel202
         - CAC: ${formatCurrency(funnel2025.cac)}
         - Investimento: ${formatCurrency(funnel2025.investimento)}
 
-        **Funil 2026 (Projetado):**
+        **Funil ${anos.anoPlano} (Projetado):**
         - Impressões: ${formatNumber(funnel2026.impressoes)}
         - Cliques: ${formatNumber(funnel2026.cliques)} (CTR: ${formatPercentage(funnel2026.ctr * 100)})
         - Leads: ${formatNumber(funnel2026.conversoes)} (Taxa Conv.: ${formatPercentage(funnel2026.cvr * 100)})
@@ -1101,8 +1110,8 @@ export const generateMarketingFunnelAnalysis = async (funnel2025: any, funnel202
 
         **Sua Análise:**
         1. **Diagnóstico do Funil:** Onde está o principal gargalo ou a maior queda de conversão no funil?
-        2. **Análise Comparativa:** A projeção para 2026 é realista, considerando que as taxas de conversão foram mantidas? O aumento no investimento se justifica?
-        3. **Recomendações (3 Ações):** Sugira 3 ações práticas e focadas para otimizar o principal gargalo identificado e melhorar a eficiência geral do funil em 2026.
+        2. **Análise Comparativa:** A projeção para ${anos.anoPlano} é realista, considerando que as taxas de conversão foram mantidas? O aumento no investimento se justifica?
+        3. **Recomendações (3 Ações):** Sugira 3 ações práticas e focadas para otimizar o principal gargalo identificado e melhorar a eficiência geral do funil em ${anos.anoPlano}.
 
         Seja direto, acionável e use uma linguagem de marketing.
     `;
