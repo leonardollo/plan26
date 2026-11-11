@@ -1,6 +1,6 @@
 import React from 'react';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
 
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const mesesIguais = (valor: number) => Object.fromEntries(MESES.map(m => [m, valor]));
@@ -63,5 +63,71 @@ describe('Taxes — preenchimento automático do imposto de 2025', () => {
         const { rerender } = render(<Taxes />);
         mudarAliquota(rerender);
         expect(planoFalso.applyTaxesTo2025).not.toHaveBeenCalled();
+    });
+});
+
+// Plano Presumido com base de R 1,2 mi e custo variável de 480 mil: CBS sugerida 6,78.
+const montarPlanoCbs = (ano: number, taxesExtra: Record<string, any> = {}) => {
+    montarPlano({});
+    planoFalso.anoPlano = ano;
+    planoFalso.anoBase = ano - 1;
+    planoFalso.taxes = {
+        regimeTributario: 'Lucro Presumido', iss: 5, pis: 0.65, cofins: 3,
+        inssPatronal: 0, fgts: 0, ratTerceiros: 0, totalEncargosFolha: 0, ...taxesExtra,
+    };
+    planoFalso.planData.financialSheet.cmv = { values2025: mesesIguais(40000) };
+};
+
+describe('Taxes — CBS a partir de 2027', () => {
+    beforeEach(() => { for (const k of Object.keys(planoFalso)) delete planoFalso[k]; });
+    // Sem globals no Vitest, a Testing Library não desmonta sozinha entre os testes.
+    afterEach(cleanup);
+
+    it('2027: campo CBS com a sugestão, imposto do ano do plano e dica de PIS e COFINS', () => {
+        montarPlanoCbs(2027);
+        render(<Taxes />);
+        expect(screen.getByText('CBS efetiva (%)')).toBeTruthy();
+        expect(screen.getByPlaceholderText('Sugestão: 6,78%')).toBeTruthy();
+        expect(screen.getByText('Imposto sobre a receita em 2027')).toBeTruthy();
+        expect(screen.getByText('11,78%')).toBeTruthy();
+        expect(screen.getAllByText('Vale para 2026; em 2027 a CBS substitui')).toHaveLength(2);
+    });
+
+    it('2027 com CBS 0 (campo apagado): o campo fica vazio e mostra a sugestão', () => {
+        montarPlanoCbs(2027, { cbsEfetiva: 0 });
+        render(<Taxes />);
+        expect((screen.getByPlaceholderText('Sugestão: 6,78%') as HTMLInputElement).value).toBe('');
+    });
+
+    it('2026: sem campo CBS e sem linha do ano do plano', () => {
+        montarPlanoCbs(2026);
+        render(<Taxes />);
+        expect(screen.queryByText('CBS efetiva (%)')).toBeNull();
+        expect(screen.queryByText(/Imposto sobre a receita em/)).toBeNull();
+    });
+
+    it('2027 no Simples: sem campo CBS', () => {
+        montarPlanoCbs(2027, { regimeTributario: 'Simples Nacional', simplesNacional: 6 });
+        render(<Taxes />);
+        expect(screen.queryByText('CBS efetiva (%)')).toBeNull();
+    });
+
+    it('alíquota efetiva preenchida: aviso em 2027, nada em 2026', () => {
+        montarPlanoCbs(2027, { aliquotaEfetiva: 15 });
+        const { unmount } = render(<Taxes />);
+        expect(screen.getByText(/Em 2027 o PIS e a COFINS deixam de existir/)).toBeTruthy();
+        unmount();
+        montarPlanoCbs(2026, { aliquotaEfetiva: 15 });
+        render(<Taxes />);
+        expect(screen.queryByText(/deixam de existir e entra a CBS/)).toBeNull();
+    });
+
+    it('mudar só a CBS não preenche o imposto do ano base', () => {
+        montarPlanoCbs(2027);
+        const { rerender } = render(<Taxes />);
+        const chamadas = planoFalso.applyTaxesTo2025.mock.calls.length;
+        planoFalso.taxes = { ...planoFalso.taxes, cbsEfetiva: 8 };
+        rerender(<Taxes />);
+        expect(planoFalso.applyTaxesTo2025).toHaveBeenCalledTimes(chamadas);
     });
 });

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { usePlan } from '../hooks/usePlanData';
 import type { TaxesData } from '../types';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
-import { aliquotaDeducao, num } from '../utils/calculos/impostos';
+import { aliquotaDeducao, aliquotaDoAnoDoPlano, ANO_DA_CBS, cbsSugerida, num } from '../utils/calculos/impostos';
 import CurrencyInput from './shared/CurrencyInput';
 import { getTaxRecommendation } from '../services/geminiService';
 import ReactMarkdown from 'react-markdown';
@@ -19,6 +19,13 @@ const timelineData = [
     { year: '2033', title: 'Sistema Definitivo', color: 'bg-green-500', items: ['ICMS e ISS extintos totalmente', 'IBS em 100% da alíquota plena', 'IVA Dual completo (CBS + IBS)', 'Alíquota total estimada: 26,5% a 28,6%', 'Brasil entre maiores IVAs do mundo'] },
 ];
 // ano-real:fim
+
+// ano-real:início
+// Cita a alíquota de referência da lei (CBS_DE_REFERENCIA).
+const DICA_CBS = 'Estimativa de 11,3% (referência do TCU, a confirmar pelo Senado) sobre a parte da receita que não é custo variável, porque a CBS desconta o crédito das compras. Deixe em branco para usar a sugestão.';
+// ano-real:fim
+
+const pct = (valor: number) => valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const Taxes: React.FC = () => {
     const { taxes, updateTaxes, applyTaxesTo2025, summary2025, planData, anoPlano, anoBase } = usePlan();
@@ -59,6 +66,11 @@ const Taxes: React.FC = () => {
 
     const totalEncargos = (taxes.inssPatronal || 0) + (taxes.fgts || 0) + (taxes.ratTerceiros || 0);
 
+    // A partir da CBS, o imposto sobre a receita do ano do plano difere do ano base: PIS e COFINS valem só para a base.
+    const temCbs = anoPlano >= ANO_DA_CBS;
+    const baseDoPlano = planData.financialSheet;
+    const foraDoSimples = taxes.regimeTributario !== 'Simples Nacional';
+
     useEffect(() => {
         if (taxes.totalEncargosFolha !== totalEncargos) {
             updateTaxes('totalEncargosFolha', totalEncargos.toString());
@@ -97,8 +109,16 @@ const Taxes: React.FC = () => {
         updateTaxes(name, value);
     };
 
-    const renderPercentInput = (name: keyof TaxesData, label: string, hint?: string, disabled: boolean = false) => {
-        const value = taxes[name] as number ?? null;
+    const renderPercentInput = (
+        name: keyof TaxesData,
+        label: string,
+        hint?: string,
+        disabled: boolean = false,
+        opcoes?: { placeholder?: string; vazioQuandoZero?: boolean },
+    ) => {
+        const lido = taxes[name] as number ?? null;
+        // Campo apagado grava 0; quando 0 significa "usar a sugestão", o campo fica vazio para o placeholder aparecer.
+        const value = opcoes?.vazioQuandoZero && num(lido) === 0 ? null : lido;
         return (
             <div>
                 <label htmlFor={name} className="block text-sm font-medium text-gray-700">{label}</label>
@@ -107,7 +127,7 @@ const Taxes: React.FC = () => {
                         value={value}
                         onChange={(v) => handleCurrencyChange(name, v)}
                         className={`block w-full rounded-xl border border-gray-300 shadow-sm focus:border-brand-orange focus:ring-brand-orange sm:text-sm p-2 pr-8 ${disabled ? 'bg-gray-100' : ''}`}
-                        placeholder="0"
+                        placeholder={opcoes?.placeholder ?? '0'}
                         disabled={disabled}
                     />
                     <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
@@ -220,13 +240,28 @@ const Taxes: React.FC = () => {
                             <>
                                 {renderPercentInput('iss', 'ISS (%)', 'Imposto Sobre Serviço')}
                                 {renderPercentInput('icms', 'ICMS (%)', 'Se vende produto')}
+                                {temCbs && renderPercentInput('cbsEfetiva', 'CBS efetiva (%)', DICA_CBS, false, {
+                                    placeholder: `Sugestão: ${pct(cbsSugerida(baseDoPlano))}%`,
+                                    vazioQuandoZero: true,
+                                })}
                                 {/* ano-real:início */}
-                                {renderPercentInput('pis', 'PIS (%)', 'Será extinto em 2027')}
-                                {renderPercentInput('cofins', 'COFINS (%)', 'Será extinta em 2027')}
+                                {renderPercentInput('pis', 'PIS (%)', temCbs ? `Vale para ${anoBase}; em ${anoPlano} a CBS substitui` : 'Será extinto em 2027')}
+                                {renderPercentInput('cofins', 'COFINS (%)', temCbs ? `Vale para ${anoBase}; em ${anoPlano} a CBS substitui` : 'Será extinta em 2027')}
                                 {/* ano-real:fim */}
                                 {renderPercentInput('irpj', 'IRPJ (%)', 'Imposto de Renda Pessoa Jurídica')}
                                 {renderPercentInput('csll', 'CSLL (%)', 'Contribuição Social sobre o Lucro Líquido')}
                             </>
+                        )}
+                        {temCbs && foraDoSimples && num(taxes.aliquotaEfetiva) > 0 && (
+                            <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                                {`Em ${anoPlano} o PIS e a COFINS deixam de existir e entra a CBS. Se a alíquota efetiva inclui PIS e COFINS, revise-a ou deixe-a em branco para o app calcular.`}
+                            </p>
+                        )}
+                        {temCbs && (
+                            <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 p-3">
+                                <span className="text-sm font-medium text-gray-700">{`Imposto sobre a receita em ${anoPlano}`}</span>
+                                <span className="text-sm font-bold text-gray-900">{`${pct(aliquotaDoAnoDoPlano(taxes, anoPlano, baseDoPlano))}%`}</span>
+                            </div>
                         )}
                     </div>
                 </div>
