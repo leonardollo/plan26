@@ -3,6 +3,50 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
+## 2026-11-11 — Plano sempre do ano seguinte ao atual
+
+- **O quê:**
+  - **Abertura** (`src/services/planos.ts`, `src/hooks/usePlanData.tsx`): ao entrar, o app abre o plano do ano atual + 1
+    (`anoDoPlanoAtual`). Sem ele salvo, `aberturaDoPlano` escolhe o plano anterior mais recente como origem e
+    `criarPlanoSeNaoExistir` cria o novo numa transação, copiando o cadastro (perfil, produtos sem números, mercado e regime
+    tributário) com os números do ano base em branco. O imposto do ano base da origem vira o "ano anterior" do novo só quando os
+    anos são seguidos. Conta sem plano abre em branco, sem gravar. Planos antigos continuam no seletor de ano.
+  - **Impostos** (`Taxes.tsx`): o cronograma marca a fase do ano do plano aberto, e os textos deixaram de citar 2026 fixo.
+  - **Gemini** (`geminiService.ts`): o prompt leva o calendário completo da reforma (2027, 2029–2032, 2033) em vez de
+    "CONTEXTO 2026-2027".
+  - **Textos:** manual, `package.json`, `metadata.json`, `AGENTS.md` e comentários falam em "ano do plano" e "ano base".
+    Literais que restam são fatos da lei, `ANO_DA_CBS`, o ano do plano legado e exemplos. Os campos `*2026`/`*2025` mantêm o nome.
+- **Por quê:** pedido do usuário, "deixe isso já automático para ser sempre o planejamento financeiro do ano seguinte ao atual".
+  Regra literal, sem corte em outubro: em 11/11/2026 abre 2027, em 01/01/2027 abre 2028. Mudar isso é editar `anoDoPlanoAtual`.
+- **Exemplos testados** (`planos.test.ts`, `usePlanData.test.tsx`, `Taxes.test.tsx`, `geminiService.test.ts`):
+  - em 2026 com só o legado 2026: cria 2027 a partir dele;
+  - em 2028 com só o 2026: cria 2029, nunca um 2027 já passado, e não leva o imposto do ano base do 2026;
+  - criação que falha: continua no 2026 e oferece 2029; "começar o próximo ano" cria `planos/2029`;
+  - só planos à frente do alvo (relógio atrasado): abre o mais recente sem criar nada;
+  - outra aba já criou o ano: a transação não sobrescreve.
+- **Verificação:** em `e99691d`:
+  - `npm run typecheck`: ok;
+  - `npm test`: 31 arquivos, 291/291;
+  - `npm run test:rules`: 91/91;
+  - `npm run build`: ok, em 1.75s;
+  - `npm audit --audit-level=high`: passa, com 13 moderadas.
+  - Em `8d93481` (só uma classe CSS): `Taxes.test.tsx` 15/15.
+- **Navegador** (emuladores, `cliente@exemplo.com` com um plano 2026 semeado):
+  - desktop 1440: o login criou `planos/2027` sozinho, com nome e regime copiados, `totalImpostos2024=1234` (vindo do 2025) e
+    `totalImpostos2025=null`. A tela mostra PLAN 2027, ano base 2026. O cronograma marca só 2027, e o cabeçalho diz "prepare sua
+    empresa para a reforma em 2027";
+  - o destaque da fase marcada invadia o título da fase seguinte (`-m-3`): corrigido em `8d93481` (`-mx-3`) e conferido de novo;
+  - celular 390: sem rolagem horizontal. A barra lateral fixa ocupa quase toda a tela, problema já conhecido, que fica para a
+    entrega de layout no celular.
+- **Revisão:** Codex, Normal + Sensível (`usePlanData.tsx`, `src/services/**`).
+  - **Segurança:** sem achados. As gravações continuam presas ao uid autenticado, ao acesso liberado e a um ano válido.
+  - **Base, dois P2, corrigidos em `e99691d`:** (1) depois de uma criação que falhou, o app oferecia o ano seguinte ao último
+    salvo (2027 em 2028); agora oferece o ano do plano atual. (2) Com anos pulados, o imposto do ano base da origem ia para o
+    "ano anterior" do plano novo, que é outro ano civil; agora só com anos seguidos. Os 4 testes novos falharam antes da correção.
+  - **Re-revisão** do `e99691d` com o prompt de segurança: sem achados.
+- **Passo humano:** nada muda em produção até o Leonardo publicar o app. As regras de `c3766de` já aceitam `planos/2027`.
+- **Commits:** `e13a968`, `dfe75cc`, `4f5ac8c`, `e99691d`, `8d93481`.
+
 ## 2026-11-11 — Regras: planos/{ano} só com anos válidos
 
 - **O quê:** `firestore.rules`, em `users/{uid}`.
