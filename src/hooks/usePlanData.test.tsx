@@ -803,7 +803,7 @@ const ordemDoSetDoc = (caminho: string, n = 0) =>
   setDocMock.mock.invocationCallOrder.filter((_, i) => (setDocMock.mock.calls[i][0] as unknown) === caminho)[n];
 // A última leitura do caminho: a da troca, não a da abertura.
 const ordemDoGetDoc = (caminho: string) =>
-  getDocMock.mock.invocationCallOrder.filter((_, i) => (getDocMock.mock.calls[i][0] as unknown) === caminho).at(-1);
+  getDocMock.mock.invocationCallOrder.filter((_, i) => (getDocMock.mock.calls[i][0] as unknown) === caminho).slice(-1)[0];
 const getDocDe = (caminho: string) => getDocMock.mock.calls.filter(c => (c[0] as unknown) === caminho);
 const setDocDe = (caminho: string) => setDocMock.mock.calls.filter(c => (c[0] as unknown) === caminho);
 
