@@ -33,9 +33,13 @@ import {
     anoDoPrimeiroPlano, anosDoPlano, caminhoDoPlano, chaveLocalDoPlano, criarPlanoSeNaoExistir, listarPlanos,
     listarPlanosLocais, montarPlanoDoAnoSeguinte, proximoAnoDoPlano, type DadosDoPlano,
 } from '../services/planos';
+import { CONFIG_DOS_EMULADORES, conectarAosEmuladores, usarEmuladores } from '../services/emuladores';
+
+// `import.meta.env.DEV` é false no build: o ambiente local nunca entra em produção.
+const comEmuladores = import.meta.env.DEV && usarEmuladores(import.meta.env.DEV, import.meta.env.MODE);
 
 // Firebase configuration - loaded from environment variables
-const firebaseConfig = {
+const firebaseConfig = comEmuladores ? CONFIG_DOS_EMULADORES : {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyB5fB2J-D431lc4m3NrTDDVEpTtvd_U_1A",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "plan-ea4cc.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "plan-ea4cc",
@@ -55,6 +59,10 @@ if (!isOfflineMode) {
         app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
         auth = getAuth(app);
         db = getFirestore(app);
+        if (comEmuladores) {
+            conectarAosEmuladores(auth, db);
+            console.log("🧪 Emuladores locais do Firebase (projeto demo-plan): login e banco fictícios.");
+        }
         console.log("✅ Firebase Conectado!");
     } catch (e) {
         console.error("Erro ao conectar no Firebase. Verifique suas chaves.", e);

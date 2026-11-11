@@ -6,6 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:local": "vite --mode emuladores",
+    "emuladores": "firebase emulators:start --only auth,firestore --project demo-plan",
+    "emuladores:semear": "node scripts/semear-emuladores.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",

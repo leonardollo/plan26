@@ -21,6 +21,8 @@ code, identifiers and commit messages follow the project's conventions.
   - build: `npm run build` (typecheck + `vite build`)
   - audit: `npm audit --audit-level=high` (passes at high; 13 moderate remain, from the `firebase-tools` devDependency)
   - disposable local DB: `npm run test:rules` starts and discards the Firestore emulator
+  - local app with fake login (dev only, project `demo-plan`): `npm run emuladores`, then
+    `npm run emuladores:semear` (accounts in `scripts/semear-emuladores.mjs`), then `npm run dev:local`
 - **Sensitive paths** (a diff touching them triggers the security review): `firestore.rules`,
   `firebase.json`, `.firebaserc`, `.env.example`, `src/App.tsx`, `src/hooks/usePlanData.tsx`,
   `src/services/**`, `src/components/Login.tsx`, `src/components/GestaoDeAcessos.tsx`,
