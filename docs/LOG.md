@@ -3,6 +3,38 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
+## 2026-11-11 — Regras: planos/{ano} só com anos válidos
+
+- **O quê:** `firestore.rules`, em `users/{uid}`.
+  - **Planos por ano:** `match /planos/{ano}` grava (create e update) só com `anoDePlanoValido(ano)`. O id precisa ter 4 dígitos,
+    ser maior que 2026 (o 2026 fica no próprio `users/{uid}`) e ser no máximo o ano atual + 1 (UTC do servidor). Ler e apagar não
+    olham o ano, para a listagem dos planos ver tudo.
+  - **Outras subcoleções:** viraram só leitura do dono. Antes o curinga `/{documento=**}` deixava gravar qualquer caminho, e
+    também liberava `planos/{ano}` sem a checagem do ano.
+- **Por quê:** um cliente liberado conseguia gravar `planos/9999` no próprio espaço. O achado de segurança da 3A foi rejeitado na
+  época porque corrigir exigia publicar regras.
+- **Exemplos testados** (`tests/rules/users.test.ts`, para cliente liberado e admin):
+  - gravam: 2027 e o ano atual + 1; um merge no plano de 2027 já salvo também passa;
+  - não gravam: ano atual + 2, `9999`, `2026`, `2025`, `0000`, `abc`, `02027`, `2027a` e `202`, nem em outra subcoleção ou
+    abaixo de um plano;
+  - a listagem continua funcionando mesmo com um `9999` antigo gravado.
+  - Os anos dos testes são relativos ao relógio. Os 22 testes novos falharam com a regra antiga antes da mudança.
+- **Verificação:** em `c3766de`:
+  - `npm test`: 31 arquivos, 269/269;
+  - `npm run test:rules`: 91/91;
+  - `npm run build`: ok, em 1.84s;
+  - `npm audit --audit-level=high`: passa, com 13 moderadas.
+- **Revisão:** Codex, Normal + Sensível (`firestore.rules`).
+  - **Segurança:** sem achados.
+  - **Base, um P2, rejeitado:** "em 2028 o plano de 2027 deixa de gravar". Não procede: o piso é fixo (> 2026) e o teto sobe com
+    o ano (≤ ano atual + 1). Em 2028, 2027 ≤ 2029 continua valendo. O teste "grava o plano de 2027" cobre isso em qualquer ano.
+- **Passo humano:** publicar as regras com `firebase deploy --only firestore:rules`, conta com acesso ao `plan-ea4cc`. Quem
+  publica é o Leonardo. A regra nova também funciona com o app que está no ar, que não grava em subcoleções além de `planos`, então
+  a ordem em relação ao deploy do app não importa.
+- **Em aberto:** dados antigos em outras subcoleções de `users/{uid}`, se existirem em produção, ficam só leitura. O app não
+  usa nenhuma.
+- **Commits:** `c3766de`. A branch também leva `523a081` (Deploy preenchido no `AGENTS.md`, Trivial).
+
 ## 2026-11-11 — Textos datados da reforma na aba Impostos
 
 - **O quê:** só textos, em `src/components/Taxes.tsx`.
