@@ -3,6 +3,51 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
+## 2026-11-10 — Entrega 3A: um plano por ano
+
+- **O quê:** plano `docs/superpowers/plans/2026-11-10-plano-por-ano.md` (spec
+  `…/specs/2026-11-10-plano-por-ano-design.md`). Cada cliente passa a ter um plano por ano: o documento
+  `users/{uid}` continua sendo o plano 2026 (sem migração nem gravação em produção) e os anos novos ficam
+  em `users/{uid}/planos/{ano}` (`src/services/planos.ts`). O hook carrega e grava o ano aberto, troca de
+  ano (`trocarAno`) e começa o ano seguinte (`comecarProximoAno`, numa transação que não sobrescreve um
+  plano já criado), copiando o cadastro com a base em branco. Sidebar com seletor de ano e nome "PLAN"
+  + ano do plano aberto. Coleta, diagnóstico, planejamento, relatórios, ajuda, importação do DPE e
+  prompts do Gemini seguem os anos do plano aberto. Teste de guarda `src/utils/semAnoFixo.test.ts`
+  barra ano fixo no código (141 ocorrências → 0); os anos da lei da reforma ficam entre marcadores
+  `ano-real`.
+- **Por quê:** o plano de 2027 sobrescreveria o de 2026, onde estão os dados atuais dos clientes.
+  Decisões do usuário: separar a entrega 3 (CBS 2027 e tabela da reforma na 3B); ano novo copia o
+  cadastro com a base em branco; plano antigo continua editável; nome "PLAN" + ano.
+- **Decisões do implementador:** `totalImpostos2025` do ano novo começa nulo e vira `totalImpostos2024`
+  só se existir; um ano sem documento também é recalculado na carga; falha ao começar o ano preenche o
+  motivo do erro, mostrado na Sidebar; a prévia do DPE é descartada quando o ano base muda; ids do
+  relatório renomeados para `financial-base`, `goals-plano`, `dre-plano`, `cashflow-plano`; se a
+  criação do ano perde para uma troca manual, o ano entra na lista, mas a troca manual prevalece.
+- **Verificação:** em `60cc159`: `npm run typecheck` sem erros; `npm test` 30 arquivos, 237/237;
+  `npm run test:rules` 63/63 (os 30 casos novos de `planos` vistos falhando com as asserções invertidas
+  — 20 falhas — e passando de novo depois de desfazer); `npm run build` ok (built in 1.80s);
+  `npm audit --audit-level=high` ok (13 moderadas). Preview do build: login no celular (390×844) e no
+  desktop (1440×900), título "PLAN - Planejamento Estratégico", sem erros no console.
+- **Revisão:** Codex, Estrutural + Sensível (toca `usePlanData.tsx`, `dpeImport.ts`, `geminiService.ts`,
+  `Login.tsx` e outros). Plano: 4 achados. Corrigidos em `60cc159`: [P1] busca ou arquivo do DPE
+  iniciados antes de trocar de ano aplicavam a base antiga ao ano novo (contador de geração descarta o
+  resultado); [P2] troca de ano feita durante a criação do ano seguinte era desfeita ao fim da
+  transação (a criação só abre o ano novo se nenhuma carga foi pedida depois; seletor desabilitado
+  durante a criação); [P2] o teste de ano sem documento passou a cobrir cenários, acompanhamento,
+  precificação, metas, impostos e a gravação seguinte. Rejeitado: [P2] "Saldo Dez/{…}" literal no BP é
+  falso positivo (texto JSX, as chaves são expressão); ficou um teste que confirma "Saldo Dez/27".
+  Segurança: 1 achado rejeitado: um cliente liberado pode gravar pelo SDK `users/{seu-uid}/planos/9999`
+  e o app abriria esse ano; afeta só o espaço do próprio cliente, que já pode gravar qualquer dado no
+  documento legado, sem impacto entre clientes; barrar exige mudar e publicar `firestore.rules`, fora
+  do escopo aprovado. Re-revisão de segurança do commit de correção (toca caminho sensível): sem
+  achados. O Codex não rodou o emulador.
+- **Em aberto:** seletor de ano, "Começar plano" e as telas internas não foram vistas no navegador (sem
+  conta de teste). Endurecer as regras para aceitar só anos válidos em `planos/{ano}` (mudança e
+  publicação de regras, passo humano). Publicação depende dos acessos da entrega 1.
+- **Commit/PR:** branch `feat/plano-por-ano`: spec `df0ecda`, plano `5db451a`, `753f6b0`, `91167d9`,
+  `14e78ce`, `21e9eeb`, `6e53f95`, `88855c4`, `4f96f46`, `763c159`, `8fcc47a`, `23e931a`, `60cc159`.
+  Sem PR.
+
 ## 2026-11-10 — Investimentos, financiamentos e contratações em 2026
 
 - **O quê:** plano `docs/superpowers/plans/2026-11-10-capex-financiamentos-contratacoes.md` (spec
