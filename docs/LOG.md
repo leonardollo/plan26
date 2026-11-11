@@ -3,6 +3,41 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
+## 2026-11-11 — Textos datados da reforma na aba Impostos
+
+- **O quê:** só textos, em `src/components/Taxes.tsx`.
+  - **Regime híbrido do Simples:** saiu o prazo "até setembro de 2026", que já passou. O card, a tabela de regimes e a lista de
+    ações agora dizem que a opção é semestral. O card ainda diz que a janela de setembro de 2026 valeu para o 1º semestre de 2027 e
+    manda conferir a próxima data no Portal do Simples Nacional.
+  - **"Alíquota cheia":** virou "CBS cheia (2027) e do IBS, que cresce de 2029 a 2033".
+  - **Simulador:** o card "Novo Sistema (2027+)" virou "Sistema completo (2033)", com uma nota de que até lá a troca é gradual e que
+    o imposto de cada ano do plano está na aba Configuração. Os 27,5% continuam iguais: são uma estimativa do IVA completo, dentro
+    da faixa oficial.
+- **Por quê:** decisão do usuário, "Corrigir pela lei". O texto antigo dava um prazo vencido e comparava o imposto atual com o IVA
+  completo como se ele valesse em 2027.
+- **Fontes:**
+  - LC 214/2025, art. 41, e LC 123/2006: a opção do Simples pelo regime regular de IBS/CBS é semestral, feita antes de cada
+    semestre. Fontes:
+    - [CRC-CE](https://www.crc-ce.org.br/crcnovo/files/RTASN15042025.pdf) e
+      [Sefin-RO](https://reformatributaria.sefin.ro.gov.br/2025/08/26/simples-nacional-alteracoes-introduzidas-pela-reforma-tributaria/)
+      falam em setembro e abril;
+    - a [Contábeis](https://www.contabeis.com.br/artigos/77179/reforma-tributaria-simples-nacional-pode-optar-por-novos-tributos/)
+      fala em março de 2027. Por isso o texto não fixa o mês.
+    - A janela de 1º a 30/09/2026 valeu para o 1º semestre de 2027
+      ([TAGD](https://tagdlaw.com.br/comite-gestor-define-prazos-para-opcao-ao-simples-nacional-em-2027-e-regulamenta-escolha-pelo-regime-regular-de-ibs-e-cbs/)).
+  - **IVA completo:** de 26,5% (referência da LC 214/2025) a 27,91% (estimativa do Comitê Gestor em 2026)
+    ([Contmatic](https://simplifique.contmatic.com.br/blogs/aliquota-referencia-ibs-cbs-cgibs-estima-27-91)).
+  - **Cronograma:** ICMS e ISS caem de 2029 a 2032 e acabam em 2033; o IBS sobe no mesmo ritmo (EC 132/2023, LC 214/2025).
+  - **Validação:** um contador pode validar depois; as fontes são secundárias, exceto o texto da lei.
+- **Verificação:**
+  - `npx vitest related --run src/components/Taxes.tsx src/utils/semAnoFixo.test.ts`: 22/22;
+  - `npm run typecheck`: ok.
+- **Revisão:** nenhuma. É Trivial (só texto), e `Taxes.tsx` não é caminho sensível.
+- **Em aberto:**
+  - **Navegador:** os textos novos não foram vistos no navegador. É só texto estático, sem mudança de layout.
+  - **Cancelamento:** uma fonte cita que dá para cancelar a opção de setembro até 30/11/2026. Não entrou no texto por falta de
+    confirmação.
+
 ## 2026-11-11 — Ambiente local com emuladores do Firebase
 
 - **O quê:** um modo de desenvolvimento que liga o app aos emuladores de Auth e Firestore (projeto `demo-plan`, `127.0.0.1`).

@@ -100,7 +100,8 @@ const Taxes: React.FC = () => {
     const impostoCalculado = receitaBruta2025 * (calculatedRate / 100);
 
     // Simulação de impacto da reforma
-    const ivaEstimado = 27.5; // Média estimada CBS + IBS
+    // CBS + IBS do sistema completo, que só vale quando ICMS e ISS acabam (LC 214/2025); estimativas oficiais vão de 26,5% a ~28%.
+    const ivaEstimado = 27.5;
     const impostoNovoSistema = receitaBruta2025 * (ivaEstimado / 100);
     const diferencaImposto = impostoNovoSistema - impostoCalculado;
     const isServicos = taxes.regimeTributario !== 'Simples Nacional' && (taxes.iss || 0) > 0;
@@ -352,13 +353,13 @@ const Taxes: React.FC = () => {
                                 <li className="flex items-start gap-2"><span className="text-blue-500 mt-0.5">&#9679;</span> Atualizar sistema de emissão de notas fiscais (novos campos CBS/IBS)</li>
                                 <li className="flex items-start gap-2"><span className="text-blue-500 mt-0.5">&#9679;</span> Revisar cadastro de produtos (NCMs e classificação fiscal)</li>
                                 <li className="flex items-start gap-2"><span className="text-blue-500 mt-0.5">&#9679;</span> Integrar ERP com a "Calculadora do Fisco" da Receita Federal</li>
-                                <li className="flex items-start gap-2"><span className="text-blue-500 mt-0.5">&#9679;</span> Simular impacto da alíquota cheia no seu negócio</li>
+                                <li className="flex items-start gap-2"><span className="text-blue-500 mt-0.5">&#9679;</span> Simular o impacto da CBS cheia (2027) e do IBS, que cresce de 2029 a 2033</li>
                                 <li className="flex items-start gap-2"><span className="text-blue-500 mt-0.5">&#9679;</span> Reavaliar regime tributário (Simples vs Presumido vs Real)</li>
                             </ul>
                         </div>
                         <div className="p-4 bg-purple-50 rounded-xl border border-purple-200">
                             <h4 className="font-bold text-purple-800 text-sm mb-2">Simples Nacional: Regime Híbrido</h4>
-                            <p className="text-sm text-purple-700 leading-relaxed">Empresas do Simples têm até <strong>setembro de 2026</strong> para optar pelo regime híbrido: recolher CBS e IBS fora do DAS, gerando créditos integrais para seus clientes. Ideal para quem vende para outras empresas (B2B).</p>
+                            <p className="text-sm text-purple-700 leading-relaxed">Empresas do Simples podem optar pelo regime híbrido: recolher CBS e IBS fora do DAS, gerando créditos integrais para seus clientes. Ideal para quem vende para outras empresas (B2B). A opção é <strong>semestral</strong>: a janela de setembro de 2026 valeu para o 1º semestre de 2027, e a próxima vale para o 2º semestre (confira a data no Portal do Simples Nacional).</p>
                         </div>
                     </div>
                 </div>
@@ -588,6 +589,9 @@ const Taxes: React.FC = () => {
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-2xl border border-blue-200">
                     <h2 className="text-xl font-bold text-blue-900 mb-2">Simulador de Impacto da Reforma Tributária</h2>
                     <p className="text-sm text-blue-700">Estimativa baseada no seu regime tributário ({regimeAtual}) e receita bruta de {anoBase}. Valores são aproximações para planejamento.</p>
+                    {/* ano-real:início */}
+                    <p className="text-sm text-blue-700 mt-2">Compara com o sistema completo, de 2033 em diante, quando CBS e IBS substituem PIS, COFINS, ICMS e ISS. Até lá a troca é gradual: a CBS entra em 2027 e o IBS cresce de 2029 a 2032. O imposto de cada ano do plano está na aba Configuração.</p>
+                    {/* ano-real:fim */}
                 </div>
 
                 {/* Comparativo Visual */}
@@ -620,7 +624,7 @@ const Taxes: React.FC = () => {
                         </div>
                         <div className="p-5 bg-orange-50 rounded-xl border border-orange-200 text-center">
                             {/* ano-real:início */}
-                            <p className="text-xs font-bold text-orange-500 uppercase tracking-wider">Novo Sistema (2027+)</p>
+                            <p className="text-xs font-bold text-orange-500 uppercase tracking-wider">Sistema completo (2033)</p>
                             {/* ano-real:fim */}
                             <p className="text-4xl font-extrabold text-orange-700 mt-3">{formatPercentage(cargaEfetivaEstimada)}</p>
                             <p className="text-sm text-orange-600 mt-1">Carga efetiva estimada</p>
@@ -723,7 +727,7 @@ const Taxes: React.FC = () => {
                                 <td className="p-3 text-gray-600">Faturamento até R$ 4,8M. Venda para consumidor final (B2C).</td>
                                 <td className="p-3 text-red-600">Clientes B2B preferirão fornecedores que geram crédito integral de IBS/CBS.</td>
                                 {/* ano-real:início */}
-                                <td className="p-3 text-indigo-600 font-medium">Avaliar regime híbrido até setembro/2026. Se vende para empresas, pode ser hora de sair do Simples.</td>
+                                <td className="p-3 text-indigo-600 font-medium">Avaliar o regime híbrido antes de cada semestre (a opção é semestral). Se vende para empresas, pode ser hora de sair do Simples.</td>
                             </tr>
                             <tr>
                                 <td className="p-3 font-bold text-gray-900">Lucro Presumido</td>
@@ -848,9 +852,7 @@ const Taxes: React.FC = () => {
                         'Avaliar cisão de atividades se empresa é mista',
                         'Revisar planejamento sucessório (ITCMD progressivo)',
                         'Treinar equipe contábil e financeira nas novas regras',
-                        // ano-real:início
-                        'Avaliar regime híbrido do Simples (prazo: setembro/2026)',
-                        // ano-real:fim
+                        'Avaliar o regime híbrido do Simples antes de cada semestre (opção semestral)',
                         'Criar reserva de caixa equivalente a 1,5x impostos mensais',
                     ].map((item, i) => (
                         <div key={i} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-green-100">
