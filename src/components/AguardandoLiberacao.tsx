@@ -32,7 +32,7 @@ const AguardandoLiberacao: React.FC<{ onLogout: () => void; bloqueado?: boolean 
           <>
             <h1 className="text-2xl font-bold text-brand-dark mb-3">Acesso suspenso</h1>
             <p className="text-gray-600 leading-relaxed">
-              Sua conta existe, mas o acesso ao PLAN 2026 está suspenso no momento. Fale com a
+              Sua conta existe, mas o acesso ao PLAN está suspenso no momento. Fale com a
               Gestão de Impacto para entender e reativar.
             </p>
           </>

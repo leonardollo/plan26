@@ -49,8 +49,19 @@ const SectionTitle: React.FC<{ title: string; icon?: string }> = ({ title, icon 
 );
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, onLogout }) => {
-  const { saveStatus, saveDataNow, souAdmin, motivoDoErroAoSalvar } = usePlan();
+  const {
+    saveStatus, saveDataNow, souAdmin, motivoDoErroAoSalvar,
+    anoPlano, anosDisponiveis, trocarAno, proximoAnoDisponivel, comecarProximoAno, criandoAno,
+  } = usePlan();
+  const anoBase = anoPlano - 1;
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  // A falha de "Começar plano" não passa pelo status de gravação: o motivo aparece junto do botão.
+  const [falhouAoComecar, setFalhouAoComecar] = useState(false);
+
+  const comecar = async () => {
+      setFalhouAoComecar(false);
+      setFalhouAoComecar(!(await comecarProximoAno()));
+  };
   const [isCollapsed, setIsCollapsed] = useState(false);
   
   const handleLogout = async () => {
@@ -95,13 +106,42 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, on
       {/* Header com Logo */}
       <div className="flex flex-col items-center border-b border-white/10 flex-shrink-0 px-4 py-4">
          {!isCollapsed && (
-            <div className="flex flex-col items-center gap-1">
+            <div className="flex flex-col items-center gap-1 w-full">
                 <img src="/logo-gi.png" alt="Gestão de Impacto" className="h-10 w-auto object-contain" />
                 <span className="text-[10px] font-semibold text-brand-orange uppercase tracking-[0.2em]">Planejamento Estratégico</span>
+                <span className="text-sm font-bold text-white tracking-wide mt-1">PLAN {anoPlano}</span>
+                <div className="flex items-center gap-2 w-full mt-2">
+                    {/* Controlado pelo anoPlano: se a troca não acontece, o seletor volta sozinho. */}
+                    <select
+                        aria-label="Ano do plano"
+                        value={anoPlano}
+                        onChange={e => { void trocarAno(Number(e.target.value)); }}
+                        className="flex-1 min-w-0 bg-white/10 text-white text-sm rounded-md px-2 py-2 border border-white/10 focus:outline-none focus:ring-2 focus:ring-brand-orange"
+                    >
+                        {anosDisponiveis.map(ano => (
+                            <option key={ano} value={ano} className="text-gray-900">{ano}</option>
+                        ))}
+                    </select>
+                    {proximoAnoDisponivel !== null && (
+                        <button
+                            onClick={comecar}
+                            disabled={criandoAno}
+                            className="px-3 py-2 text-xs font-semibold rounded-md bg-brand-orange text-white hover:bg-orange-600 disabled:opacity-60 disabled:cursor-wait whitespace-nowrap"
+                        >
+                            {criandoAno ? 'Criando...' : `Começar plano ${proximoAnoDisponivel}`}
+                        </button>
+                    )}
+                </div>
+                {falhouAoComecar && motivoDoErroAoSalvar && (
+                    <p className="text-[11px] leading-snug text-red-300 mt-1.5 text-center">{motivoDoErroAoSalvar}</p>
+                )}
             </div>
          )}
          {isCollapsed && (
-            <img src="/logo-gi.png" alt="GI" className="h-8 w-auto object-contain" />
+            <div className="flex flex-col items-center gap-1">
+                <img src="/logo-gi.png" alt="GI" className="h-8 w-auto object-contain" />
+                <span className="text-xs font-bold text-white">{anoPlano}</span>
+            </div>
          )}
       </div>
 
@@ -116,11 +156,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, on
 
         <SectionTitle title="Diagnóstico" />
         <NavButton id="import-dpe" label="Importar do Diagnóstico" icon={icons.clipboard} currentView={currentView} onClick={() => setCurrentView('import-dpe')} />
-        <NavButton id="data-collection" label="Coleta de Dados 2025" icon={icons.clipboard} currentView={currentView} onClick={() => setCurrentView('data-collection')} />
+        <NavButton id="data-collection" label={`Coleta de Dados ${anoBase}`} icon={icons.clipboard} currentView={currentView} onClick={() => setCurrentView('data-collection')} />
         <NavButton id="taxes" label="Impostos" icon={icons.scale} currentView={currentView} onClick={() => setCurrentView('taxes')} />
         <NavButton id="strategic-analysis" label="Análise Estratégica" icon={icons.search} currentView={currentView} onClick={() => setCurrentView('strategic-analysis')} />
         
-        <SectionTitle title="Planejamento 2026" />
+        <SectionTitle title={`Planejamento ${anoPlano}`} />
         <NavButton id="goal-setting" label="Metas e Objetivos" icon={icons.trending} currentView={currentView} onClick={() => setCurrentView('goal-setting')} />
         <NavButton id="okrs-kpis" label="OKRs e KPIs" icon={icons.target} currentView={currentView} onClick={() => setCurrentView('okrs-kpis')} />
         <NavButton id="commercial-planning" label="Comercial e RH" icon={icons.people} currentView={currentView} onClick={() => setCurrentView('commercial-planning')} />

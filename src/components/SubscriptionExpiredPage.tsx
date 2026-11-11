@@ -18,7 +18,7 @@ const SubscriptionExpiredPage: React.FC<{
     const messages = {
         expired: {
             title: "Sua assinatura expirou",
-            body: "Para continuar utilizando o PLAN 2026 e acessar seu planejamento, por favor, renove sua assinatura anual.",
+            body: "Para continuar utilizando o PLAN e acessar seu planejamento, por favor, renove sua assinatura anual.",
             button: "Renovar Assinatura"
         },
         not_found: {

@@ -84,7 +84,7 @@ const Login: React.FC = () => {
           <img src="/logo-gi.png" alt="Gestão de Impacto" className="h-16 w-auto object-contain mx-auto mb-6" />
           <h2 className="text-lg font-semibold text-brand-orange uppercase tracking-[0.25em] mb-4">Planejamento Estratégico</h2>
           <p className="text-gray-400 text-lg leading-relaxed">
-            Planejamento estratégico inteligente para transformar sua empresa em 2026.
+            Planejamento estratégico inteligente para transformar sua empresa, ano a ano.
           </p>
           
           <div className="mt-12 grid grid-cols-3 gap-6">
