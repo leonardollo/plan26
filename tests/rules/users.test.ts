@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { assertFails, assertSucceeds, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { ADMIN, BLOQUEADO, LIBERADO, PENDENTE, criarAmbiente, semear, type Pessoa } from './ambiente';
 
 let env: RulesTestEnvironment;
@@ -44,6 +44,33 @@ describe('users/{uid}', () => {
     });
     it(`${nome} não grava o espaço de outro`, async () => {
       await assertFails(setDoc(doc(banco(pessoa), 'users/uid-outro'), { planData: { x: 1 } }, { merge: true }));
+    });
+  }
+});
+
+describe('users/{uid}/planos/{ano}', () => {
+  for (const { nome, pessoa, usaOProprio } of PESSOAS) {
+    const uid = pessoa ? pessoa.uid : 'uid-anonimo';
+    const proprio = `users/${uid}/planos/2027`;
+    const esperado = usaOProprio ? assertSucceeds : assertFails;
+
+    it(`${nome} ${usaOProprio ? 'lê' : 'não lê'} o próprio plano de outro ano`, async () => {
+      await esperado(getDoc(doc(banco(pessoa), proprio)));
+    });
+    it(`${nome} ${usaOProprio ? 'grava' : 'não grava'} o próprio plano de outro ano`, async () => {
+      await esperado(setDoc(doc(banco(pessoa), proprio), { planData: { x: 1 } }, { merge: true }));
+    });
+    it(`${nome} ${usaOProprio ? 'lista' : 'não lista'} os próprios planos`, async () => {
+      await esperado(getDocs(collection(banco(pessoa), 'users', uid, 'planos')));
+    });
+    it(`${nome} não lê o plano de outro ano de outro`, async () => {
+      await assertFails(getDoc(doc(banco(pessoa), 'users/uid-outro/planos/2027')));
+    });
+    it(`${nome} não grava o plano de outro ano de outro`, async () => {
+      await assertFails(setDoc(doc(banco(pessoa), 'users/uid-outro/planos/2027'), { planData: { x: 1 } }, { merge: true }));
+    });
+    it(`${nome} não lista os planos de outro`, async () => {
+      await assertFails(getDocs(collection(banco(pessoa), 'users', 'uid-outro', 'planos')));
     });
   }
 });
