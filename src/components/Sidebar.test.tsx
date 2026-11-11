@@ -134,3 +134,35 @@ describe('Sidebar — gaveta no celular', () => {
     expect(gaveta().dataset.gaveta).toBe('fechada');
   });
 });
+
+describe('Sidebar — foco na gaveta', () => {
+  const botaoMenu = () => screen.getByRole('button', { name: 'Abrir menu' });
+  const fechar = () => screen.getByRole('button', { name: 'Fechar menu' });
+  const sair = () => screen.getByTitle('Sair');
+
+  it('abrir leva o foco ao X; Esc devolve ao botão do menu', () => {
+    montar();
+    botaoMenu().focus();
+    fireEvent.click(botaoMenu());
+    expect(document.activeElement).toBe(fechar());
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(document.activeElement).toBe(botaoMenu());
+  });
+
+  it('Tab no último controle volta ao primeiro, e Shift+Tab no primeiro vai ao último', () => {
+    montar();
+    fireEvent.click(botaoMenu());
+    sair().focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(document.activeElement).toBe(fechar());
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(sair());
+  });
+
+  it('fechada, o Tab não é interceptado e o foco não é mexido', () => {
+    montar();
+    sair().focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(document.activeElement).toBe(sair());
+  });
+});

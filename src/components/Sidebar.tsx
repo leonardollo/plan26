@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { View } from '../types';
 import { User } from '../types';
 import { usePlan } from '../hooks/usePlanData';
@@ -67,11 +67,39 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, on
   const [aberta, setAberta] = useState(false);
   const irPara = (view: View) => { setCurrentView(view); setAberta(false); };
 
+  const gavetaRef = useRef<HTMLDivElement>(null);
+  const botaoAbrirRef = useRef<HTMLButtonElement>(null);
+  const botaoFecharRef = useRef<HTMLButtonElement>(null);
+  const jaAbriu = useRef(false);
+
+  // Aberta, a gaveta é modal: o foco fica nela e, ao fechar, volta ao botão do menu.
   useEffect(() => {
-      if (!aberta) return;
-      const fecharComEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setAberta(false); };
-      document.addEventListener('keydown', fecharComEsc);
-      return () => document.removeEventListener('keydown', fecharComEsc);
+      if (!aberta) {
+          if (jaAbriu.current) botaoAbrirRef.current?.focus();
+          return;
+      }
+      jaAbriu.current = true;
+      botaoFecharRef.current?.focus();
+      const aoTeclar = (e: KeyboardEvent) => {
+          if (e.key === 'Escape') { setAberta(false); return; }
+          if (e.key !== 'Tab' || !gavetaRef.current) return;
+          const focaveis = [...gavetaRef.current.querySelectorAll<HTMLElement>(
+              'button:not([disabled]), select:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+          )];
+          if (focaveis.length === 0) return;
+          const primeiro = focaveis[0];
+          const ultimo = focaveis[focaveis.length - 1];
+          const dentro = gavetaRef.current.contains(document.activeElement);
+          if (e.shiftKey && (!dentro || document.activeElement === primeiro)) {
+              e.preventDefault();
+              ultimo.focus();
+          } else if (!e.shiftKey && (!dentro || document.activeElement === ultimo)) {
+              e.preventDefault();
+              primeiro.focus();
+          }
+      };
+      document.addEventListener('keydown', aoTeclar);
+      return () => document.removeEventListener('keydown', aoTeclar);
   }, [aberta]);
 
   const handleLogout = async () => {
@@ -113,6 +141,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, on
     {/* Topo só no celular: no desktop (lg) a barra lateral fica sempre à vista. */}
     <header className="lg:hidden no-print flex items-center gap-3 px-4 h-14 flex-shrink-0 bg-brand-dark text-white">
         <button
+            ref={botaoAbrirRef}
             onClick={() => setAberta(true)}
             aria-label="Abrir menu"
             aria-expanded={aberta}
@@ -133,6 +162,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, on
         />
     )}
     <div
+      ref={gavetaRef}
       id="menu-do-plano"
       data-gaveta={aberta ? 'aberta' : 'fechada'}
       className={clsx(
@@ -145,8 +175,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, on
       {/* Header com Logo */}
       <div className="relative flex flex-col items-center border-b border-white/10 flex-shrink-0 px-4 pt-12 pb-4 lg:pt-4">
          <button
+            ref={botaoFecharRef}
             onClick={() => setAberta(false)}
             aria-label="Fechar menu"
+            // O index.css anima "all" nos botões, inclusive visibility: no 1º quadro o X ainda estaria oculto e recusaria o foco.
+            style={{ transitionProperty: 'color, background-color' }}
             className="lg:hidden absolute top-2 right-2 p-2 rounded-md text-gray-400 hover:text-white hover:bg-white/10"
          >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
