@@ -11,7 +11,8 @@ vi.mock('firebase/firestore', () => ({
 import { getDoc, getDocs, runTransaction } from 'firebase/firestore';
 import {
   ANO_DO_PLANO_LEGADO,
-  anoDoPrimeiroPlano,
+  aberturaDoPlano,
+  anoDoPlanoAtual,
   anosDoPlano,
   caminhoDoPlano,
   chaveLocalDoPlano,
@@ -128,16 +129,31 @@ describe('caminho e chave de cada ano', () => {
   });
 });
 
-describe('anoDoPrimeiroPlano', () => {
+describe('anoDoPlanoAtual', () => {
   it.each([
+    [new Date(2026, 0, 1), 2027],
+    [new Date(2026, 8, 30), 2027],
     [new Date(2026, 10, 10), 2027],
-    [new Date(2026, 8, 30), 2026],
-    [new Date(2027, 2, 15), 2027],
-    [new Date(2027, 8, 30), 2027],
-    [new Date(2027, 9, 1), 2028],
-    [new Date(2027, 11, 31), 2028],
+    [new Date(2026, 11, 31), 2027],
+    [new Date(2027, 0, 1), 2028],
+    [new Date(2027, 2, 15), 2028],
   ])('em %s vale %i', (hoje, ano) => {
-    expect(anoDoPrimeiroPlano(hoje)).toBe(ano);
+    expect(anoDoPlanoAtual(hoje)).toBe(ano);
+  });
+});
+
+describe('aberturaDoPlano', () => {
+  const novembro2026 = new Date(2026, 10, 11);
+  it.each([
+    ['conta sem plano abre 2027 em branco', [], novembro2026, { abrir: 2027, copiarDe: null }],
+    ['só o legado: cria 2027 a partir de 2026', [2026], novembro2026, { abrir: 2027, copiarDe: 2026 }],
+    ['2027 já existe: abre sem criar', [2026, 2027], novembro2026, { abrir: 2027, copiarDe: null }],
+    ['só 2027: abre sem criar', [2027], novembro2026, { abrir: 2027, copiarDe: null }],
+    ['em 2027, com 2026 e 2027: cria 2028 a partir de 2027', [2026, 2027], new Date(2027, 0, 2), { abrir: 2028, copiarDe: 2027 }],
+    ['em 2028, só com 2026: cria 2029 a partir de 2026', [2026], new Date(2028, 5, 1), { abrir: 2029, copiarDe: 2026 }],
+    ['relógio atrasado, só 2028 salvo: abre 2028 sem criar', [2028], novembro2026, { abrir: 2028, copiarDe: null }],
+  ])('%s', (_nome, anos, hoje, esperado) => {
+    expect(aberturaDoPlano(anos as number[], hoje as Date)).toEqual(esperado);
   });
 });
 

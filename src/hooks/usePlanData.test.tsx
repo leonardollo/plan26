@@ -83,6 +83,9 @@ async function montar() {
 
 const avancar = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
 
+// Em 2025 o plano do ano seguinte é o próprio 2026: o legado abre sem criar outro ano.
+const emNovembroDe2025 = () => vi.setSystemTime(new Date(2025, 10, 10));
+
 beforeEach(() => {
   vi.useFakeTimers();
   // O primeiro plano de quem não tem nenhum depende da data: fixa 10/11/2026 (vale 2027).
@@ -714,13 +717,59 @@ describe('usePlanData — um plano por ano', () => {
     expect(result.current.anosDisponiveis).toEqual([2026, 2027]);
   });
 
-  it('só com o legado abre 2026', async () => {
+  it('em 2025, só com o legado abre 2026', async () => {
+    emNovembroDe2025();
     bancoCom({ 'users/u1': perfil('A') });
     const { result } = await montar();
     expect(result.current.anoPlano).toBe(2026);
     expect(result.current.anoBase).toBe(2025);
     expect(result.current.planData.companyProfile.name).toBe('A');
     expect(result.current.anosDisponiveis).toEqual([2026]);
+    expect(runTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it('em 10/11/2026, só com o legado cria 2027 a partir do 2026 e abre, sem gravar mais nada', async () => {
+    const docs: Record<string, any> = { 'users/u1': perfil('A') };
+    bancoCom(docs);
+    const tx = transacaoSobre(docs);
+    const { result } = await montar();
+    expect(tx.set).toHaveBeenCalledTimes(1);
+    expect(tx.set.mock.calls[0][0]).toBe('users/u1/planos/2027');
+    expect(result.current.estadoDaCarga).toBe('carregado');
+    expect(result.current.anoPlano).toBe(2027);
+    expect(result.current.anoBase).toBe(2026);
+    expect(result.current.planData.companyProfile.name).toBe('A');
+    expect(result.current.anosDisponiveis).toEqual([2026, 2027]);
+    expect(result.current.proximoAnoDisponivel).toBeNull();
+    await avancar(10000);
+    expect(setDocMock).not.toHaveBeenCalled();
+  });
+
+  it('em 02/01/2027, com 2026 e 2027 salvos, cria 2028 a partir do 2027', async () => {
+    vi.setSystemTime(new Date(2027, 0, 2));
+    const docs: Record<string, any> = { 'users/u1': perfil('A'), 'users/u1/planos/2027': perfil('B') };
+    bancoCom(docs);
+    const tx = transacaoSobre(docs);
+    const { result } = await montar();
+    expect(tx.set.mock.calls.map(c => c[0])).toEqual(['users/u1/planos/2028']);
+    expect(result.current.anoPlano).toBe(2028);
+    expect(result.current.planData.companyProfile.name).toBe('B');
+    expect(result.current.anosDisponiveis).toEqual([2026, 2027, 2028]);
+  });
+
+  it('criação do ano seguinte negada abre o último salvo e continua oferecendo o ano seguinte', async () => {
+    const docs: Record<string, any> = { 'users/u1': perfil('A') };
+    bancoCom(docs);
+    transacaoSobre(docs);
+    runTransactionMock.mockRejectedValueOnce(negado());
+    const { result } = await montar();
+    expect(result.current.estadoDaCarga).toBe('carregado');
+    expect(result.current.anoPlano).toBe(2026);
+    expect(result.current.planData.companyProfile.name).toBe('A');
+    expect(result.current.anosDisponiveis).toEqual([2026]);
+    expect(result.current.proximoAnoDisponivel).toBe(2027);
+    await avancar(10000);
+    expect(setDocMock).not.toHaveBeenCalled();
   });
 
   it('cliente sem plano abre o ano do primeiro plano sem gravar', async () => {
@@ -835,6 +884,7 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
   });
 
   it('trocar com gravação falhando continua no ano aberto', async () => {
+    emNovembroDe2025();
     bancoCom({ 'users/u1': perfil('A') });
     const { result } = await montar();
     setDocMock.mockRejectedValue(negado());
@@ -849,6 +899,7 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
   });
 
   it('troca espera a gravação em andamento', async () => {
+    emNovembroDe2025();
     bancoCom({ 'users/u1': perfil('A') });
     const { result } = await montar();
     const primeira = adiado();
@@ -870,6 +921,7 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
   });
 
   it('ano sem documento começa dos valores iniciais em todos os blocos e a primeira gravação não leva nada do 2026', async () => {
+    emNovembroDe2025();
     bancoCom({ 'users/u1': perfil('A', {
       goals2026: { inflacaoPrevista: 9 },
       taxes: { iss: 5 },
@@ -930,10 +982,11 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
     expect(result.current.estadoDaCarga).toBe('carregado');
   });
 
-  it('começar 2027 cria a cópia e abre', async () => {
+  it('começar 2027 depois da criação automática falhar cria a cópia e abre', async () => {
     const docs: Record<string, any> = { 'users/u1': perfil('A') };
     bancoCom(docs);
     const tx = transacaoSobre(docs);
+    runTransactionMock.mockRejectedValueOnce(negado());
     const { result } = await montar();
     expect(result.current.anoPlano).toBe(2026);
     let comecou: boolean | undefined;
@@ -952,6 +1005,7 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
     const docs: Record<string, any> = { 'users/u1': perfil('A') };
     bancoCom(docs);
     const tx = transacaoSobre(docs);
+    runTransactionMock.mockRejectedValueOnce(negado());
     const { result } = await montar();
     docs['users/u1/planos/2027'] = perfil('B');
     await act(async () => { await result.current.comecarProximoAno(); });
@@ -964,11 +1018,13 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
     const docs: Record<string, any> = { 'users/u1': perfil('A') };
     bancoCom(docs);
     transacaoSobre(docs);
+    runTransactionMock.mockRejectedValueOnce(negado());
     const { result } = await montar();
     await act(async () => {
       await Promise.all([result.current.comecarProximoAno(), result.current.comecarProximoAno()]);
     });
-    expect(runTransactionMock).toHaveBeenCalledTimes(1);
+    // Uma da abertura (negada) e uma só do botão.
+    expect(runTransactionMock).toHaveBeenCalledTimes(2);
     expect(result.current.anoPlano).toBe(2027);
   });
 
@@ -978,6 +1034,7 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
     const tx = transacaoSobre(docs);
     const transacao = adiado();
     runTransactionMock.mockImplementation(async (_db: any, fn: any) => { await transacao.promessa; return fn(tx); });
+    runTransactionMock.mockRejectedValueOnce(negado());
     const { result } = await montar();
     let criacao!: Promise<boolean>;
     act(() => { criacao = result.current.comecarProximoAno(); });
@@ -996,6 +1053,7 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
     const docs: Record<string, any> = { 'users/u1': perfil('A') };
     bancoCom(docs);
     transacaoSobre(docs);
+    runTransactionMock.mockRejectedValueOnce(negado());
     const { result } = await montar();
     expect(result.current.proximoAnoDisponivel).toBe(2027);
     await act(async () => { await result.current.comecarProximoAno(); });
@@ -1031,6 +1089,30 @@ describe('usePlanData — modo offline, uma chave por ano', () => {
   });
 });
 
+describe('usePlanData — modo offline, ano seguinte', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('só com o legado local cria a chave de 2027 a partir dele e abre', async () => {
+    vi.stubEnv('VITE_FIREBASE_API_KEY', 'COLE_SUA_API_KEY_AQUI');
+    vi.resetModules();
+    const offline = await import('./usePlanData');
+    const legado = JSON.stringify(perfil('A'));
+    localStorage.setItem('plan_data_u1', legado);
+    const envolver = ({ children }: { children: React.ReactNode }) => (
+      <offline.PlanProvider user={USUARIO}>{children}</offline.PlanProvider>
+    );
+    const { result } = renderHook(() => offline.usePlan(), { wrapper: envolver });
+    await act(async () => {});
+    expect(result.current.anoPlano).toBe(2027);
+    expect(result.current.planData.companyProfile.name).toBe('A');
+    expect(JSON.parse(localStorage.getItem('plan_data_u1_2027')!).planData.companyProfile.name).toBe('A');
+    expect(localStorage.getItem('plan_data_u1')).toBe(legado);
+  });
+});
+
 describe('usePlanData — CBS no plano 2027', () => {
   // Base: R 1,2 mi e V 480 mil → CBS 6,78. Score de mercado vazio (−1,5): crescimento 8,5% → janeiro 108.500.
   const doc = () => perfil('B', {
@@ -1049,6 +1131,7 @@ describe('usePlanData — CBS no plano 2027', () => {
   });
 
   it('o mesmo plano em 2026 continua com PIS e COFINS', async () => {
+    emNovembroDe2025();
     bancoCom({ 'users/u1': doc() });
     const { result } = await montar();
     expect(result.current.anoPlano).toBe(2026);
@@ -1073,6 +1156,7 @@ describe('usePlanData — CBS no plano 2027', () => {
   });
 
   it('sensibilidade no mesmo documento em 2026 usa PIS e COFINS', async () => {
+    emNovembroDe2025();
     bancoCom({ 'users/u1': doc() });
     const { result } = await montar();
     // 30.000 − 7,68% × 100.000 ÷ (1 − 8,65%)

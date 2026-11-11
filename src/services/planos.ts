@@ -1,7 +1,7 @@
 import { collection, doc, getDoc, getDocs, runTransaction, type Firestore } from 'firebase/firestore';
 import type { Goals2026, PlanData, PricingItem, Scenarios2026, TaxesData, Tracking2026 } from '../types';
 
-// O documento antigo, users/{uid}, é o plano 2026: os outros anos ficam em users/{uid}/planos/{ano}.
+// O documento antigo, users/{uid}, é o plano 2026 (sem migração): os outros anos ficam em users/{uid}/planos/{ano}.
 export const ANO_DO_PLANO_LEGADO = 2026;
 
 export type AnosDoPlano = { anoPlano: number; anoBase: number };
@@ -28,10 +28,22 @@ export function chaveLocalDoPlano(uid: string, ano: number): string {
     return ano === ANO_DO_PLANO_LEGADO ? `${PREFIXO_LOCAL}${uid}` : `${PREFIXO_LOCAL}${uid}_${ano}`;
 }
 
-// A partir de outubro o cliente já planeja o ano seguinte. Data local.
-export function anoDoPrimeiroPlano(hoje: Date): number {
-    const outubro = 9;
-    return hoje.getMonth() >= outubro ? hoje.getFullYear() + 1 : hoje.getFullYear();
+// O app é sempre o planejamento do ano seguinte ao atual (decisão do usuário, 11/11/2026). Data local.
+export function anoDoPlanoAtual(hoje: Date): number {
+    return hoje.getFullYear() + 1;
+}
+
+export type AberturaDoPlano = { abrir: number; copiarDe: number | null };
+
+// Sem o ano seguinte salvo, ele é criado a partir do ano anterior mais recente; conta sem plano abre em branco, sem gravar.
+export function aberturaDoPlano(anosSalvos: number[], hoje: Date): AberturaDoPlano {
+    const alvo = anoDoPlanoAtual(hoje);
+    if (anosSalvos.includes(alvo)) return { abrir: alvo, copiarDe: null };
+    const anteriores = anosSalvos.filter(ano => ano < alvo);
+    if (anteriores.length > 0) return { abrir: alvo, copiarDe: Math.max(...anteriores) };
+    // Só anos à frente do alvo (relógio atrasado): abre o mais recente, sem criar nada.
+    if (anosSalvos.length > 0) return { abrir: Math.max(...anosSalvos), copiarDe: null };
+    return { abrir: alvo, copiarDe: null };
 }
 
 // Sem plano salvo não há de onde copiar; e não se começa mais de um ano à frente do corrente.

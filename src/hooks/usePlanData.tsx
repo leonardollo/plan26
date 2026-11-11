@@ -30,7 +30,7 @@ import { nopat, paybackCacMeses } from '../utils/calculos/indicadores';
 import { resumoDoCenario } from '../utils/calculos/resumo';
 import { bonusDeProdutividade, scoreEstrategico } from '../utils/calculos/analise';
 import {
-    anoDoPrimeiroPlano, anosDoPlano, caminhoDoPlano, chaveLocalDoPlano, criarPlanoSeNaoExistir, listarPlanos,
+    aberturaDoPlano, anoDoPlanoAtual, anosDoPlano, caminhoDoPlano, chaveLocalDoPlano, criarPlanoSeNaoExistir, listarPlanos,
     listarPlanosLocais, montarPlanoDoAnoSeguinte, proximoAnoDoPlano, type DadosDoPlano,
 } from '../services/planos';
 import { CONFIG_DOS_EMULADORES, conectarAosEmuladores, usarEmuladores } from '../services/emuladores';
@@ -488,7 +488,23 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         }
     };
 
-    // Lê os anos salvos e abre o mais recente; sem nenhum, o ano do primeiro plano (sem gravar nada).
+    // Cria `ano` copiando o cadastro de `anoOrigem`; se o ano já existe, nada é sobrescrito. Lança se não gravar.
+    const criarAnoAPartirDe = async (ano: number, anoOrigem: number): Promise<void> => {
+        const iniciais: DadosDoPlano = {
+            planData: initialPlanData, goals2026: initialGoals, scenarios2026: initialScenarios,
+            tracking2026: {}, taxes: initialTaxes, pricingItems: [],
+        };
+        if (!isOfflineMode && db) {
+            await criarPlanoSeNaoExistir(db, user.uid, ano, anoOrigem, iniciais);
+        } else if (!listarPlanosLocais(localStorage, user.uid).includes(ano)) {
+            const origem = localStorage.getItem(chaveLocalDoPlano(user.uid, anoOrigem));
+            const novo = montarPlanoDoAnoSeguinte(origem ? JSON.parse(origem) : {}, iniciais);
+            localStorage.setItem(chaveLocalDoPlano(user.uid, ano), JSON.stringify(novo));
+        }
+    };
+
+    // Lê os anos salvos e abre o do ano seguinte ao atual, criando-o a partir do último plano se faltar.
+    // Conta sem plano abre o ano em branco, sem gravar nada.
     const abrirPlano = async (): Promise<void> => {
         if (!user.uid) return;
         const carga = ++cargaAtual.current;
@@ -502,7 +518,20 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                 : listarPlanosLocais(localStorage, user.uid);
             if (carga !== cargaAtual.current) return;
             definirAnosSalvos(lista);
-            await carregarPlano(lista.length > 0 ? lista[lista.length - 1] : anoDoPrimeiroPlano(new Date()));
+            const { abrir, copiarDe } = aberturaDoPlano(lista, new Date());
+            if (copiarDe !== null) {
+                try {
+                    await criarAnoAPartirDe(abrir, copiarDe);
+                    definirAnosSalvos([...anosSalvos.current, abrir]);
+                } catch (error) {
+                    // Sem gravar o ano novo, abre o último salvo; o botão de começar o ano continua oferecendo-o.
+                    console.error('Error creating plan:', error);
+                    if (carga === cargaAtual.current) await carregarPlano(Math.max(...lista));
+                    return;
+                }
+                if (carga !== cargaAtual.current) return;
+            }
+            await carregarPlano(abrir);
         } catch (error) {
             console.error("Error listing plans:", error);
             if (carga === cargaAtual.current) setEstadoDaCarga('falhou');
@@ -538,19 +567,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             if (!(await gravarAntesDeSair())) return false;
             const ano = proximoAnoDoPlano(anosSalvos.current, new Date());
             if (ano === null) return false;
-            const anoOrigem = Math.max(...anosSalvos.current);
-            const iniciais: DadosDoPlano = {
-                planData: initialPlanData, goals2026: initialGoals, scenarios2026: initialScenarios,
-                tracking2026: {}, taxes: initialTaxes, pricingItems: [],
-            };
             try {
-                if (!isOfflineMode && db) {
-                    await criarPlanoSeNaoExistir(db, user.uid, ano, anoOrigem, iniciais);
-                } else if (!listarPlanosLocais(localStorage, user.uid).includes(ano)) {
-                    const origem = localStorage.getItem(chaveLocalDoPlano(user.uid, anoOrigem));
-                    const novo = montarPlanoDoAnoSeguinte(origem ? JSON.parse(origem) : {}, iniciais);
-                    localStorage.setItem(chaveLocalDoPlano(user.uid, ano), JSON.stringify(novo));
-                }
+                await criarAnoAPartirDe(ano, Math.max(...anosSalvos.current));
             } catch (error) {
                 console.error('Error creating plan:', error);
                 setMotivoDoErroAoSalvar(traduzirErroDeGravacao(error));
@@ -1307,7 +1325,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     };
 
     // Antes de a carga terminar, o ano mostrado é o pedido; antes da lista, o do primeiro plano.
-    const anosAbertos = anosDoPlano(anoCarregado ?? anoPedido ?? anoDoPrimeiroPlano(new Date()));
+    const anosAbertos = anosDoPlano(anoCarregado ?? anoPedido ?? anoDoPlanoAtual(new Date()));
     const { anoPlano, anoBase } = anosAbertos;
 
     const generateGoalSuggestions = async () => {
