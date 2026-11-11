@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { usePlan } from '../hooks/usePlanData';
 import {
   buscarFotoDpe,
@@ -14,7 +14,7 @@ import { formatCurrency } from '../utils/formatters';
  * Importar do Diagnóstico
  *
  * O cliente preenche o diagnóstico em gestaoimpacto.com/planejamento e recebe
- * um link. Cole o link aqui e o PLAN 2026 se preenche sozinho.
+ * um link. Cole o link aqui e o PLAN do ano aberto se preenche sozinho.
  *
  * Nada é gravado antes da prévia. A prévia mostra três coisas separadas, e a
  * separação é o ponto: o que é dado do cliente, o que foi calculado a partir
@@ -44,7 +44,7 @@ const CORES: Record<Confianca, { chip: string; borda: string; titulo: string; te
 };
 
 const ImportFromDpe: React.FC = () => {
-  const { aplicarImportacaoDpe, planData } = usePlan();
+  const { aplicarImportacaoDpe, planData, anoBase, anoPlano } = usePlan();
   const [link, setLink] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
@@ -52,8 +52,14 @@ const ImportFromDpe: React.FC = () => {
   const [aplicado, setAplicado] = useState(false);
   const arquivoRef = useRef<HTMLInputElement>(null);
 
+  // A prévia foi montada com os meses do ano base de outro plano: trocar de ano a descarta.
+  useEffect(() => {
+    setPrevia(null);
+    setAplicado(false);
+  }, [anoBase]);
+
   const processar = (foto: FotoDpe) => {
-    const r = importarDoDiagnostico(foto);
+    const r = importarDoDiagnostico(foto, anoBase);
     if (!r.mesesEncontrados && !r.empresa) {
       setErro('O diagnóstico foi encontrado, mas está praticamente vazio. Peça ao cliente para preencher pelo menos o Bloco 1 e o Bloco 2.');
       return;
@@ -271,7 +277,7 @@ const ImportFromDpe: React.FC = () => {
               onClick={aplicar}
               className="px-6 py-3 bg-brand-orange text-white rounded-lg font-medium hover:bg-orange-600 transition-colors"
             >
-              Aplicar ao PLAN 2026
+              Aplicar ao PLAN {anoPlano}
             </button>
             <button
               onClick={() => setPrevia(null)}
@@ -293,8 +299,8 @@ const ImportFromDpe: React.FC = () => {
             <div>
               <h2 className="text-xl font-bold text-brand-dark">Importado</h2>
               <p className="text-gray-600 mt-1 text-sm">
-                Os dados de <strong>{previa.empresa}</strong> estão no PLAN 2026. Comece pela{' '}
-                <strong>Coleta de Dados 2025</strong> para conferir os meses, e depois pelo que
+                Os dados de <strong>{previa.empresa}</strong> estão no PLAN {anoPlano}. Comece pela{' '}
+                <strong>Coleta de Dados {anoBase}</strong> para conferir os meses, e depois pelo que
                 ficou marcado como calculado — principalmente a abertura do custo fixo.
               </p>
               <p className="text-xs text-gray-500 mt-3">
@@ -318,7 +324,7 @@ const ImportFromDpe: React.FC = () => {
             <li>Aplica. Os 12 meses, o portfólio, a SWOT, as metas e o plano de ação entram prontos</li>
           </ol>
           <p className="text-xs text-gray-500 mt-4 leading-relaxed">
-            O diagnóstico e o PLAN 2026 guardam dados em lugares diferentes e continuam
+            O diagnóstico e o PLAN guardam dados em lugares diferentes e continuam
             independentes. Esta tela só lê o diagnóstico — nunca escreve nele. Se o cliente mudar
             uma resposta depois, é só importar de novo.
           </p>

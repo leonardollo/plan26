@@ -1,10 +1,10 @@
 /**
- * Importação do Diagnóstico (DPE-GI) para o PLAN 2026
+ * Importação do Diagnóstico (DPE-GI) para o PLAN
  *
  * O DPE-GI (gestaoimpacto.com/planejamento) é o formulário de diagnóstico que
  * o cliente preenche antes da consultoria. Ele coleta 24 meses de série
  * financeira, portfólio, concorrentes, SWOT, problemas-raiz, drivers e o plano
- * 5W2H. Boa parte disso é exatamente o que o PLAN 2026 pede na Coleta de Dados.
+ * 5W2H. Boa parte disso é exatamente o que o PLAN pede na Coleta de Dados.
  *
  * Este arquivo é o tradutor entre os dois. É de propósito uma função pura:
  * recebe a foto do diagnóstico, devolve os pedaços de PlanData e Goals2026 mais
@@ -115,7 +115,7 @@ export interface PatchPlano {
 
 export interface ResultadoImportacao {
   empresa: string;
-  anoBase: number | null;
+  anoBase: number;
   mesesEncontrados: number;
   patch: PatchPlano;
   goals2026: Partial<Goals2026>;
@@ -159,35 +159,11 @@ const temAlgum = (m: MonthlyData): boolean => Object.values(m).some((v) => v !==
 const uid = (prefixo: string, i: number) => `dpe-${prefixo}-${i}-${Math.floor(Math.random() * 1e6)}`;
 
 /**
- * Escolhe os 12 meses que viram "2025" no PLAN.
+ * Distribui as linhas do ano base nos 12 meses do PLAN (os campos *2025).
  *
- * O DPE guarda até 24 meses corridos, que raramente batem com um ano civil.
- * A regra: pega o ano civil mais completo entre os que têm receita. Empate
- * resolve pelo mais recente, que é o que melhor representa a empresa hoje.
+ * O ano é o ano base do plano aberto (anoPlano − 1), não o mais completo do DPE: o plano 2027
+ * precisa dos meses de 2026, mesmo incompletos.
  */
-export function escolherAnoBase(serie: LinhaSerie[]): number | null {
-  const porAno = new Map<number, number>();
-  serie.forEach((l) => {
-    const ano = parseInt(String(l.comp || '').slice(0, 4), 10);
-    if (!Number.isFinite(ano)) return;
-    if (numeroBr(l.rb) === null) return;
-    porAno.set(ano, (porAno.get(ano) || 0) + 1);
-  });
-  if (!porAno.size) return null;
-  let melhor: number | null = null;
-  let melhorQtd = -1;
-  [...porAno.entries()]
-    .sort((a, b) => a[0] - b[0]) // do mais antigo para o mais novo
-    .forEach(([ano, qtd]) => {
-      if (qtd >= melhorQtd) {
-        melhorQtd = qtd;
-        melhor = ano;
-      }
-    });
-  return melhor;
-}
-
-/** Distribui as linhas do ano escolhido nos 12 meses do PLAN. */
 function serieDoAno(serie: LinhaSerie[], ano: number, campo: keyof LinhaSerie): MonthlyData {
   const saida = mesVazio();
   serie.forEach((l) => {
@@ -224,7 +200,7 @@ function distribuirComoPeso(total: number, pesos: MonthlyData): MonthlyData {
 /* O tradutor                                                          */
 /* ------------------------------------------------------------------ */
 
-export function importarDoDiagnostico(foto: FotoDpe): ResultadoImportacao {
+export function importarDoDiagnostico(foto: FotoDpe, anoBase: number): ResultadoImportacao {
   const f = foto.f || {};
   const g = foto.g || {};
   const nm = foto.nm || {};
@@ -237,8 +213,8 @@ export function importarDoDiagnostico(foto: FotoDpe): ResultadoImportacao {
     rel.push({ destino, origem, confianca, observacao });
 
   const serie: LinhaSerie[] = (g.serie || []) as LinhaSerie[];
-  const ano = escolherAnoBase(serie);
-  const doAno = (campo: keyof LinhaSerie) => (ano ? serieDoAno(serie, ano, campo) : mesVazio());
+  const ano = anoBase;
+  const doAno = (campo: keyof LinhaSerie) => serieDoAno(serie, ano, campo);
 
   /* ---------- perfil ---------- */
   const nomeEmpresa = texto(f.fantasia) || texto(f.razao) || texto(foto.id?.empresa);
@@ -273,7 +249,7 @@ export function importarDoDiagnostico(foto: FotoDpe): ResultadoImportacao {
     );
     anota('Investimento em marketing', 'Bloco 2 — série mensal', 'dado', 'Vai para o módulo de Marketing. No DRE, o marketing entra pela estrutura de custo fixo, para não ser contado duas vezes.');
   } else {
-    anota('Série financeira de 2025', 'Bloco 2 — série mensal', 'faltando', 'O diagnóstico não tem nenhum mês com receita preenchida.');
+    anota(`Série financeira de ${ano}`, 'Bloco 2 — série mensal', 'faltando', `O diagnóstico não tem nenhum mês de ${ano} com receita preenchida.`);
   }
 
   /* ---------- custo fixo: um mês vira doze ---------- */
@@ -698,7 +674,7 @@ export function importarDoDiagnostico(foto: FotoDpe): ResultadoImportacao {
       'Diagnóstico operacional',
       'Blocos 4 e 5 — MFV, dependência do dono, causas-raiz',
       'dado',
-      'O PLAN 2026 não tem campo próprio para isso. Entra como texto na análise de diagnóstico — é o maior buraco entre os dois sistemas.'
+      `O PLAN ${ano + 1} não tem campo próprio para isso. Entra como texto na análise de diagnóstico — é o maior buraco entre os dois sistemas.`
     );
   }
 
@@ -715,7 +691,7 @@ export function importarDoDiagnostico(foto: FotoDpe): ResultadoImportacao {
       'Meta de receita mensalizada',
       'Bloco 6 — metas do ciclo',
       'estimado',
-      'A meta anual foi distribuída pelos 12 meses seguindo a sazonalidade real de ' + (ano ?? 'do ano base') + '.'
+      `A meta anual foi distribuída pelos 12 meses seguindo a sazonalidade real de ${ano}.`
     );
   }
 
