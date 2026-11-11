@@ -772,6 +772,20 @@ describe('usePlanData — um plano por ano', () => {
     expect(setDocMock).not.toHaveBeenCalled();
   });
 
+  it('volta em 2028 só com o 2026 e a criação falha: oferece 2029, não 2027', async () => {
+    vi.setSystemTime(new Date(2028, 2, 1));
+    const docs: Record<string, any> = { 'users/u1': perfil('A') };
+    bancoCom(docs);
+    const tx = transacaoSobre(docs);
+    runTransactionMock.mockRejectedValueOnce(negado());
+    const { result } = await montar();
+    expect(result.current.anoPlano).toBe(2026);
+    expect(result.current.proximoAnoDisponivel).toBe(2029);
+    await act(async () => { await result.current.comecarProximoAno(); });
+    expect(tx.set.mock.calls.map(c => c[0])).toEqual(['users/u1/planos/2029']);
+    expect(result.current.anoPlano).toBe(2029);
+  });
+
   it('cliente sem plano abre o ano do primeiro plano sem gravar', async () => {
     bancoCom({});
     const { result } = await montar();

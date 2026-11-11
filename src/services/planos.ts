@@ -46,11 +46,12 @@ export function aberturaDoPlano(anosSalvos: number[], hoje: Date): AberturaDoPla
     return { abrir: alvo, copiarDe: null };
 }
 
-// Sem plano salvo não há de onde copiar; e não se começa mais de um ano à frente do corrente.
+// Sem plano salvo não há de onde copiar. Oferece o ano do plano atual, não o seguinte ao último salvo:
+// quem volta em 2028 só com o 2026 começa 2029, nunca um 2027 já passado.
 export function proximoAnoDoPlano(anosSalvos: number[], hoje: Date): number | null {
     if (anosSalvos.length === 0) return null;
-    const proximo = Math.max(...anosSalvos) + 1;
-    return proximo <= hoje.getFullYear() + 1 ? proximo : null;
+    const alvo = anoDoPlanoAtual(hoje);
+    return anosSalvos.includes(alvo) || Math.max(...anosSalvos) > alvo ? null : alvo;
 }
 
 const ordenados = (anos: number[]) => [...new Set(anos)].sort((a, b) => a - b);
@@ -87,15 +88,19 @@ const CAMPOS_DE_IMPOSTO_COPIADOS = [
 ] as const;
 
 // Ano novo: copia o cadastro (perfil, produtos sem números, mercado e regime tributário) e deixa o resto no valor inicial.
-export function montarPlanoDoAnoSeguinte(origem: Partial<DadosDoPlano>, iniciais: DadosDoPlano): DadosDoPlano {
+export function montarPlanoDoAnoSeguinte(
+    origem: Partial<DadosDoPlano>, iniciais: DadosDoPlano, anosDeDistancia: number,
+): DadosDoPlano {
     const lido: Partial<PlanData> = origem.planData ?? {};
     const taxesLidos: Partial<TaxesData> = origem.taxes ?? {};
     const taxes: TaxesData = { ...iniciais.taxes };
     for (const campo of CAMPOS_DE_IMPOSTO_COPIADOS) {
         if (taxesLidos[campo] !== undefined) (taxes as any)[campo] = taxesLidos[campo];
     }
-    // O ano base da origem é o ano anterior ao base do plano novo: mesmo ano civil.
-    if (taxesLidos.totalImpostos2025 !== undefined) taxes.totalImpostos2024 = taxesLidos.totalImpostos2025;
+    // Só com anos seguidos o ano base da origem é o ano anterior ao base do plano novo (mesmo ano civil).
+    if (anosDeDistancia === 1 && taxesLidos.totalImpostos2025 !== undefined) {
+        taxes.totalImpostos2024 = taxesLidos.totalImpostos2025;
+    }
     taxes.totalImpostos2025 = null;
 
     return {
@@ -128,6 +133,6 @@ export async function criarPlanoSeNaoExistir(
         if (atual.exists()) return;
         const lida = await tx.get(origem);
         const dados = (lida.exists() ? lida.data() : {}) as Partial<DadosDoPlano>;
-        tx.set(destino, montarPlanoDoAnoSeguinte(dados, iniciais));
+        tx.set(destino, montarPlanoDoAnoSeguinte(dados, iniciais, ano - anoOrigem));
     });
 }

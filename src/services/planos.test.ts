@@ -164,6 +164,10 @@ describe('proximoAnoDoPlano', () => {
     [[], new Date(2026, 10, 10), null],
     [[2026, 2027], new Date(2027, 0, 15), 2028],
     [[2027], new Date(2026, 10, 10), null],
+    // Conta que pulou anos: o oferecido é sempre o ano seguinte ao atual, não o seguinte ao último salvo.
+    [[2026], new Date(2028, 2, 1), 2029],
+    [[2026, 2028], new Date(2028, 2, 1), 2029],
+    [[2030], new Date(2026, 10, 10), null],
   ])('com %j em %s oferece %s', (anos, hoje, esperado) => {
     expect(proximoAnoDoPlano(anos as number[], hoje)).toBe(esperado);
   });
@@ -221,7 +225,7 @@ describe('montarPlanoDoAnoSeguinte', () => {
   it('copia o cadastro e deixa os números em branco', () => {
     const origem = origemCheia();
     const ini = iniciais();
-    const novo = montarPlanoDoAnoSeguinte(origem, ini);
+    const novo = montarPlanoDoAnoSeguinte(origem, ini, 1);
 
     expect(novo.planData.companyProfile).toEqual(origem.planData.companyProfile);
     expect(novo.planData.marketAnalysis).toEqual(origem.planData.marketAnalysis);
@@ -251,7 +255,7 @@ describe('montarPlanoDoAnoSeguinte', () => {
     const origem = origemCheia();
     const { marketAnalysis: _m, ...semMercado } = origem.planData;
     const ini = iniciais();
-    const novo = montarPlanoDoAnoSeguinte({ planData: semMercado as any }, ini);
+    const novo = montarPlanoDoAnoSeguinte({ planData: semMercado as any }, ini, 1);
     expect(novo.planData.marketAnalysis).toEqual(ini.planData.marketAnalysis);
     for (const campo of CAMPOS_DE_IMPOSTO) {
       expect(novo.taxes[campo]).toEqual(ini.taxes[campo]);
@@ -261,10 +265,18 @@ describe('montarPlanoDoAnoSeguinte', () => {
     expect(novo.planData.companyProfile).toEqual(origem.planData.companyProfile);
   });
 
+  it('origem de mais de um ano antes: o imposto do ano base dela não vira o do ano anterior ao base', () => {
+    const ini = iniciais();
+    const novo = montarPlanoDoAnoSeguinte(origemCheia(), ini, 3);
+    expect(novo.taxes.totalImpostos2024).toBe(ini.taxes.totalImpostos2024);
+    expect(novo.taxes.totalImpostos2025).toBeNull();
+    expect(novo.taxes.regimeTributario).toBe(origemCheia().taxes.regimeTributario);
+  });
+
   it('não copia a CBS digitada; a alíquota efetiva segue', () => {
     const cheia = origemCheia();
     const origem = { ...cheia, taxes: { ...cheia.taxes, cbsEfetiva: 8, aliquotaEfetiva: 15 } };
-    const novo = montarPlanoDoAnoSeguinte(origem, iniciais());
+    const novo = montarPlanoDoAnoSeguinte(origem, iniciais(), 1);
     expect(novo.taxes.cbsEfetiva).toBeNull();
     expect(novo.taxes.aliquotaEfetiva).toBe(15);
   });
@@ -289,7 +301,19 @@ describe('criarPlanoSeNaoExistir', () => {
     const tx = transacao(false, origem);
     await criarPlanoSeNaoExistir(db, 'u1', 2027, 2026, iniciais());
     expect(tx.set).toHaveBeenCalledTimes(1);
-    expect(tx.set).toHaveBeenCalledWith('users/u1/planos/2027', montarPlanoDoAnoSeguinte(origem, iniciais()));
+    expect(tx.set).toHaveBeenCalledWith('users/u1/planos/2027', montarPlanoDoAnoSeguinte(origem, iniciais(), 1));
+  });
+
+  it('cria 2029 a partir do 2026 sem levar o imposto do ano base dele', async () => {
+    const tx = {
+      get: vi.fn(async (ref: string) => (ref === 'users/u1' ? existe(origemCheia()) : ausente())),
+      set: vi.fn(),
+    };
+    runTransactionMock.mockImplementation(async (_db: any, fn: any) => fn(tx));
+    await criarPlanoSeNaoExistir(db, 'u1', 2029, 2026, iniciais());
+    const [caminho, gravado] = tx.set.mock.calls[0];
+    expect(caminho).toBe('users/u1/planos/2029');
+    expect(gravado.taxes.totalImpostos2024).toBe(iniciais().taxes.totalImpostos2024);
   });
 
   it('não sobrescreve um ano que outra aba já criou', async () => {

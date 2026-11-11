@@ -498,7 +498,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             await criarPlanoSeNaoExistir(db, user.uid, ano, anoOrigem, iniciais);
         } else if (!listarPlanosLocais(localStorage, user.uid).includes(ano)) {
             const origem = localStorage.getItem(chaveLocalDoPlano(user.uid, anoOrigem));
-            const novo = montarPlanoDoAnoSeguinte(origem ? JSON.parse(origem) : {}, iniciais);
+            const novo = montarPlanoDoAnoSeguinte(origem ? JSON.parse(origem) : {}, iniciais, ano - anoOrigem);
             localStorage.setItem(chaveLocalDoPlano(user.uid, ano), JSON.stringify(novo));
         }
     };
