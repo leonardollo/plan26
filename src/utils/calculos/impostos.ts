@@ -1,4 +1,4 @@
-import { MONTHS, MonthlyData, TaxesData } from '../../types';
+import { FinancialSheetData, MONTHS, MonthlyData, TaxesData } from '../../types';
 
 // Lucro Real: IRPJ 15% + adicional de 10% sobre o que passar de R$ 20 mil/mês + CSLL 9% (Lei 9.249/95 e 9.430/96).
 const IRPJ_ALIQUOTA = 0.15;
@@ -27,6 +27,46 @@ export const aliquotaDeducao = (taxes: Partial<TaxesData>): number => {
     if (regimeDe(taxes) === 'Simples Nacional') return num(taxes.simplesNacional);
     // IRPJ e CSLL ficam de fora: no Presumido e no Real eles são calculados à parte.
     return num(taxes.iss) + num(taxes.icms) + num(taxes.pis) + num(taxes.cofins);
+};
+
+// ano-real:início
+// EC 132/2023 e LC 214/2025: em 2027 o PIS e a COFINS deixam de existir e entra a CBS.
+export const ANO_DA_CBS = 2027;
+// 11,2% de CBS + 0,1% de IBS em 2027-28; referência do TCU de 28/10/2026. Atualizar quando o Senado fixar a alíquota.
+export const CBS_DE_REFERENCIA = 11.3;
+// ano-real:fim
+
+const somaDoAno = (valores: MonthlyData | undefined): number =>
+    MONTHS.reduce((s, m) => s + num(valores?.[m]), 0);
+
+/** CBS sugerida (em %) a partir da base: a referência sobre a parte da receita que não é custo variável. */
+export const cbsSugerida = (base: Partial<FinancialSheetData>): number => {
+    const receita = somaDoAno(base.receitaBruta?.values2025);
+    if (receita <= 0) return CBS_DE_REFERENCIA;
+    // A CBS é não cumulativa: o crédito das compras, aproximado pelos custos variáveis, sai do imposto.
+    const variaveis =
+        somaDoAno(base.cmv?.values2025) +
+        somaDoAno(base.comissoes?.values2025) +
+        somaDoAno(base.fretes?.values2025) +
+        (base.customCustosVariaveis ?? []).reduce((s, item) => s + somaDoAno(item?.values2025), 0);
+    const fracao = Math.min(1, Math.max(0, 1 - variaveis / receita));
+    return CBS_DE_REFERENCIA * fracao;
+};
+
+/** Alíquota (em %) dos impostos sobre a receita no ano do plano; a partir da CBS, ela substitui PIS e COFINS. */
+export const aliquotaDoAnoDoPlano = (
+    taxes: Partial<TaxesData>,
+    anoPlano: number,
+    base: Partial<FinancialSheetData>,
+): number => {
+    if (anoPlano < ANO_DA_CBS) return aliquotaDeducao(taxes);
+    const efetiva = num(taxes.aliquotaEfetiva);
+    if (efetiva > 0) return efetiva;
+    if (regimeDe(taxes) === 'Simples Nacional') return num(taxes.simplesNacional);
+    // Campo apagado grava 0: vazio ou zero usa a sugestão, como a alíquota efetiva.
+    const cbsDigitada = num(taxes.cbsEfetiva);
+    const cbs = cbsDigitada > 0 ? cbsDigitada : cbsSugerida(base);
+    return num(taxes.iss) + num(taxes.icms) + cbs;
 };
 
 // Imposto do Lucro Real sobre uma base positiva acumulada em `meses` meses.

@@ -242,7 +242,7 @@ const initialScenarios: Scenarios2026 = {
 const initialTaxes: TaxesData = {
     regimeTributario: 'Simples Nacional', anexoSimples: '', aliquotaEfetiva: 0, simplesNacional: 0,
     iss: 0, icms: 0, pis: 0, cofins: 0, irpj: 0, csll: 0, inssPatronal: 0, fgts: 0, ratTerceiros: 0,
-    totalEncargosFolha: 0, totalImpostos2024: 0, totalImpostos2025: 0
+    totalEncargosFolha: 0, totalImpostos2024: 0, totalImpostos2025: 0, cbsEfetiva: null
 };
 
 // Cenários em modo percentual e DRE do plano lido, pelas regras atuais e com os mesmos padrões que os setters da carga usam.
@@ -1743,7 +1743,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             setTaxes({
                 regimeTributario: 'Simples Nacional', anexoSimples: '', aliquotaEfetiva: 0, simplesNacional: 0,
                 iss: 0, icms: 0, pis: 0, cofins: 0, irpj: 0, csll: 0, inssPatronal: 0, fgts: 0, ratTerceiros: 0,
-                totalEncargosFolha: 0, totalImpostos2024: 0, totalImpostos2025: 0
+                totalEncargosFolha: 0, totalImpostos2024: 0, totalImpostos2025: 0, cbsEfetiva: null
             });
             localStorage.removeItem('google_gemini_api_key');
             try {
@@ -1758,7 +1758,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                         taxes: {
                             regimeTributario: 'Simples Nacional', anexoSimples: '', aliquotaEfetiva: 0, simplesNacional: 0,
                             iss: 0, icms: 0, pis: 0, cofins: 0, irpj: 0, csll: 0, inssPatronal: 0, fgts: 0, ratTerceiros: 0,
-                            totalEncargosFolha: 0, totalImpostos2024: 0, totalImpostos2025: 0
+                            totalEncargosFolha: 0, totalImpostos2024: 0, totalImpostos2025: 0, cbsEfetiva: null
                         },
                         pricingItems: []
                     });

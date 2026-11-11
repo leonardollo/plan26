@@ -63,7 +63,7 @@ function iniciais(): DadosDoPlano {
     taxes: {
       regimeTributario: 'Simples Nacional', anexoSimples: '', aliquotaEfetiva: 0, simplesNacional: 0,
       iss: 0, icms: 0, pis: 0, cofins: 0, irpj: 0, csll: 0, inssPatronal: 0, fgts: 0, ratTerceiros: 0,
-      totalEncargosFolha: 0, totalImpostos2024: 0, totalImpostos2025: 0,
+      totalEncargosFolha: 0, totalImpostos2024: 0, totalImpostos2025: 0, cbsEfetiva: null,
     },
     pricingItems: [],
   };
@@ -243,6 +243,14 @@ describe('montarPlanoDoAnoSeguinte', () => {
     expect(novo.taxes.totalImpostos2024).toBe(ini.taxes.totalImpostos2024);
     expect(novo.taxes.totalImpostos2025).toBeNull();
     expect(novo.planData.companyProfile).toEqual(origem.planData.companyProfile);
+  });
+
+  it('não copia a CBS digitada; a alíquota efetiva segue', () => {
+    const cheia = origemCheia();
+    const origem = { ...cheia, taxes: { ...cheia.taxes, cbsEfetiva: 8, aliquotaEfetiva: 15 } };
+    const novo = montarPlanoDoAnoSeguinte(origem, iniciais());
+    expect(novo.taxes.cbsEfetiva).toBeNull();
+    expect(novo.taxes.aliquotaEfetiva).toBe(15);
   });
 });
 

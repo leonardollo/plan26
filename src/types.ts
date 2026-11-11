@@ -511,6 +511,7 @@ export interface TaxesData {
     totalEncargosFolha: number | null;
     totalImpostos2024: number | null;
     totalImpostos2025: number | null;
+    cbsEfetiva: number | null;
 }
 
 export interface Summary2025 {
