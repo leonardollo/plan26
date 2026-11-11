@@ -90,9 +90,31 @@ service cloud.firestore {
         && request.auth.uid == uid
         && podeUsarOEspaco();
 
-      // subcoleções seguem a mesma regra do dono
+      // Um plano por ano. O 2026 mora no próprio users/{uid} (ANO_DO_PLANO_LEGADO
+      // em src/services/planos.ts); aqui ficam 2027 em diante, até o ano
+      // seguinte ao atual (o app só começa um ano à frente). Sem isso, o cliente
+      // gravava `planos/9999` e o seletor de ano passava a oferecer 9999.
+      // Ler e apagar não olham o ano: a listagem dos planos precisa ver tudo.
+      function anoDePlanoValido(ano) {
+        return ano.matches('^[0-9]{4}$')
+          && int(ano) > 2026
+          && int(ano) <= request.time.year() + 1;
+      }
+
+      match /planos/{ano} {
+        allow read, delete: if request.auth != null
+          && request.auth.uid == uid
+          && podeUsarOEspaco();
+        allow create, update: if request.auth != null
+          && request.auth.uid == uid
+          && podeUsarOEspaco()
+          && anoDePlanoValido(ano);
+      }
+
+      // Outras subcoleções: só leitura do dono. O app não grava nenhuma, e
+      // gravar aqui também liberaria `planos/{ano}` sem a checagem do ano.
       match /{documento=**} {
-        allow read, write: if request.auth != null
+        allow read: if request.auth != null
           && request.auth.uid == uid
           && podeUsarOEspaco();
       }

@@ -74,3 +74,42 @@ describe('users/{uid}/planos/{ano}', () => {
     });
   }
 });
+
+// Ano válido em planos/{ano}: quatro dígitos, depois de 2026 (que fica em users/{uid}) e até o ano seguinte ao atual.
+// Relativo ao relógio: o teste continua valendo nos próximos anos. O servidor usa UTC; o Brasil está atrás, então nunca adianta.
+describe('users/{uid}/planos/{ano}: só anos válidos', () => {
+  const anoAtual = new Date().getUTCFullYear();
+  const gravar = (pessoa: Pessoa, ano: string) =>
+    setDoc(doc(banco(pessoa), `users/${pessoa.uid}/planos/${ano}`), { planData: { x: 1 } });
+
+  for (const pessoa of [LIBERADO, ADMIN]) {
+    it(`${pessoa.uid} grava o plano de 2027`, async () => {
+      await assertSucceeds(gravar(pessoa, '2027'));
+    });
+    it(`${pessoa.uid} grava o plano do ano seguinte ao atual`, async () => {
+      await assertSucceeds(gravar(pessoa, String(anoAtual + 1)));
+    });
+    for (const ano of [String(anoAtual + 2), '9999', '2026', '2025', '0000', 'abc', '02027', '2027a', '202']) {
+      it(`${pessoa.uid} não grava planos/${ano}`, async () => {
+        await assertFails(gravar(pessoa, ano));
+      });
+    }
+    it(`${pessoa.uid} não grava em outra subcoleção do próprio espaço`, async () => {
+      await assertFails(setDoc(doc(banco(pessoa), `users/${pessoa.uid}/lixo/1`), { x: 1 }));
+    });
+    it(`${pessoa.uid} não grava abaixo de um plano`, async () => {
+      await assertFails(setDoc(doc(banco(pessoa), `users/${pessoa.uid}/planos/2027/extra/1`), { x: 1 }));
+    });
+  }
+
+  it('o plano já salvo de 2027 continua sendo atualizado com merge', async () => {
+    await assertSucceeds(gravar(LIBERADO, '2027'));
+    await assertSucceeds(setDoc(doc(banco(LIBERADO), `users/${LIBERADO.uid}/planos/2027`), { planData: { y: 2 } }, { merge: true }));
+  });
+  it('ler um ano inválido não quebra a listagem dos próprios planos', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `users/${LIBERADO.uid}/planos/9999`), { planData: {} });
+    });
+    await assertSucceeds(getDocs(collection(banco(LIBERADO), 'users', LIBERADO.uid, 'planos')));
+  });
+});
