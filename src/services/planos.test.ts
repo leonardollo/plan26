@@ -97,7 +97,7 @@ function origemCheia(): DadosDoPlano {
     taxes: {
       regimeTributario: 'Lucro Presumido', anexoSimples: 'III', aliquotaEfetiva: 6, simplesNacional: 1,
       iss: 5, icms: 2, pis: 0.65, cofins: 3, irpj: 4.8, csll: 2.88, inssPatronal: 20, fgts: 8, ratTerceiros: 5.8,
-      totalEncargosFolha: 33.8, totalImpostos2024: 10, totalImpostos2025: 20,
+      totalEncargosFolha: 33.8, totalImpostos2024: 10, totalImpostos2025: 20, cbsEfetiva: null,
     },
     pricingItems: [{ id: 'x' }] as any,
   };
