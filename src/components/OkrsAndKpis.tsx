@@ -80,7 +80,7 @@ const KeyResultRow: React.FC<{
 };
 
 const KpiDashboard: React.FC = () => {
-    const { planData, addKpi, updateKpi, removeKpi } = usePlan();
+    const { planData, addKpi, updateKpi, removeKpi, anoPlano, anoBase } = usePlan();
     const [activeTab, setActiveTab] = useState<KpiDepartment>('financeiro');
     const TABS: { id: KpiDepartment; label: string; }[] = [
         { id: 'financeiro', label: 'Financeiro' }, { id: 'comercial', label: 'Comercial' }, { id: 'pessoas', label: 'Pessoas' }, { id: 'operacoes', label: 'Operações' }
@@ -103,8 +103,8 @@ const KpiDashboard: React.FC = () => {
                         <tr>
                             <th className="px-4 py-2 text-left font-medium text-gray-600 w-2/5">Indicador (KPI)</th>
                             <th className="px-4 py-2 text-center font-medium text-gray-600">Unidade</th>
-                            <th className="px-4 py-2 text-right font-medium text-gray-600">Real 2025</th>
-                            <th className="px-4 py-2 text-right font-medium text-gray-600">Meta 2026</th>
+                            <th className="px-4 py-2 text-right font-medium text-gray-600">Real {anoBase}</th>
+                            <th className="px-4 py-2 text-right font-medium text-gray-600">Meta {anoPlano}</th>
                             <th></th>
                         </tr>
                      </thead>
@@ -136,7 +136,7 @@ const KpiDashboard: React.FC = () => {
 }
 
 const OkrsAndKpis: React.FC = () => {
-    const { planData, generateOkrKpiSuggestions, addOkr, updateOkr, removeOkr, addKeyResult, updateKeyResult, removeKeyResult } = usePlan();
+    const { planData, generateOkrKpiSuggestions, addOkr, updateOkr, removeOkr, addKeyResult, updateKeyResult, removeKeyResult, anoPlano } = usePlan();
     const [isLoading, setIsLoading] = useState(false);
 
     const handleGenerate = async () => {
@@ -156,7 +156,7 @@ const OkrsAndKpis: React.FC = () => {
             
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-300">
                  <div className="flex justify-between items-center border-b pb-2">
-                    <h2 className="text-lg font-bold text-gray-900">OKRs Estratégicos 2026</h2>
+                    <h2 className="text-lg font-bold text-gray-900">OKRs Estratégicos {anoPlano}</h2>
                      <button onClick={handleGenerate} disabled={isLoading} className="flex items-center px-4 py-2 text-sm font-semibold text-white bg-brand-orange rounded-xl hover:bg-orange-700 shadow-md shadow-orange-200 btn-glow transition-colors shadow-sm disabled:bg-gray-400">
                         {isLoading ? 'Gerando...' : 'Gerar Sugestões com IA'}
                      </button>
@@ -177,7 +177,7 @@ const OkrsAndKpis: React.FC = () => {
             </div>
 
              <div>
-                <h2 className="text-lg font-bold text-gray-900 mb-4">Dashboard de KPIs 2026</h2>
+                <h2 className="text-lg font-bold text-gray-900 mb-4">Dashboard de KPIs {anoPlano}</h2>
                 <KpiDashboard />
              </div>
         </div>

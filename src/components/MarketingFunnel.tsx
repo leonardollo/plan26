@@ -32,7 +32,7 @@ const ConversionRateDisplay: React.FC<{ rate: number, label: string }> = ({ rate
 );
 
 const MarketingFunnel: React.FC = () => {
-    const { planData, summary2025, scenarios2026, baseScenario, generateMarketingFunnelAnalysis } = usePlan();
+    const { planData, summary2025, scenarios2026, baseScenario, generateMarketingFunnelAnalysis, anoPlano, anoBase } = usePlan();
     const [isLoading, setIsLoading] = useState(false);
 
     const funnelData = useMemo(() => {
@@ -93,10 +93,10 @@ const MarketingFunnel: React.FC = () => {
         setIsLoading(false);
     };
 
-    const renderFunnelColumn = (year: string, data: typeof funnelData.data2025) => (
+    const renderFunnelColumn = (year: number, realizado: boolean, data: typeof funnelData.data2025) => (
         <div className="space-y-2">
             <h2 className="text-2xl font-bold text-center text-gray-900">{year}</h2>
-            <p className="text-sm text-center text-gray-500 mb-4">{year === '2025' ? 'Realizado' : `Projetado (Cenário ${baseScenario})`}</p>
+            <p className="text-sm text-center text-gray-500 mb-4">{realizado ? 'Realizado' : `Projetado (Cenário ${baseScenario})`}</p>
 
             {/* Topo de Funil */}
             <FunnelStage title="Topo de Funil" color="border-blue-400">
@@ -135,14 +135,14 @@ const MarketingFunnel: React.FC = () => {
             <header className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 gradient-border">
                 <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">7. Funil de Marketing & Vendas</h1>
                 <p className="text-gray-500 mt-2">
-                    Visualize a jornada do seu cliente desde a primeira impressão até a venda, comparando 2025 com a projeção para 2026.
+                    Visualize a jornada do seu cliente desde a primeira impressão até a venda, comparando {anoBase} com a projeção para {anoPlano}.
                 </p>
             </header>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-300">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {renderFunnelColumn('2025', funnelData.data2025)}
-                    {renderFunnelColumn('2026', funnelData.data2026)}
+                    {renderFunnelColumn(anoBase, true, funnelData.data2025)}
+                    {renderFunnelColumn(anoPlano, false, funnelData.data2026)}
                 </div>
             </div>
 
@@ -154,7 +154,7 @@ const MarketingFunnel: React.FC = () => {
                     </button>
                 </div>
                 <div className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-4 rounded-md min-h-[200px] font-sans leading-relaxed">
-                    {planData.analysis.marketingFunnelAnalysis || "Clique no botão para que a IA (atuando como um CMO) análise a projeção do seu funil para 2026, identifique o principal gargalo e sugira 3 ações para otimizá-lo."}
+                    {planData.analysis.marketingFunnelAnalysis || `Clique no botão para que a IA (atuando como um CMO) análise a projeção do seu funil para ${anoPlano}, identifique o principal gargalo e sugira 3 ações para otimizá-lo.`}
                 </div>
             </div>
         </div>

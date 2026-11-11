@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { usePlan } from '../hooks/usePlanData';
+import type { AnosDoPlano } from '../services/planos';
 
 type PhaseKey = 'diagnóstico' | 'direcao' | 'plano' | 'orçamento' | 'execução' | 'cfo' | 'ferramentas';
 
@@ -14,9 +16,10 @@ interface GuideSection {
   tips: string[];
 }
 
-const PHASES: { key: PhaseKey; label: string; color: string; bgColor: string; borderColor: string; description: string }[] = [
-  { key: 'diagnóstico', label: 'Fase 1: Diagnóstico', color: 'text-orange-700', bgColor: 'bg-orange-50', borderColor: 'border-orange-200', description: 'Onde estamos? Colete e análise os dados de 2025.' },
-  { key: 'direcao', label: 'Fase 2: Direção', color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-200', description: 'Para onde vamos? Defina metas e objetivos para 2026.' },
+// Os textos do guia citam os anos do plano aberto, por isso são montados a cada render.
+const fasesDoGuia = ({ anoPlano, anoBase }: AnosDoPlano): { key: PhaseKey; label: string; color: string; bgColor: string; borderColor: string; description: string }[] => [
+  { key: 'diagnóstico', label: 'Fase 1: Diagnóstico', color: 'text-orange-700', bgColor: 'bg-orange-50', borderColor: 'border-orange-200', description: `Onde estamos? Colete e análise os dados de ${anoBase}.` },
+  { key: 'direcao', label: 'Fase 2: Direção', color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-200', description: `Para onde vamos? Defina metas e objetivos para ${anoPlano}.` },
   { key: 'plano', label: 'Fase 3: Plano de Ação', color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200', description: 'Como chegaremos lá? Planeje as ações comerciais, de marketing e operacionais.' },
   { key: 'orçamento', label: 'Fase 4: Orçamento', color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-200', description: 'Quanto custará? Projete cenários e monte o planejamento financeiro.' },
   { key: 'execução', label: 'Fase 5: Execução e Controle', color: 'text-amber-700', bgColor: 'bg-amber-50', borderColor: 'border-amber-200', description: 'Acompanhe o realizado vs. planejado mês a mês.' },
@@ -24,15 +27,15 @@ const PHASES: { key: PhaseKey; label: string; color: string; bgColor: string; bo
   { key: 'ferramentas', label: 'Ferramentas de Apoio', color: 'text-gray-700', bgColor: 'bg-gray-50', borderColor: 'border-gray-200', description: 'Calculadoras, relatórios e configurações.' },
 ];
 
-const GUIDE_SECTIONS: GuideSection[] = [
+const secoesDoGuia = ({ anoPlano, anoBase }: AnosDoPlano): GuideSection[] => [
   {
-    id: 'coleta', number: 1, title: 'Coleta de Dados 2025', phase: 'diagnóstico',
+    id: 'coleta', number: 1, title: `Coleta de Dados ${anoBase}`, phase: 'diagnóstico',
     icon: '📊',
-    whatIs: 'O ponto de partida de todo o planejamento. Aqui você insere todos os dados financeiros e operacionais reais da sua empresa em 2025. É a base que alimenta TODAS as outras ferramentas do sistema.',
+    whatIs: `O ponto de partida de todo o planejamento. Aqui você insere todos os dados financeiros e operacionais reais da sua empresa em ${anoBase}. É a base que alimenta TODAS as outras ferramentas do sistema.`,
     howTo: [
-      'Acesse a aba "Coleta de Dados 2025" no menu lateral.',
+      `Acesse a aba "Coleta de Dados ${anoBase}" no menu lateral.`,
       'Você verá 5 planilhas: Financeiro, Comercial, Pessoas, Marketing e Investimentos.',
-      'Em cada planilha, preencha os valores mensais de janeiro a dezembro de 2025.',
+      `Em cada planilha, preencha os valores mensais de janeiro a dezembro de ${anoBase}.`,
       'Na planilha FINANCEIRO: insira Receita Bruta, Custos Fixos, Custos Variáveis, Despesas Operacionais, etc.',
       'Na planilha COMERCIAL: insira Número de Clientes, Ticket Médio, Taxa de Conversão, etc.',
       'Na planilha PESSOAS: insira Headcount, Turnover, Investimento em Treinamento, Absenteísmo, etc.',
@@ -40,7 +43,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
       'Na planilha INVESTIMENTOS: insira Capex, Investimentos em Tecnologia, etc.',
       'O sistema consolida automaticamente os totais anuais e calcula indicadores como Margem EBITDA, LTV/CAC, Ponto de Equilíbrio, etc.',
     ],
-    connection: 'Os dados inseridos aqui alimentam TODAS as outras abas: o Dashboard mostra os KPIs, os Impostos calculam sobre a receita, a Análise Estratégica usa os dados para posicionamento, as Metas comparam 2025 vs. 2026, e os Cenários projetam a partir desses números.',
+    connection: `Os dados inseridos aqui alimentam TODAS as outras abas: o Dashboard mostra os KPIs, os Impostos calculam sobre a receita, a Análise Estratégica usa os dados para posicionamento, as Metas comparam ${anoBase} vs. ${anoPlano}, e os Cenários projetam a partir desses números.`,
     tips: [
       'Preencha com dados reais, não estimativas. Quanto mais preciso, melhor o planejamento.',
       'Se não tiver o dado mensal, divida o valor anual por 12.',
@@ -50,19 +53,19 @@ const GUIDE_SECTIONS: GuideSection[] = [
   {
     id: 'impostos', number: 2, title: 'Impostos', phase: 'diagnóstico',
     icon: '🏛️',
-    whatIs: 'Ferramenta para calcular a carga tributária da sua empresa em 2025. O imposto é fundamental para calcular a Receita Líquida, que é a base de todo o planejamento financeiro.',
+    whatIs: `Ferramenta para calcular a carga tributária da sua empresa em ${anoBase}. O imposto é fundamental para calcular a Receita Líquida, que é a base de todo o planejamento financeiro.`,
     howTo: [
       'Acesse a aba "Impostos" no menu lateral.',
       'Selecione seu regime tributário: Simples Nacional, Lucro Presumido ou Lucro Real.',
       'Preencha as alíquotas de cada imposto (ISS, PIS, COFINS, IRPJ, CSLL, etc.).',
       'O sistema calcula automaticamente o imposto total com base na Receita Bruta informada na Coleta de Dados.',
       'Veja o resumo com: Receita Bruta, Total de Impostos, Alíquota Efetiva e Receita Líquida.',
-      'Clique em "Aplicar aos Dados de 2025" para que o imposto seja usado em todos os cálculos do sistema.',
+      `Clique em "Aplicar aos Dados de ${anoBase}" para que o imposto seja usado em todos os cálculos do sistema.`,
     ],
     connection: 'O valor do imposto calculado aqui é subtraído da Receita Bruta para gerar a Receita Líquida. Essa Receita Líquida é usada no Dashboard, nos Cenários, no Planejamento Financeiro e em todas as análises de margem.',
     tips: [
       'Se você está no Simples Nacional, a alíquota varia conforme a faixa de faturamento. Consulte seu contador.',
-      'Sempre clique em "Aplicar aos Dados de 2025" após preencher.',
+      `Sempre clique em "Aplicar aos Dados de ${anoBase}" após preencher.`,
     ],
   },
   {
@@ -86,15 +89,15 @@ const GUIDE_SECTIONS: GuideSection[] = [
   {
     id: 'metas', number: 4, title: 'Metas e Objetivos', phase: 'direcao',
     icon: '🎯',
-    whatIs: 'O coração do planejamento. Aqui você define ONDE quer chegar em 2026. As metas definidas aqui alimentam praticamente todas as outras abas do sistema. É a decisão mais importante do CEO.',
+    whatIs: `O coração do planejamento. Aqui você define ONDE quer chegar em ${anoPlano}. As metas definidas aqui alimentam praticamente todas as outras abas do sistema. É a decisão mais importante do CEO.`,
     howTo: [
       'Acesse a aba "Metas e Objetivos" no menu lateral.',
-      'Defina a INFLAÇÃO PREVISTA para 2026 (usada para ajustar custos).',
-      'METAS FINANCEIRAS: Defina a Meta de Receita mensal para 2026, Meta de Margem Líquida e Meta de EBITDA.',
+      `Defina a INFLAÇÃO PREVISTA para ${anoPlano} (usada para ajustar custos).`,
+      `METAS FINANCEIRAS: Defina a Meta de Receita mensal para ${anoPlano}, Meta de Margem Líquida e Meta de EBITDA.`,
       'METAS COMERCIAIS: Defina o Ticket Médio desejado e a Meta de Novos Clientes por mês.',
       'METAS DE PESSOAS: Defina a Meta de Turnover (quanto quer reduzir), Meta de ROI de Treinamento e Headcount projetado.',
-      'OBJETIVOS ESTRATÉGICOS: Escreva de 3 a 5 objetivos estratégicos para 2026 (ex: "Aumentar a participação de mercado em 15%").',
-      'Use o botão "Gerar Sugestões com IA" para que o sistema sugira metas com base nos seus dados de 2025.',
+      `OBJETIVOS ESTRATÉGICOS: Escreva de 3 a 5 objetivos estratégicos para ${anoPlano} (ex: "Aumentar a participação de mercado em 15%").`,
+      `Use o botão "Gerar Sugestões com IA" para que o sistema sugira metas com base nos seus dados de ${anoBase}.`,
     ],
     connection: 'As metas definidas aqui alimentam: OKRs e KPIs (desdobramento dos objetivos), Comercial e RH (metas de contratação e vendas), Orçamento e Cenários (projeção de receita), Bônus de Produtividade (metas de RH), Resumo do Plano (consolidação) e Relatórios (análise completa).',
     tips: [
@@ -128,7 +131,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     howTo: [
       'Acesse a aba "Comercial e RH" no menu lateral.',
       'Na seção CANAIS DE DEMANDA: Adicione seus canais de venda (Google Ads, Indicação, Redes Sociais, etc.) com o investimento e retorno esperado.',
-      'Na seção PROJEÇÃO DE CONTRATAÇÕES: Defina as contratações previstas para 2026, com cargo, salário e mês de entrada.',
+      `Na seção PROJEÇÃO DE CONTRATAÇÕES: Defina as contratações previstas para ${anoPlano}, com cargo, salário e mês de entrada.`,
       'Na seção DRIVER-BASED PLANNING: Simule cenários alterando variáveis como "Se aumentar o ticket médio em 10%, qual o impacto na receita?".',
       'O sistema mostra automaticamente as metas de RH vindas da aba Metas (Turnover, ROI Treinamento, Headcount).',
     ],
@@ -141,7 +144,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
   {
     id: 'funil', number: 7, title: 'Funil de Marketing', phase: 'plano',
     icon: '📣',
-    whatIs: 'Projeção completa do funil de marketing e vendas para 2026. Mostra quantos visitantes, leads, oportunidades e clientes você precisa gerar para atingir as metas.',
+    whatIs: `Projeção completa do funil de marketing e vendas para ${anoPlano}. Mostra quantos visitantes, leads, oportunidades e clientes você precisa gerar para atingir as metas.`,
     howTo: [
       'Acesse a aba "Funil de Marketing" no menu lateral.',
       'Visualize o funil projetado com base nos dados do Comercial e RH.',
@@ -174,7 +177,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
   {
     id: 'cenários', number: 9, title: 'Orçamento e Cenários', phase: 'orçamento',
     icon: '💰',
-    whatIs: 'A ferramenta mais poderosa do sistema. Projeta a receita para 2026 em 3 cenários diferentes (Otimista, Conservador e Disruptivo), usando a fórmula: Crescimento Base + Fator Estratégico + Bônus de Produtividade.',
+    whatIs: `A ferramenta mais poderosa do sistema. Projeta a receita para ${anoPlano} em 3 cenários diferentes (Otimista, Conservador e Disruptivo), usando a fórmula: Crescimento Base + Fator Estratégico + Bônus de Produtividade.`,
     howTo: [
       'Acesse a aba "Orçamento e Cenários" no menu lateral.',
       'Veja o COMPARATIVO DOS 3 CENÁRIOS no topo da página.',
@@ -185,7 +188,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
       'Use o botão "Recalcular Todos os Cenários" se os dados base mudaram.',
       'A FÓRMULA DE CRESCIMENTO é: Crescimento Base (%) + Fator Estratégico (baseado no Score da Análise Estratégica) + Bônus de Produtividade (baseado nas metas de RH).',
     ],
-    connection: 'Recebe: Receita 2025 (Coleta de Dados), Score Estratégico (Análise Estratégica), Metas de RH (Metas e Objetivos). Alimenta: Planejamento Financeiro 2026 (DRE/DFC/BP projetados).',
+    connection: `Recebe: Receita ${anoBase} (Coleta de Dados), Score Estratégico (Análise Estratégica), Metas de RH (Metas e Objetivos). Alimenta: Planejamento Financeiro ${anoPlano} (DRE/DFC/BP projetados).`,
     tips: [
       'O cenário Conservador deve ser o que você usa para tomar decisões de caixa.',
       'O cenário Otimista é a meta. O Disruptivo é para sonhar grande.',
@@ -193,9 +196,9 @@ const GUIDE_SECTIONS: GuideSection[] = [
     ],
   },
   {
-    id: 'financeiro', number: 10, title: 'Planejamento Financeiro 2026', phase: 'orçamento',
+    id: 'financeiro', number: 10, title: `Planejamento Financeiro ${anoPlano}`, phase: 'orçamento',
     icon: '📋',
-    whatIs: 'Projeção financeira completa para 2026, incluindo DRE (Demonstração do Resultado do Exercício), DFC (Demonstrativo de Fluxo de Caixa) e BP (Balanço Patrimonial). É o resultado final do planejamento orçamentário.',
+    whatIs: `Projeção financeira completa para ${anoPlano}, incluindo DRE (Demonstração do Resultado do Exercício), DFC (Demonstrativo de Fluxo de Caixa) e BP (Balanço Patrimonial). É o resultado final do planejamento orçamentário.`,
     howTo: [
       'Acesse a aba "Planejamento Financeiro" no menu lateral.',
       'Selecione o cenário que deseja visualizar (Otimista, Conservador ou Disruptivo).',
@@ -204,7 +207,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
       'Na aba BP: Veja a projeção do Balanço Patrimonial.',
       'Ajuste manualmente qualquer linha se necessário.',
     ],
-    connection: 'Recebe a projeção de receita dos Cenários e os custos/despesas de 2025 (Coleta de Dados). Alimenta: Resumo do Plano, Caixa e Liquidez, KPIs Financeiros e Matriz de Sensibilidade.',
+    connection: `Recebe a projeção de receita dos Cenários e os custos/despesas de ${anoBase} (Coleta de Dados). Alimenta: Resumo do Plano, Caixa e Liquidez, KPIs Financeiros e Matriz de Sensibilidade.`,
     tips: [
       'Compare os 3 cenários para entender o range de possibilidades.',
       'Foque no DFC para garantir que o caixa não fica negativo em nenhum mês.',
@@ -213,7 +216,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
   {
     id: 'resumo', number: 11, title: 'Resumo do Plano', phase: 'execução',
     icon: '📑',
-    whatIs: 'Dashboard executivo que consolida todos os números do plano 2026 em uma única tela. Ideal para apresentar ao conselho ou sócios.',
+    whatIs: `Dashboard executivo que consolida todos os números do plano ${anoPlano} em uma única tela. Ideal para apresentar ao conselho ou sócios.`,
     howTo: [
       'Acesse a aba "Resumo do Plano" no menu lateral.',
       'Visualize os principais números: Receita Projetada, Margem, EBITDA, Novos Clientes, Ticket Médio, Headcount.',
@@ -225,7 +228,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
   {
     id: 'acompanhamento', number: 12, title: 'Acompanhamento Mensal', phase: 'execução',
     icon: '📅',
-    whatIs: 'Ferramenta de controle para comparar o que foi PLANEJADO vs. o que foi REALIZADO mês a mês durante 2026. Mostra desvios e tendências.',
+    whatIs: `Ferramenta de controle para comparar o que foi PLANEJADO vs. o que foi REALIZADO mês a mês durante ${anoPlano}. Mostra desvios e tendências.`,
     howTo: [
       'Acesse a aba "Acompanhamento Mensal" no menu lateral.',
       'A cada mês, preencha a coluna "Realizado" com os valores reais.',
@@ -242,14 +245,14 @@ const GUIDE_SECTIONS: GuideSection[] = [
   {
     id: 'dre', number: 13, title: 'Comparativo DRE', phase: 'execução',
     icon: '📊',
-    whatIs: 'Comparativo detalhado do DRE (Demonstração do Resultado do Exercício) entre 2025 (real) e 2026 (projetado). Permite entender as variações linha a linha.',
+    whatIs: `Comparativo detalhado do DRE (Demonstração do Resultado do Exercício) entre ${anoBase} (real) e ${anoPlano} (projetado). Permite entender as variações linha a linha.`,
     howTo: [
       'Acesse a aba "Comparativo DRE" no menu lateral.',
-      'Visualize a tabela com: Conta, Valor 2025, Valor 2026 Projetado, Variação (R$) e Variação (%).',
+      `Visualize a tabela com: Conta, Valor ${anoBase}, Valor ${anoPlano} Projetado, Variação (R$) e Variação (%).`,
       'Use o filtro de trimestre para focar em períodos específicos.',
       'As linhas são organizadas: primeiro os sub-itens, depois os totais.',
     ],
-    connection: 'Compara os dados reais de 2025 (Coleta de Dados) com a projeção de 2026 (Planejamento Financeiro).',
+    connection: `Compara os dados reais de ${anoBase} (Coleta de Dados) com a projeção de ${anoPlano} (Planejamento Financeiro).`,
     tips: ['Foque nas linhas com variação acima de 20% - são as que precisam de mais atenção.'],
   },
   {
@@ -262,9 +265,9 @@ const GUIDE_SECTIONS: GuideSection[] = [
       'PONTO DE EQUILÍBRIO: Quanto você precisa faturar por mês para cobrir todos os custos.',
       'LIQUIDEZ CORRENTE: Se > 1, a empresa consegue pagar suas dívidas de curto prazo.',
       'CAPITAL DE GIRO: Quanto de dinheiro a empresa precisa para operar no dia a dia.',
-      'Veja o gráfico de evolução do caixa ao longo de 2026.',
+      `Veja o gráfico de evolução do caixa ao longo de ${anoPlano}.`,
     ],
-    connection: 'Usa dados do Planejamento Financeiro 2026 (DFC e BP) para calcular os indicadores.',
+    connection: `Usa dados do Planejamento Financeiro ${anoPlano} (DFC e BP) para calcular os indicadores.`,
     tips: [
       'Liquidez Corrente abaixo de 1,0 é sinal de alerta.',
       'O Ponto de Equilíbrio deve ser menor que a receita projetada em todos os meses.',
@@ -280,7 +283,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
       'As barras de progresso mostram se você está acima ou abaixo do benchmark.',
       'Indicadores verdes = saudável. Amarelos = atenção. Vermelhos = crítico.',
     ],
-    connection: 'Calcula os KPIs a partir dos dados de 2025 (Coleta de Dados) e das projeções de 2026 (Planejamento Financeiro).',
+    connection: `Calcula os KPIs a partir dos dados de ${anoBase} (Coleta de Dados) e das projeções de ${anoPlano} (Planejamento Financeiro).`,
     tips: ['Compare seus KPIs com empresas do mesmo setor e porte.'],
   },
   {
@@ -326,7 +329,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
   {
     id: 'relatórios', number: 19, title: 'Relatórios', phase: 'ferramentas',
     icon: '📄',
-    whatIs: 'Gera um relatório completo em texto com a análise estratégica e financeira do seu plano 2026, usando Inteligência Artificial.',
+    whatIs: `Gera um relatório completo em texto com a análise estratégica e financeira do seu plano ${anoPlano}, usando Inteligência Artificial.`,
     howTo: [
       'Acesse a aba "Relatórios" no menu lateral.',
       'Clique em "Gerar Relatório".',
@@ -351,6 +354,9 @@ const GUIDE_SECTIONS: GuideSection[] = [
 ];
 
 const HelpGuide: React.FC = () => {
+  const { anoPlano, anoBase } = usePlan();
+  const PHASES = fasesDoGuia({ anoPlano, anoBase });
+  const GUIDE_SECTIONS = secoesDoGuia({ anoPlano, anoBase });
   const [activePhase, setActivePhase] = useState<PhaseKey | null>(null);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [showMap, setShowMap] = useState(true);
@@ -604,14 +610,14 @@ const HelpGuide: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {[
             { step: 1, label: 'Configurações', desc: 'Dados da empresa' },
-            { step: 2, label: 'Coleta de Dados', desc: 'Números de 2025' },
+            { step: 2, label: 'Coleta de Dados', desc: `Números de ${anoBase}` },
             { step: 3, label: 'Impostos', desc: 'Carga tributária' },
             { step: 4, label: 'Análise Estratégica', desc: 'SWOT + Oceano Azul + Bowman' },
             { step: 5, label: 'Metas e Objetivos', desc: 'Onde quer chegar' },
             { step: 6, label: 'OKRs e KPIs', desc: 'Desdobrar objetivos' },
             { step: 7, label: 'Comercial e RH', desc: 'Canais e contratações' },
             { step: 8, label: 'Orçamento e Cenários', desc: 'Projetar receita' },
-            { step: 9, label: 'Planejamento Financeiro', desc: 'DRE/DFC/BP 2026' },
+            { step: 9, label: 'Planejamento Financeiro', desc: `DRE/DFC/BP ${anoPlano}` },
             { step: 10, label: 'Resumo e Relatório', desc: 'Consolidar tudo' },
           ].map(item => (
             <div key={item.step} className="bg-white/10 rounded-xl p-4 backdrop-blur-sm">

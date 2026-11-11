@@ -26,7 +26,9 @@ const ScenarioPlanning: React.FC = () => {
         generateDecisionTriggers,
         getStrategicScoreAnalysis,
         recalculateScenario,
-        recalculateAllScenarios
+        recalculateAllScenarios,
+        anoPlano,
+        anoBase
     } = usePlan();
 
     const [isLoading, setIsLoading] = useState<Record<string, boolean>>({});
@@ -92,7 +94,7 @@ const ScenarioPlanning: React.FC = () => {
                         <tr>
                             <th className="sticky left-0 bg-gray-50 z-10 p-3 text-left font-semibold" style={{width: '250px'}}>Indicador</th>
                             <th className="p-3 text-left font-semibold">Instruções</th>
-                            <th className="p-3 text-right font-semibold">Total 2026</th>
+                            <th className="p-3 text-right font-semibold">Total {anoPlano}</th>
                             {MONTHS.map(m => <th key={m} className="p-2 text-center font-medium">{MONTH_LABELS[m]}</th>)}
                         </tr>
                     </thead>
@@ -185,16 +187,16 @@ const ScenarioPlanning: React.FC = () => {
         <div className="space-y-8">
             <header className="flex justify-between items-start gap-4">
                 <div>
-                    <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Orçamento e Cenários 2026</h1>
+                    <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Orçamento e Cenários {anoPlano}</h1>
                     <p className="text-gray-500 mt-1">
-                        Projete o orcamento para 2026 em diferentes cenarios e defina gatilhos e acoes estrategicas.
+                        Projete o orcamento para {anoPlano} em diferentes cenarios e defina gatilhos e acoes estrategicas.
                     </p>
                 </div>
                 <div className="flex gap-2">
                     <button 
                         onClick={() => recalculateAllScenarios()}
                         className="flex items-center gap-2 px-5 py-2.5 font-semibold text-white bg-brand-orange rounded-xl hover:bg-orange-700 shadow-md shadow-orange-200 btn-glow shadow-sm text-sm no-print transition-colors"
-                        title="Recalcular todos os cenários com base nos dados atuais de 2025"
+                        title={`Recalcular todos os cenários com base nos dados atuais de ${anoBase}`}
                     >
                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                         Recalcular Todos
@@ -308,12 +310,12 @@ const ScenarioPlanning: React.FC = () => {
                                 <div className="flex items-end pb-1">
                                     <button 
                                         onClick={() => {
-                                            if(window.confirm('Isso irá sobrescrever todos os valores manuais deste cenário com base no crescimento ajustado sobre 2025. Continuar?')) {
+                                            if(window.confirm(`Isso irá sobrescrever todos os valores manuais deste cenário com base no crescimento ajustado sobre ${anoBase}. Continuar?`)) {
                                                 recalculateScenario(scenarioName);
                                             }
                                         }}
                                         className="px-3 py-2 bg-gray-800 text-white text-sm rounded-xl hover:bg-gray-700 transition-colors shadow-sm"
-                                        title="Recalcular com base nos dados atuais de 2025"
+                                        title={`Recalcular com base nos dados atuais de ${anoBase}`}
                                     >
                                         Recalcular Projeção
                                     </button>
@@ -356,7 +358,7 @@ const ScenarioPlanning: React.FC = () => {
                     <div className="mt-6 p-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-2xl no-print">
                         <p className="font-bold">Como funciona a projeção?</p>
                         <p className="text-sm mt-1">
-                           No modo <strong>% Crescimento</strong>, o sistema projeta 2026 aplicando o "Crescimento Ajustado" sobre os dados de 2025. Ao clicar em <strong>Adicionar Custo</strong> ou editar uma célula, o sistema mudará automaticamente para o modo <strong>Manual</strong>, permitindo personalização total.
+                           No modo <strong>% Crescimento</strong>, o sistema projeta {anoPlano} aplicando o "Crescimento Ajustado" sobre os dados de {anoBase}. Ao clicar em <strong>Adicionar Custo</strong> ou editar uma célula, o sistema mudará automaticamente para o modo <strong>Manual</strong>, permitindo personalização total.
                         </p>
                     </div>
                     

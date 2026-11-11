@@ -89,6 +89,17 @@ describe('ReportPreview — números do relatório do plano', () => {
         expect(celulas[1].textContent).toBe(formatCurrency(600000));
     });
 
+    it('no plano 2027 (base 2026), o relatório do plano mostra PLAN 2027 e não cita 2025', () => {
+        montarPlano({ regimeTributario: 'Simples Nacional', simplesNacional: 6 }, 50000);
+        Object.assign(planoFalso, { anoPlano: 2027, anoBase: 2026 });
+        render(<ReportPreview reportType="plan" onClose={() => {}} />);
+        // O relatório abre num portal no body, fora do container do render.
+        const texto = document.body.textContent;
+        expect(texto).toMatch(/PLAN 2027/);
+        expect(texto).toMatch(/2026/);
+        expect(texto).not.toMatch(/2025/);
+    });
+
     it('Lucro Real: EBITDA de 50 mil/mês em 2025 dá lucro líquido de 420 mil', () => {
         montarPlano({ regimeTributario: 'Lucro Real' }, 50000);
         render(<ReportPreview reportType="plan" onClose={() => {}} />);

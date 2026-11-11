@@ -51,7 +51,7 @@ const BotaoAdicionar: React.FC<{ rotulo: string; onClick: () => void }> = ({ rot
 
 export default function InvestimentosFinanciamentos2026(): React.JSX.Element {
     const {
-        planData, updateJurosDividaAtual, addItemInvestimento2026, updateItemInvestimento2026, removeItemInvestimento2026,
+        planData, updateJurosDividaAtual, addItemInvestimento2026, updateItemInvestimento2026, removeItemInvestimento2026, anoPlano, anoBase,
     } = usePlan();
     const bloco = planData.investment2026;
     const financing = planData.investment?.financing;
@@ -60,7 +60,7 @@ export default function InvestimentosFinanciamentos2026(): React.JSX.Element {
 
     return (
         <div className="space-y-6">
-            <Secao titulo="Investimentos 2026">
+            <Secao titulo={`Investimentos ${anoPlano}`}>
                 <Tabela cabecalho={['Descrição', 'Valor (R$)', 'Mês', 'Vida útil (anos)']}>
                     {bloco.investimentos.map(item => {
                         const campo = editar('investimentos', item.id);
@@ -121,7 +121,7 @@ export default function InvestimentosFinanciamentos2026(): React.JSX.Element {
                 <BotaoAdicionar rotulo="Adicionar aporte" onClick={() => addItemInvestimento2026('aportes')} />
             </Secao>
 
-            <Secao titulo="Dívida atual (31/12/25)">
+            <Secao titulo={`Dívida atual (31/12/${anoBase})`}>
                 <div className="grid gap-4 p-4 pt-0 sm:grid-cols-3">
                     {/* Só leitura: a dívida de 31/12/25 vem da Coleta de Dados (digitada ou importada do DPE). */}
                     <div>

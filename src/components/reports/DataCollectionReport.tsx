@@ -5,7 +5,7 @@ import ReportSection from './ReportSection';
 import { formatCurrency, formatPercentage } from '../../utils/formatters';
 
 const DataCollectionReport: React.FC = () => {
-    const { summary2025 } = usePlan();
+    const { summary2025, anoBase } = usePlan();
 
     const metrics = [
         { label: "Receita Bruta Total", value: formatCurrency(summary2025.receitaBrutaTotal) },
@@ -19,7 +19,7 @@ const DataCollectionReport: React.FC = () => {
     ];
 
     return (
-        <ReportSection title="Resumo Financeiro 2025">
+        <ReportSection title={`Resumo Financeiro ${anoBase}`}>
             <table className="min-w-full text-sm">
                 <tbody className="divide-y divide-gray-200">
                     {metrics.map(metric => (

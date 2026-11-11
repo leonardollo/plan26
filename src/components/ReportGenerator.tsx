@@ -105,7 +105,7 @@ const ReportCard: React.FC<{
 
 
 const ReportGenerator: React.FC = () => {
-    const { planData, generateDiagnosisReport, generatePlanReport } = usePlan();
+    const { planData, generateDiagnosisReport, generatePlanReport, anoPlano, anoBase } = usePlan();
     const [viewingReport, setViewingReport] = useState<'diagnosis' | 'plan' | null>(null);
 
     return (
@@ -136,14 +136,14 @@ const ReportGenerator: React.FC = () => {
             {/* Report Cards */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <ReportCard
-                    title="Relatório de Diagnóstico 2025"
+                    title={`Relatório de Diagnóstico ${anoBase}`}
                     description="Análise completa da situação atual"
                     icon={<svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
                     color="bg-gradient-to-r from-blue-600 to-blue-700"
                     sections={[
                         'Sumário Executivo (Análise da IA)',
-                        'Panorama Financeiro 2025',
-                        'Evolução Mensal 2025',
+                        `Panorama Financeiro ${anoBase}`,
+                        `Evolução Mensal ${anoBase}`,
                         'Análise Estratégica (SWOT)',
                         'Análise de Portfólio (Curva ABC)',
                         'Indicadores Comerciais',
@@ -154,20 +154,20 @@ const ReportGenerator: React.FC = () => {
                     analysisText={planData.analysis.diagnosisReportAnalysis}
                 />
                 <ReportCard
-                    title="Plano Estratégico 2026"
+                    title={`Plano Estratégico ${anoPlano}`}
                     description="O relatório definitivo do planejamento"
                     icon={<svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>}
                     color="bg-gradient-to-r from-brand-orange to-orange-600"
                     sections={[
                         'Sumário Executivo (CSO Analysis)',
                         'Contexto Estratégico (SWOT)',
-                        'Metas e Objetivos 2026',
+                        `Metas e Objetivos ${anoPlano}`,
                         'OKRs - Objetivos e Resultados-Chave',
                         'Plano de Ação (priorizado)',
                         'Planejamento Comercial',
-                        'Projeções Financeiras (2025 vs 2026)',
-                        'DRE Mensal 2026',
-                        'Fluxo de Caixa (DFC) 2026',
+                        `Projeções Financeiras (${anoBase} vs ${anoPlano})`,
+                        `DRE Mensal ${anoPlano}`,
+                        `Fluxo de Caixa (DFC) ${anoPlano}`,
                     ]}
                     onGenerate={generatePlanReport}
                     onView={() => setViewingReport('plan')}

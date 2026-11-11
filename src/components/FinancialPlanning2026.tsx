@@ -26,6 +26,7 @@ const FinancialStatementTable = <T extends Record<string, FinancialPlanSheetRow>
     isBalanceSheet?: boolean;
 }) => {
     
+    const { anoPlano } = usePlan();
     const calculateTotal = (rowKey: keyof T) => {
         const rowData = data?.[rowKey];
         if (!rowData) return 0;
@@ -47,7 +48,7 @@ const FinancialStatementTable = <T extends Record<string, FinancialPlanSheetRow>
                     <tr>
                         <th className="sticky left-0 bg-gray-50 z-10 p-3 text-left font-semibold" style={{ width: '250px' }}>Indicador</th>
                         <th className="p-3 text-right font-semibold bg-gray-200 text-gray-900 border-l border-white">
-                            {isBalanceSheet ? 'Saldo Dez/26' : 'Total 2026'}
+                            {isBalanceSheet ? `Saldo Dez/${String(anoPlano).slice(-2)}` : `Total ${anoPlano}`}
                         </th>
                         {MONTHS.map(m => <th key={m} className="p-2 text-center font-medium">{MONTH_LABELS[m]}</th>)}
                     </tr>
@@ -86,7 +87,7 @@ const ExplanationBox: React.FC<{ title: string; children: React.ReactNode }> = (
 
 
 const FinancialPlanning2026: React.FC = () => {
-    const { planData, calculateFinancialPlan2026, baseScenario, setBaseScenario } = usePlan();
+    const { planData, calculateFinancialPlan2026, baseScenario, setBaseScenario, anoPlano } = usePlan();
     const [activeTab, setActiveTab] = useState<FinancialStatement>('dre');
     
     const TABS: { id: FinancialStatement, label: string }[] = [
@@ -147,7 +148,7 @@ const FinancialPlanning2026: React.FC = () => {
     return (
         <div className="space-y-8">
             <header className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 gradient-border">
-                <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">10. Planejamento Financeiro 2026</h1>
+                <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">10. Planejamento Financeiro {anoPlano}</h1>
                 <p className="text-gray-500 mt-2">
                     Gere as projeções financeiras (DRE, DFC, BP) com base no cenário selecionado e nos dados inseridos.
                 </p>
@@ -220,7 +221,7 @@ const FinancialPlanning2026: React.FC = () => {
                              <FinancialStatementTable title="BP - Balanço Patrimonial (Simplificado)" data={planData.financialPlan2026.bp} rows={BP_ROWS} isBalanceSheet={true} />
                              <ExplanationBox title="O que é o BP?">
                                 <p>O Balanço Patrimonial é uma "fotografia" da situação patrimonial e financeira da empresa em uma data específica, listando seus Bens e Direitos (Ativos) e suas Obrigações (Passivo + Patrimônio Líquido).</p>
-                                <p><strong>Dica de Visualização:</strong> A coluna "Saldo Dez/26" mostra como você terminará o ano. Diferente do DRE, o BP não se soma mês a mês, pois representa o saldo acumulado.</p>
+                                <p><strong>Dica de Visualização:</strong> A coluna "Saldo Dez/{String(anoPlano).slice(-2)}" mostra como você terminará o ano. Diferente do DRE, o BP não se soma mês a mês, pois representa o saldo acumulado.</p>
                             </ExplanationBox>
                         </>
                     )}

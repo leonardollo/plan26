@@ -50,7 +50,7 @@ const BarComparison: React.FC<{ label: string; projected: number; actual: number
 };
 
 const MonthlyTracking: React.FC = () => {
-    const { tracking2026, scenarios2026, baseScenario, updateTracking2026, generateMonthlyAnalysis } = usePlan();
+    const { tracking2026, scenarios2026, baseScenario, updateTracking2026, generateMonthlyAnalysis, anoPlano } = usePlan();
     const [selectedMonth, setSelectedMonth] = useState<Month>(MONTHS[0]);
     const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
 
@@ -221,7 +221,7 @@ const MonthlyTracking: React.FC = () => {
             
             {/* Forecast Cards */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-300">
-                <h2 className="text-lg font-bold text-gray-900 mb-2">Forecast Anual 2026</h2>
+                <h2 className="text-lg font-bold text-gray-900 mb-2">Forecast Anual {anoPlano}</h2>
                 <p className="text-sm text-gray-500 mb-4">O Forecast combina os dados realizados (até o mês selecionado) com os projetados (meses futuros) para estimar como o ano terminará.</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <ForecastCard title="Projetado (Ano)" subtitle="Meta do cenário base" value={yearEndSummary.projected.receita} ebitda={yearEndSummary.projected.ebitda} margin={yearEndSummary.projected.margin} color="border-blue-200 bg-blue-50/30" />

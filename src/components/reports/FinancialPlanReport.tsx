@@ -14,6 +14,7 @@ const FinancialStatementReportTable = <T extends Record<string, any>>({
     data: T;
     rows: { key: keyof T, label: string, isBold?: boolean }[];
 }) => {
+    const { anoPlano } = usePlan();
     const calculateTotal = (rowKey: keyof T) => {
         const rowData = data[rowKey];
         if (!rowData || typeof rowData !== 'object') return 0;
@@ -27,7 +28,7 @@ const FinancialStatementReportTable = <T extends Record<string, any>>({
                 <thead className="bg-gray-100">
                     <tr>
                         <th className="py-2 px-3 text-left font-semibold text-gray-600 w-2/3">Indicador</th>
-                        <th className="py-2 px-3 text-right font-semibold text-gray-600">Total 2026</th>
+                        <th className="py-2 px-3 text-right font-semibold text-gray-600">Total {anoPlano}</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -44,7 +45,7 @@ const FinancialStatementReportTable = <T extends Record<string, any>>({
 };
 
 const FinancialPlanReport: React.FC = () => {
-    const { planData, baseScenario } = usePlan();
+    const { planData, baseScenario, anoPlano } = usePlan();
     const { dre, dfc, bp } = planData.financialPlan2026;
 
     const DRE_ROWS: { key: keyof DRE2026, label: string, isBold?: boolean }[] = [
@@ -67,7 +68,7 @@ const FinancialPlanReport: React.FC = () => {
 
 
     return (
-        <ReportSection title={`Projeções Financeiras 2026 (Cenário ${baseScenario})`}>
+        <ReportSection title={`Projeções Financeiras ${anoPlano} (Cenário ${baseScenario})`}>
             <FinancialStatementReportTable title="DRE (Demonstrativo de Resultados)" data={dre} rows={DRE_ROWS} />
             <FinancialStatementReportTable title="DFC (Demonstrativo de Fluxo de Caixa)" data={dfc} rows={DFC_ROWS} />
             <FinancialStatementReportTable title="BP (Balanço Patrimonial)" data={bp} rows={BP_ROWS} />

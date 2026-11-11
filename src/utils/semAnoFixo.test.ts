@@ -6,23 +6,6 @@ import { join, relative } from 'node:path';
 // Anos reais (de lei ou de dado) ficam entre os marcadores ano-real:início e ano-real:fim.
 const RAIZ = join(__dirname, '..');
 
-// Arquivos da tarefa 9 do plano por ano, ignorados até ela; a tarefa 9 esvazia e remove esta lista.
-const PENDENTES = new Set([
-  'components/GoalSetting.tsx',
-  'components/OkrsAndKpis.tsx',
-  'components/CommercialPlanning.tsx',
-  'components/ScenarioPlanning.tsx',
-  'components/MarketingFunnel.tsx',
-  'components/FinancialPlanning2026.tsx',
-  'components/InvestimentosFinanciamentos2026.tsx',
-  'components/MonthlyTracking.tsx',
-  'components/ReportGenerator.tsx',
-  'components/reports/ReportPreview.tsx',
-  'components/reports/FinancialPlanReport.tsx',
-  'components/reports/DataCollectionReport.tsx',
-  'components/HelpGuide.tsx',
-]);
-
 const ANO = /(?<![\w])20[2-3]\d(?!\d)/g;
 const MES_OU_DIA_COM_ANO = /(?<![\w])(?:[A-Za-z]{3}|\d{2})\/2\d(?!\d)/g;
 
@@ -76,7 +59,6 @@ describe('ano fixo no código', () => {
     const violacoes: string[] = [];
     for (const arquivo of arquivosDoCodigo(RAIZ)) {
       const rel = relative(RAIZ, arquivo).split('\\').join('/');
-      if (PENDENTES.has(rel)) continue;
       violacoes.push(...violacoesDoTexto(rel, readFileSync(arquivo, 'utf8')));
     }
     expect(violacoes, `ano fixo em:\n${violacoes.join('\n')}`).toEqual([]);

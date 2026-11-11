@@ -12,6 +12,8 @@ const emprestimo = { id: 'e1', descricao: 'Banco', valor: 100000, mes: 'jan', ju
 
 const montarPlano = (bloco: Record<string, any> = {}) => {
     Object.assign(planoFalso, {
+        anoPlano: 2026,
+        anoBase: 2025,
         planData: {
             investment: { financing: { saldoCaixaFinal2025: 0, financiamentoCurtoPrazo: 120000, financiamentoLongoPrazo: 240000 } },
             investment2026: { investimentos: [], emprestimos: [], aportes: [], jurosDividaAtualPct: null, ...bloco },
@@ -31,7 +33,7 @@ describe('InvestimentosFinanciamentos2026', () => {
     it('mostra as quatro seções e a dívida atual da Coleta', () => {
         montarPlano();
         render(<InvestimentosFinanciamentos2026 />);
-        ['Investimentos 2026', 'Empréstimos novos', 'Aportes de sócios', 'Dívida atual (31/12/25)']
+        ['Investimentos 2026', 'Empréstimos novos', 'Aportes de sócios', 'Dívida atual (31/12/2025)']
             .forEach(titulo => expect(screen.getByRole('heading', { name: titulo })).toBeTruthy());
         expect(screen.getByText(/120\.000,00/)).toBeTruthy();
         expect(screen.getByText(/240\.000,00/)).toBeTruthy();

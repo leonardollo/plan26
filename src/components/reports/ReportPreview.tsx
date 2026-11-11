@@ -63,7 +63,7 @@ const DataTable: React.FC<{ headers: string[]; rows: (string | React.ReactNode)[
 // ===== MAIN COMPONENT =====
 
 const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) => {
-    const { planData, goals2026, summary2025, baseScenario, taxes } = usePlan();
+    const { planData, goals2026, summary2025, baseScenario, taxes, anoPlano, anoBase } = usePlan();
 
     // As metas mensais somam o ano. Antes esta seção lia planData.goals2026,
     // que não existe — goals2026 é estado separado —, e com nomes de campo que
@@ -77,7 +77,7 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
         return vals.length ? vals[vals.length - 1] : 0;
     })();
     const isDiagnosis = reportType === 'diagnosis';
-    const reportTitle = isDiagnosis ? "Relatório de Diagnóstico 2025" : "Plano Estratégico 2026";
+    const reportTitle = isDiagnosis ? `Relatório de Diagnóstico ${anoBase}` : `Plano Estratégico ${anoPlano}`;
     const analysisText = isDiagnosis ? planData.analysis.diagnosisReportAnalysis : planData.analysis.planReportAnalysis;
     const [activeSection, setActiveSection] = useState<string | null>(null);
 
@@ -121,8 +121,8 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
     // Sections config for TOC
     const diagnosisSections = [
         { id: 'exec-summary', title: 'Sumário Executivo' },
-        { id: 'financial-2025', title: 'Panorama Financeiro 2025' },
-        { id: 'monthly-evolution', title: 'Evolução Mensal 2025' },
+        { id: 'financial-base', title: `Panorama Financeiro ${anoBase}` },
+        { id: 'monthly-evolution', title: `Evolução Mensal ${anoBase}` },
         { id: 'strategic-analysis', title: 'Análise Estratégica (SWOT)' },
         { id: 'portfolio', title: 'Análise de Portfólio (Curva ABC)' },
         { id: 'commercial-kpis', title: 'Indicadores Comerciais' },
@@ -132,13 +132,13 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
     const planSections = [
         { id: 'exec-summary', title: 'Sumário Executivo (CSO Analysis)' },
         { id: 'strategic-context', title: 'Contexto Estratégico' },
-        { id: 'goals-2026', title: 'Metas e Objetivos 2026' },
+        { id: 'goals-plano', title: `Metas e Objetivos ${anoPlano}` },
         { id: 'okrs', title: 'OKRs - Objetivos e Resultados-Chave' },
         { id: 'action-plan', title: 'Plano de Ação' },
         { id: 'commercial-plan', title: 'Planejamento Comercial' },
-        { id: 'financial-projections', title: 'Projeções Financeiras 2026' },
-        { id: 'dre-2026', title: 'Demonstrativo de Resultados (DRE)' },
-        { id: 'cashflow-2026', title: 'Fluxo de Caixa (DFC)' },
+        { id: 'financial-projections', title: `Projeções Financeiras ${anoPlano}` },
+        { id: 'dre-plano', title: 'Demonstrativo de Resultados (DRE)' },
+        { id: 'cashflow-plano', title: 'Fluxo de Caixa (DFC)' },
     ];
 
     const sections = isDiagnosis ? diagnosisSections : planSections;
@@ -215,7 +215,7 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                     </div>
                     <div className="text-center">
                         <p className="text-sm text-gray-400">Documento gerado em {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
-                        <p className="text-xs text-gray-300 mt-1">PLAN 2026 - Gestão de Impacto</p>
+                        <p className="text-xs text-gray-300 mt-1">PLAN {anoPlano} - Gestão de Impacto</p>
                     </div>
                 </div>
 
@@ -259,8 +259,8 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                         <>
                             {/* DIAGNOSIS REPORT SECTIONS */}
                             <PageBreak />
-                            <div id="report-section-financial-2025">
-                                <SectionHeader number="02" title="Panorama Financeiro 2025" subtitle="Indicadores consolidados do exercício" />
+                            <div id="report-section-financial-base">
+                                <SectionHeader number="02" title={`Panorama Financeiro ${anoBase}`} subtitle="Indicadores consolidados do exercício" />
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8">
                                     <MetricCard label="Receita Bruta" value={formatCurrency(summary2025.receitaBrutaTotal)} highlight />
                                     <MetricCard label="Receita Líquida" value={formatCurrency(summary2025.receitaTotal)} />
@@ -292,7 +292,7 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
 
                             <PageBreak />
                             <div id="report-section-monthly-evolution">
-                                <SectionHeader number="03" title="Evolução Mensal 2025" subtitle="Receita, custos e EBITDA mês a mês" />
+                                <SectionHeader number="03" title={`Evolução Mensal ${anoBase}`} subtitle="Receita, custos e EBITDA mês a mês" />
                                 <DataTable
                                     headers={['Mês', 'Receita', 'Custos Variáveis', 'Custos Fixos', 'EBITDA']}
                                     rows={summary2025.monthlySummary.map(m => [
@@ -363,7 +363,7 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
 
                             <PageBreak />
                             <div id="report-section-commercial-kpis">
-                                <SectionHeader number="06" title="Indicadores Comerciais" subtitle="Performance de vendas e marketing em 2025" />
+                                <SectionHeader number="06" title="Indicadores Comerciais" subtitle={`Performance de vendas e marketing em ${anoBase}`} />
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
                                     <MetricCard label="Novos Clientes" value={formatNumber(summary2025.novosClientesTotal)} />
                                     <MetricCard label="Ticket Médio" value={formatCurrency(summary2025.ticketMedio)} highlight />
@@ -378,7 +378,7 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
 
                             <PageBreak />
                             <div id="report-section-people-kpis">
-                                <SectionHeader number="07" title="Indicadores de Pessoas" subtitle="Equipe e capital humano em 2025" />
+                                <SectionHeader number="07" title="Indicadores de Pessoas" subtitle={`Equipe e capital humano em ${anoBase}`} />
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
                                     <MetricCard label="Headcount Final" value={formatNumber(summary2025.headcountFinal)} />
                                     <MetricCard label="Salário Médio Mensal" value={formatCurrency(summary2025.salarioMedioMensal)} />
@@ -452,14 +452,14 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                             </div>
 
                             <PageBreak />
-                            <div id="report-section-goals-2026">
-                                <SectionHeader number="03" title="Metas e Objetivos 2026" subtitle="Metas financeiras, comerciais e de pessoas" />
+                            <div id="report-section-goals-plano">
+                                <SectionHeader number="03" title={`Metas e Objetivos ${anoPlano}`} subtitle="Metas financeiras, comerciais e de pessoas" />
                                 <div className="space-y-8">
                                     <div>
                                         <h3 className="text-lg font-bold text-gray-800 mb-3">Metas Financeiras</h3>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-                                            <MetricCard label="Receita 2026" value={formatCurrency(metaReceitaAnual)} highlight />
-                                            <MetricCard label="Crescimento vs. 2025" value={summary2025.receitaTotal > 0 && metaReceitaAnual > 0 ? formatPercentage((metaReceitaAnual / summary2025.receitaTotal - 1) * 100) : 'não definida'} />
+                                            <MetricCard label={`Receita ${anoPlano}`} value={formatCurrency(metaReceitaAnual)} highlight />
+                                            <MetricCard label={`Crescimento vs. ${anoBase}`} value={summary2025.receitaTotal > 0 && metaReceitaAnual > 0 ? formatPercentage((metaReceitaAnual / summary2025.receitaTotal - 1) * 100) : 'não definida'} />
                                             <MetricCard label="Margem EBITDA" value={goals2026.financeiras.metaMargemEbitda != null ? formatPercentage(goals2026.financeiras.metaMargemEbitda) : 'não definida'} />
                                             <MetricCard label="Lucro Líquido" value={goals2026.financeiras.metaLucroLiquido != null ? formatCurrency(goals2026.financeiras.metaLucroLiquido) : 'não definida'} />
                                         </div>
@@ -467,7 +467,7 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                                     <div>
                                         <h3 className="text-lg font-bold text-gray-800 mb-3">Metas Comerciais</h3>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-                                            <MetricCard label="Clientes no fim de 2026" value={metaClientesAnual > 0 ? formatNumber(metaClientesAnual) : 'não definida'} highlight />
+                                            <MetricCard label={`Clientes no fim de ${anoPlano}`} value={metaClientesAnual > 0 ? formatNumber(metaClientesAnual) : 'não definida'} highlight />
                                             <MetricCard label="Ticket Médio" value={goals2026.comerciais.metaTicketMedio != null ? formatCurrency(goals2026.comerciais.metaTicketMedio) : 'não definida'} />
                                             <MetricCard label="Taxa de Conversão" value={goals2026.comerciais.metaTaxaConversao != null ? formatPercentage(goals2026.comerciais.metaTaxaConversao) : 'não definida'} />
                                             <MetricCard label="Inflação Prevista" value={goals2026.inflacaoPrevista != null ? formatPercentage(goals2026.inflacaoPrevista) : 'não definida'} />
@@ -653,7 +653,7 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
 
                             <PageBreak />
                             <div id="report-section-financial-projections">
-                                <SectionHeader number="07" title={`Projeções Financeiras 2026 (Cenário ${baseScenario})`} subtitle="Visão consolidada das projeções financeiras" />
+                                <SectionHeader number="07" title={`Projeções Financeiras ${anoPlano} (Cenário ${baseScenario})`} subtitle="Visão consolidada das projeções financeiras" />
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8">
                                     <MetricCard label="Receita Líquida" value={formatCurrency(financialTotals2026.receitaLiquida)} highlight />
                                     <MetricCard label="Lucro Bruto" value={formatCurrency(financialTotals2026.lucroBruto)} />
@@ -661,9 +661,9 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                                     <MetricCard label="Lucro Líquido" value={formatCurrency(financialTotals2026.lucroLiquido)} />
                                 </div>
                                 {/* 2025 vs 2026 comparison */}
-                                <h3 className="text-lg font-bold text-gray-800 mb-3">Comparativo 2025 vs 2026</h3>
+                                <h3 className="text-lg font-bold text-gray-800 mb-3">Comparativo {anoBase} vs {anoPlano}</h3>
                                 <DataTable
-                                    headers={['Indicador', '2025 (Real)', '2026 (Projetado)', 'Variação']}
+                                    headers={['Indicador', `${anoBase} (Real)`, `${anoPlano} (Projetado)`, 'Variação']}
                                     rows={[
                                         ['Receita Líquida', formatCurrency(summary2025.receitaTotal), formatCurrency(financialTotals2026.receitaLiquida),
                                             <span className={clsx("font-bold", financialTotals2026.receitaLiquida >= summary2025.receitaTotal ? "text-green-600" : "text-red-600")}>
@@ -685,8 +685,8 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                             </div>
 
                             <PageBreak />
-                            <div id="report-section-dre-2026">
-                                <SectionHeader number="08" title="Demonstrativo de Resultados (DRE) 2026" subtitle="Projeção mensal do resultado do exercício" />
+                            <div id="report-section-dre-plano">
+                                <SectionHeader number="08" title={`Demonstrativo de Resultados (DRE) ${anoPlano}`} subtitle="Projeção mensal do resultado do exercício" />
                                 {(() => {
                                     const { dre } = planData.financialPlan2026;
                                     const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -738,8 +738,8 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                             </div>
 
                             <PageBreak />
-                            <div id="report-section-cashflow-2026">
-                                <SectionHeader number="09" title="Fluxo de Caixa (DFC) 2026" subtitle="Projeção de entradas, saídas e saldo de caixa" />
+                            <div id="report-section-cashflow-plano">
+                                <SectionHeader number="09" title={`Fluxo de Caixa (DFC) ${anoPlano}`} subtitle="Projeção de entradas, saídas e saldo de caixa" />
                                 {(() => {
                                     const { dfc } = planData.financialPlan2026;
                                     const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -792,7 +792,7 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                                 <p className="text-xs text-gray-400">{planData.companyProfile.name || "Empresa"} - {reportTitle}</p>
                             </div>
                             <div className="text-right">
-                                <p className="text-xs text-gray-400">Gerado por PLAN 2026</p>
+                                <p className="text-xs text-gray-400">Gerado por PLAN {anoPlano}</p>
                                 <p className="text-xs text-gray-300">Gestão de Impacto</p>
                             </div>
                         </div>

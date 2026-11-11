@@ -476,7 +476,7 @@ const ExecutionPlanTab: React.FC = () => {
 };
 
 const PeopleAnalyticsDashboard: React.FC = () => {
-    const { planData, goals2026, summary2025 } = usePlan();
+    const { planData, goals2026, summary2025, anoPlano, anoBase } = usePlan();
     
     const revenuePerEmployee2025 = summary2025.headcountMedio > 0 ? summary2025.receitaTotal / summary2025.headcountMedio : 0;
     const { productivityGainFactor, projectedRevenue } = planData.analysis.peopleAnalytics;
@@ -504,13 +504,13 @@ const PeopleAnalyticsDashboard: React.FC = () => {
     ];
 
     const headcountData = [
-        { name: '2025', value: summary2025.headcountFinal || summary2025.headcountMedio, fill: '#94a3b8' },
-        { name: '2026', value: headcount2026, fill: '#f97316' },
+        { name: String(anoBase), value: summary2025.headcountFinal || summary2025.headcountMedio, fill: '#94a3b8' },
+        { name: String(anoPlano), value: headcount2026, fill: '#f97316' },
     ];
 
     const turnoverData = [
-        { name: '2025', value: turnover2025, fill: '#ef4444' },
-        { name: 'Meta 2026', value: turnoverMeta2026, fill: '#10b981' },
+        { name: String(anoBase), value: turnover2025, fill: '#ef4444' },
+        { name: `Meta ${anoPlano}`, value: turnoverMeta2026, fill: '#10b981' },
     ];
 
     const getStatusColor = (current: number, target: number, lowerIsBetter: boolean) => {
@@ -537,12 +537,12 @@ const PeopleAnalyticsDashboard: React.FC = () => {
 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 text-white p-4 rounded-2xl shadow-lg">
-                        <p className="text-xs font-medium opacity-80 uppercase">Headcount 2025</p>
+                        <p className="text-xs font-medium opacity-80 uppercase">Headcount {anoBase}</p>
                         <p className="text-2xl font-extrabold mt-1">{formatNumber(summary2025.headcountFinal || summary2025.headcountMedio)}</p>
                         <p className="text-xs opacity-60">colaboradores</p>
                     </div>
                     <div className="bg-gradient-to-br from-brand-orange to-orange-600 text-white p-4 rounded-2xl shadow-lg">
-                        <p className="text-xs font-medium opacity-80 uppercase">Meta Headcount 2026</p>
+                        <p className="text-xs font-medium opacity-80 uppercase">Meta Headcount {anoPlano}</p>
                         <p className="text-2xl font-extrabold mt-1">{formatNumber(headcount2026)}</p>
                         <p className="text-xs opacity-60">colaboradores</p>
                     </div>
@@ -571,7 +571,7 @@ const PeopleAnalyticsDashboard: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <div className="bg-gray-50 p-5 rounded-xl border text-center">
-                        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Receita/Colaborador 2025</p>
+                        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Receita/Colaborador {anoBase}</p>
                         <p className="text-2xl font-extrabold text-gray-900">{formatCurrency(revenuePerEmployee2025, true)}</p>
                         <p className="text-xs text-gray-400 mt-1">Linha de base atual</p>
                     </div>
@@ -581,7 +581,7 @@ const PeopleAnalyticsDashboard: React.FC = () => {
                         <p className="text-xs text-green-600/70 mt-1">Ganho estimado com metas de RH</p>
                     </div>
                     <div className="bg-brand-orange/5 p-5 rounded-xl border border-brand-orange/20 text-center">
-                        <p className="text-xs font-bold text-brand-orange uppercase mb-1">Receita/Colaborador 2026</p>
+                        <p className="text-xs font-bold text-brand-orange uppercase mb-1">Receita/Colaborador {anoPlano}</p>
                         <p className="text-2xl font-extrabold text-brand-orange">{formatCurrency(revenuePerEmployee2026, true)}</p>
                         <p className="text-xs text-gray-400 mt-1">Base + Bonus de produtividade</p>
                     </div>
@@ -603,9 +603,9 @@ const PeopleAnalyticsDashboard: React.FC = () => {
                     <span className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center text-amber-600">
                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                     </span>
-                    Metas de Gestao de Pessoas (2025 vs 2026)
+                    Metas de Gestao de Pessoas ({anoBase} vs {anoPlano})
                 </h3>
-                <p className="text-sm text-gray-500 mb-6">Comparativo entre o realizado em 2025 e as metas definidas para 2026.</p>
+                <p className="text-sm text-gray-500 mb-6">Comparativo entre o realizado em {anoBase} e as metas definidas para {anoPlano}.</p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {/* Turnover */}
@@ -616,12 +616,12 @@ const PeopleAnalyticsDashboard: React.FC = () => {
                         </div>
                         <div className="flex items-end gap-4">
                             <div>
-                                <p className="text-xs text-gray-500">2025</p>
+                                <p className="text-xs text-gray-500">{anoBase}</p>
                                 <p className="text-xl font-bold text-red-500">{formatPercentage(turnover2025)}</p>
                             </div>
                             <svg className="h-5 w-5 text-gray-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                             <div>
-                                <p className="text-xs text-gray-500">Meta 2026</p>
+                                <p className="text-xs text-gray-500">Meta {anoPlano}</p>
                                 <p className={clsx("text-xl font-bold", getStatusColor(turnoverMeta2026, turnover2025, true))}>{formatPercentage(turnoverMeta2026)}</p>
                             </div>
                         </div>
@@ -636,12 +636,12 @@ const PeopleAnalyticsDashboard: React.FC = () => {
                         </div>
                         <div className="flex items-end gap-4">
                             <div>
-                                <p className="text-xs text-gray-500">2025</p>
+                                <p className="text-xs text-gray-500">{anoBase}</p>
                                 <p className="text-xl font-bold text-gray-600">{formatNumber(roi2025)}x</p>
                             </div>
                             <svg className="h-5 w-5 text-gray-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                             <div>
-                                <p className="text-xs text-gray-500">Meta 2026</p>
+                                <p className="text-xs text-gray-500">Meta {anoPlano}</p>
                                 <p className={clsx("text-xl font-bold", getStatusColor(roiMeta2026, roi2025, false))}>{formatNumber(roiMeta2026)}x</p>
                             </div>
                         </div>
@@ -656,7 +656,7 @@ const PeopleAnalyticsDashboard: React.FC = () => {
                         </div>
                         <div className="flex items-end gap-4">
                             <div>
-                                <p className="text-xs text-gray-500">Meta 2026</p>
+                                <p className="text-xs text-gray-500">Meta {anoPlano}</p>
                                 <p className="text-xl font-bold text-gray-700">{formatPercentage(absenteismoMeta)}</p>
                             </div>
                         </div>
@@ -677,12 +677,12 @@ const PeopleAnalyticsDashboard: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div className="bg-red-50 p-5 rounded-xl border border-red-200 text-center">
-                        <p className="text-xs font-bold text-red-700 uppercase mb-1">Custo do Turnover 2025</p>
+                        <p className="text-xs font-bold text-red-700 uppercase mb-1">Custo do Turnover {anoBase}</p>
                         <p className="text-xl font-extrabold text-red-600">{formatCurrency(custoTurnoverTotal2025, true)}</p>
                         <p className="text-xs text-red-500/70 mt-1">{formatNumber(pessoasPerdidas2025)} pessoas x {formatCurrency(custoTurnoverPorPessoa, true)}</p>
                     </div>
                     <div className="bg-amber-50 p-5 rounded-xl border border-amber-200 text-center">
-                        <p className="text-xs font-bold text-amber-700 uppercase mb-1">Custo Projetado 2026</p>
+                        <p className="text-xs font-bold text-amber-700 uppercase mb-1">Custo Projetado {anoPlano}</p>
                         <p className="text-xl font-extrabold text-amber-600">{formatCurrency(custoTurnoverTotal2026Meta, true)}</p>
                         <p className="text-xs text-amber-500/70 mt-1">{formatNumber(pessoasPerdidas2026Meta)} pessoas (com meta de {formatPercentage(turnoverMeta2026)})</p>
                     </div>
@@ -712,7 +712,7 @@ const PeopleAnalyticsDashboard: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="bg-white/10 p-4 rounded-xl text-center">
-                        <p className="text-xs font-medium text-white/60 uppercase">Receita/Colab. 2026</p>
+                        <p className="text-xs font-medium text-white/60 uppercase">Receita/Colab. {anoPlano}</p>
                         <p className="text-xl font-extrabold mt-1">{formatCurrency(revenuePerEmployee2026, true)}</p>
                     </div>
                     <div className="bg-white/10 p-4 rounded-xl text-center">
@@ -720,7 +720,7 @@ const PeopleAnalyticsDashboard: React.FC = () => {
                         <p className="text-xl font-extrabold mt-1 text-white/40">x</p>
                     </div>
                     <div className="bg-white/10 p-4 rounded-xl text-center">
-                        <p className="text-xs font-medium text-white/60 uppercase">Headcount 2026</p>
+                        <p className="text-xs font-medium text-white/60 uppercase">Headcount {anoPlano}</p>
                         <p className="text-xl font-extrabold mt-1">{formatNumber(headcount2026)}</p>
                     </div>
                     <div className="bg-brand-orange p-4 rounded-xl text-center shadow-lg">
@@ -731,7 +731,7 @@ const PeopleAnalyticsDashboard: React.FC = () => {
 
                 <div className="mt-4 p-4 bg-white/5 rounded-xl border border-white/10">
                     <p className="text-xs text-white/50">
-                        <strong>Bottom-Up vs Top-Down:</strong> Compare este valor com a meta de receita definida nas Metas 2026. Se a projecao Bottom-Up for menor que a meta Top-Down, voce precisa aumentar o headcount ou a produtividade. Se for maior, sua equipe tem capacidade de sobra.
+                        <strong>Bottom-Up vs Top-Down:</strong> Compare este valor com a meta de receita definida nas Metas {anoPlano}. Se a projecao Bottom-Up for menor que a meta Top-Down, voce precisa aumentar o headcount ou a produtividade. Se for maior, sua equipe tem capacidade de sobra.
                     </p>
                 </div>
             </div>
@@ -742,7 +742,7 @@ const PeopleAnalyticsDashboard: React.FC = () => {
 
 // --- MAIN COMPONENT ---
 const CommercialPlanning: React.FC = () => {
-    const { planData, goals2026, updateCommercialPlanning, addDemandChannel, removeDemandChannel, updateDemandChannel, generateChannelAnalysis, updateHiringProjectionItem, addHiringProjectionItem, removeHiringProjectionItem, generateFunnelSuggestions, summary2025, updateDriverBasedPlanning } = usePlan();
+    const { planData, goals2026, updateCommercialPlanning, addDemandChannel, removeDemandChannel, updateDemandChannel, generateChannelAnalysis, updateHiringProjectionItem, addHiringProjectionItem, removeHiringProjectionItem, generateFunnelSuggestions, summary2025, updateDriverBasedPlanning, anoPlano, anoBase } = usePlan();
     const [activeTab, setActiveTab] = useState<CommercialPlanningTab>('demand');
     const [isLoading, setIsLoading] = useState<Record<string, boolean>>({});
 
@@ -1026,7 +1026,7 @@ const CommercialPlanning: React.FC = () => {
                          <InputField label="Tx. Conversao (MQL > SQL)" value={salesFunnel.conversionRateMqlToSql} onChange={e => updateCommercialPlanning('salesFunnel', 'conversionRateMqlToSql', e.target.value)} hint="Sales Qualified Lead" suffix="%" />
                          <InputField label="Tx. Conversao (SQL > Venda)" value={salesFunnel.conversionRateSqlToSale} onChange={e => updateCommercialPlanning('salesFunnel', 'conversionRateSqlToSale', e.target.value)} hint="Taxa de Fechamento" suffix="%" />
                          <InputField label="Atividades/Dia por Vendedor" value={salesFunnel.activitiesPerRep} onChange={e => updateCommercialPlanning('salesFunnel', 'activitiesPerRep', e.target.value)} hint="N de prospecoes, etc." />
-                         <InputField label="Dias Uteis em 2026" value={salesFunnel.workingDays} onChange={e => updateCommercialPlanning('salesFunnel', 'workingDays', e.target.value)} hint="Ex: 252 dias" />
+                         <InputField label={`Dias Uteis em ${anoPlano}`} value={salesFunnel.workingDays} onChange={e => updateCommercialPlanning('salesFunnel', 'workingDays', e.target.value)} hint="Ex: 252 dias" />
                          <InputField label="Tempo de Ramp-up (meses)" value={salesFunnel.rampUpTime} onChange={e => updateCommercialPlanning('salesFunnel', 'rampUpTime', e.target.value)} hint="Tempo para um novo vendedor ser 100% produtivo." suffix="meses" />
                     </div>
                      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
@@ -1072,7 +1072,7 @@ const CommercialPlanning: React.FC = () => {
 
     const renderHiringTab = () => (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mt-6">
-            <h2 className="text-lg font-bold text-gray-900 border-b pb-2 mb-4">Projeção de Contratações e Orçamento de Pessoal 2026</h2>
+            <h2 className="text-lg font-bold text-gray-900 border-b pb-2 mb-4">Projeção de Contratações e Orçamento de Pessoal {anoPlano}</h2>
             
             <div className="mb-4 p-4 bg-blue-50 border-l-4 border-blue-400 text-blue-800 text-sm rounded-r-lg">
                 <h4 className="font-bold flex items-center">
@@ -1091,7 +1091,7 @@ const CommercialPlanning: React.FC = () => {
                     <strong>Como calcular (Estimativa):</strong> (Salario Bruto + Encargos + Beneficios) x 13,3 (inclui 13o e Ferias).
                 </p>
                 <div className="mt-3 pt-3 border-t border-blue-200 text-blue-900 font-medium">
-                    Referencia 2025: O custo medio geral da sua empresa foi de {formatCurrency(summary2025.custoColaboradorAno)}/ano.
+                    Referencia {anoBase}: O custo medio geral da sua empresa foi de {formatCurrency(summary2025.custoColaboradorAno)}/ano.
                 </div>
             </div>
 
@@ -1103,7 +1103,7 @@ const CommercialPlanning: React.FC = () => {
                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Headcount Atual</th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Novas Contratações</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mês de entrada</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Headcount 2026</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Headcount {anoPlano}</th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Custo Medio Unitario (R$/ano)</th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Budget Total R$</th>
                             <th className="px-2 py-3"></th>
@@ -1181,13 +1181,13 @@ const CommercialPlanning: React.FC = () => {
         return (
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mt-6 space-y-4">
                 <div className="flex flex-wrap gap-4 justify-between items-center">
-                    <h2 className="text-lg font-bold text-gray-900">Driver-Based Planning - Projeção 2026</h2>
+                    <h2 className="text-lg font-bold text-gray-900">Driver-Based Planning - Projeção {anoPlano}</h2>
                     <div className="flex gap-2">
                         <button onClick={handleImportFromFunnel} className="text-sm text-brand-orange bg-orange-50 px-3 py-1 rounded hover:bg-orange-100 border border-orange-200 font-medium">
-                            Importar do Funil & Demanda 2026
+                            Importar do Funil & Demanda {anoPlano}
                         </button>
                         <button onClick={handlePrefillDrivers} className="text-sm text-gray-600 bg-gray-50 px-3 py-1 rounded hover:bg-gray-100 border border-gray-200">
-                            Carregar Base Historica 2025
+                            Carregar Base Historica {anoBase}
                         </button>
                     </div>
                 </div>
@@ -1302,7 +1302,7 @@ const CommercialPlanning: React.FC = () => {
             <header className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 gradient-border">
                 <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Planejamento Comercial & RH</h1>
                 <p className="text-gray-500 mt-2">
-                    Defina sua estrategia de geracao de demanda, estruture seu funil de vendas, crie o plano de execucao e projete as contratacoes para 2026.
+                    Defina sua estrategia de geracao de demanda, estruture seu funil de vendas, crie o plano de execucao e projete as contratacoes para {anoPlano}.
                 </p>
             </header>
 
