@@ -51,7 +51,7 @@ const PlanSummary: React.FC = () => {
         const resumo = resumoDoCenario(projection);
         const receitaTotal = sumMonthlyData(resumo.receita);
         const ebitda = sumMonthlyData(resumo.ebitda);
-        // A margem de 2025 é sobre a receita líquida; a de 2026 segue a mesma base para comparar.
+        // A margem do ano base é sobre a receita líquida; a do ano do plano segue a mesma base para comparar.
         const receitaLiquida = receitaTotal - sumMonthlyData(projection?.impostosSobreFaturamento || {});
         const margemEbitda = receitaLiquida > 0 ? (ebitda / receitaLiquida) * 100 : 0;
 

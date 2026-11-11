@@ -100,7 +100,7 @@ const DataCollection: React.FC = () => {
     }, [summary2025.monthlySummary]);
 
     const lucroLiquidoRow = useMemo(() => {
-        // 2025 não tem depreciação nem despesa financeira: o LAIR é o próprio EBITDA.
+        // O ano base não tem depreciação nem despesa financeira: o LAIR é o próprio EBITDA.
         const lair: MonthlyData = {};
         summary2025.monthlySummary.forEach(m => { lair[m.month as Month] = m.ebitda; });
         return { values2025: lucroLiquidoMensal(taxes || {}, financialSheet.receitaBruta.values2025, lair) };

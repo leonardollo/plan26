@@ -93,7 +93,7 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
         setActiveSection(id);
     };
 
-    // Calculate financial totals for 2026
+    // Calculate financial totals for the plan year
     const financialTotals2026 = useMemo(() => {
         const { dre, dfc } = planData.financialPlan2026;
         const sumMonths = (data: Record<string, number>) => Object.values(data || {}).reduce((s, v) => s + (v || 0), 0);
@@ -111,7 +111,7 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
         };
     }, [planData.financialPlan2026]);
 
-    // Lucro líquido de 2025 pela mesma regra de IRPJ/CSLL da Coleta de Dados, e não o EBITDA.
+    // Lucro líquido do ano base pela mesma regra de IRPJ/CSLL da Coleta de Dados, e não o EBITDA.
     const lucroLiquido2025 = useMemo(() => {
         const ebitdaMensal = (summary2025.monthlySummary || []).reduce((acc, linha) => ({ ...acc, [linha.month]: linha.ebitda }), {} as MonthlyData);
         const lucro = lucroLiquidoMensal(taxes || {}, planData.financialSheet?.receitaBruta?.values2025 || {}, ebitdaMensal);
@@ -660,7 +660,7 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({ reportType, onClose }) =>
                                     <MetricCard label="EBITDA" value={formatCurrency(financialTotals2026.ebitda)} highlight />
                                     <MetricCard label="Lucro Líquido" value={formatCurrency(financialTotals2026.lucroLiquido)} />
                                 </div>
-                                {/* 2025 vs 2026 comparison */}
+                                {/* Ano base vs ano do plano */}
                                 <h3 className="text-lg font-bold text-gray-800 mb-3">Comparativo {anoBase} vs {anoPlano}</h3>
                                 <DataTable
                                     headers={['Indicador', `${anoBase} (Real)`, `${anoPlano} (Projetado)`, 'Variação']}

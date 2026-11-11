@@ -77,7 +77,7 @@ export const bonusDeProdutividade = (
     receitaBruta2025: MonthlyData | undefined,
     metas: PeopleGoals,
 ): BonusDeProdutividade => {
-    // Dados de People 2025 (planos antigos podem não ter todos os blocos: roda dentro da carga)
+    // Dados de People do ano base (planos antigos podem não ter todos os blocos: roda dentro da carga)
     const headcountValues = Object.values(people?.headcount?.totalColaboradores || {}).filter(v => v !== undefined && v !== null) as number[];
     const headcountMedio = headcountValues.length > 0 ? headcountValues.reduce((a, b) => a + b, 0) / headcountValues.length : 0;
     const totalDesligamentos = somaDosMeses(people?.headcount?.desligamentosVoluntarios) + somaDosMeses(people?.headcount?.desligamentosInvoluntarios);
@@ -88,7 +88,7 @@ export const bonusDeProdutividade = (
     const receitaTotal = MONTHS.reduce((acc, m) => acc + (Number(receitaBruta2025?.[m]) || 0), 0);
     const receitaPorColab = headcountMedio > 0 ? receitaTotal / headcountMedio : 0;
 
-    // Metas 2026
+    // Metas do ano do plano
     const metaTurnover = metas?.metaTurnover || 0;
     const metaRoiTD = metas?.metaRoiTreinamento || 0;
     const metaHeadcount = metas?.metaHeadcount || 0;

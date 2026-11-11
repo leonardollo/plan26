@@ -33,7 +33,7 @@ export const projetarCenario = (
         (acc, m) => ({ ...acc, [m]: num(receitaBruta[m]) * aliquota }), {} as MonthlyData,
     );
 
-    // Contratações entram depois da inflação: o custo médio digitado já é de 2026.
+    // Contratações entram depois da inflação: o custo médio digitado já é do ano do plano.
     const folhaCorrigida = multiplicar(base.folhaPagamento?.values2025, fatorInflacao);
     const folhaPagamento = MONTHS.reduce(
         (acc, m) => ({ ...acc, [m]: num(folhaCorrigida[m]) + num(custoContratacoes?.[m]) }), {} as MonthlyData,

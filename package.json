@@ -2,7 +2,7 @@
   "name": "plan-2026-app",
   "private": true,
   "version": "1.0.0",
-  "description": "Planejamento Estratégico 2026 - Gestão de Impacto",
+  "description": "Planejamento Estratégico do ano seguinte - Gestão de Impacto",
   "type": "module",
   "scripts": {
     "dev": "vite",

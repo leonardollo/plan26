@@ -1,5 +1,5 @@
 /**
- * Controle de acesso do PLAN 2026
+ * Controle de acesso do PLAN
  *
  * Antes, quem se cadastrasse entrava com acesso total: a verificação era um
  * `setSubscriptionStatus('active')` fixo, e o cadastro chamava

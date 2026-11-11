@@ -36,7 +36,7 @@ const MarketingFunnel: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
 
     const funnelData = useMemo(() => {
-        // --- 2025 Data ---
+        // --- Dados do ano base ---
         const impressoes2025 = sumMonthlyData(planData.marketing.performance.impressoes);
         const cliques2025 = sumMonthlyData(planData.marketing.performance.cliques);
         const conversoes2025 = sumMonthlyData(planData.marketing.performance.conversoes);
@@ -50,7 +50,7 @@ const MarketingFunnel: React.FC = () => {
         const leadToSale2025 = conversoes2025 > 0 ? vendas2025 / conversoes2025 : 0;
         const cac2025 = summary2025.cac;
 
-        // --- 2026 Projections ---
+        // --- Projeções do ano do plano ---
         const growthPercentage = scenarios2026[baseScenario].growthPercentage || 0;
         const strategicGrowthFactor = planData.analysis.strategicScore?.total || 0;
         const adjustedGrowth = growthPercentage + strategicGrowthFactor;

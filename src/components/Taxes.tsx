@@ -89,7 +89,7 @@ const Taxes: React.FC = () => {
             iss: taxes.iss, icms: taxes.icms, pis: taxes.pis,
             cofins: taxes.cofins, irpj: taxes.irpj, csll: taxes.csll
         });
-        // Só preenche linha vazia: o imposto de 2025 digitado à mão na Coleta fica (decisão do usuário).
+        // Só preenche linha vazia: o imposto do ano base digitado à mão na Coleta fica (decisão do usuário).
         // Para sobrescrever, o cliente usa o botão "Calcular" da Coleta, que pede confirmação.
         const impostos2025 = planData.financialSheet?.impostosSobreFaturamento?.values2025 || {};
         const linhaVazia = Object.values(impostos2025).every(v => num(v) === 0);

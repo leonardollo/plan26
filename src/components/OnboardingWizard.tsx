@@ -37,7 +37,7 @@ const OnboardingWizard: React.FC = () => {
         updateCompanyProfile('name', name);
         updateCompanyProfile('industry', industry);
 
-        // 2. Save Basic Financials (Distributed evenly for 2025)
+        // 2. Save Basic Financials (Distributed evenly over the base year)
         if (revenue2025) {
             const annualRev = parseFloat(revenue2025);
             const monthlyRev = annualRev / 12;

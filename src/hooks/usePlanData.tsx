@@ -300,7 +300,7 @@ const recalcularPlanoLido = (data: any, baseScenario: ScenarioName, anoPlano: nu
     );
     const score = strategicScore.total;
     const bonus = peopleAnalytics.productivityGainFactor;
-    // Mesma condição do efeito de cenários: sem receita de 2025 não há base para projetar.
+    // Mesma condição do efeito de cenários: sem receita do ano base não há base para projetar.
     const temReceita = MONTHS.some(m => (financialSheet.receitaBruta?.values2025?.[m] || 0) > 0);
     if (temReceita) {
         (['Otimista', 'Conservador', 'Disruptivo'] as ScenarioName[]).forEach(nome => {

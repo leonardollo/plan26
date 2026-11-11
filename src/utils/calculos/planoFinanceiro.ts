@@ -10,7 +10,7 @@ import {
 const somaDosItens = (itens: { values?: MonthlyData }[] | undefined, m: string) =>
     (itens || []).reduce((s, i) => s + num(i?.values?.[m]), 0);
 
-/** DRE, DFC e BP de 2026 a partir da projeção do cenário base. */
+/** DRE, DFC e BP do ano do plano a partir da projeção do cenário base. */
 export const calcularPlanoFinanceiro2026 = (
     proj: ScenarioProjectionData,
     taxes: Partial<TaxesData>,
@@ -83,7 +83,7 @@ export const calcularPlanoFinanceiro2026 = (
 
     MONTHS.forEach(m => {
         dfc.fco[m] = dre.ebitda[m]! - num(dre.irpjCsll[m]);
-        // O CAPEX de 2025 não entra mais: já foi gasto em 2025. Só os investimentos de 2026 saem do caixa.
+        // O CAPEX do ano base não entra mais: já foi gasto. Só os investimentos do ano do plano saem do caixa.
         dfc.fci[m] = num(inv.fci[m]);
         // Os juros saem aqui no FCF, e não no FCO (que parte do EBITDA), para não contar duas vezes.
         dfc.fcf[m] = num(emp.entradas[m]) + num(aportes[m])

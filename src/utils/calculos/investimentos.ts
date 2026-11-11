@@ -32,7 +32,7 @@ export const normalizarInvestimento2026 = (lido: unknown): InvestmentData2026 =>
     };
 };
 
-/** FCI (negativo), depreciação linear e ativo não circulante líquido dos investimentos de 2026. */
+/** FCI (negativo), depreciação linear e ativo não circulante líquido dos investimentos do ano do plano. */
 export const investimentos2026 = (itens: Investimento2026[] | undefined) => {
     const fci = zerado();
     const depreciacao = zerado();
@@ -92,7 +92,7 @@ export const emprestimosNovos = (itens: Emprestimo2026[] | undefined) => {
         const i = taxaMensal(item?.jurosMensalPct);
         const pmt = parcelaPrice(valor, item?.jurosMensalPct ?? null, n);
 
-        // Cronograma só até dez/2027 (índice 23): 2026 mais as 12 amortizações do curto prazo de dezembro.
+        // Cronograma só até dezembro do ano seguinte ao plano (índice 23): o ano do plano mais as 12 amortizações do curto prazo de dezembro.
         // Percorrer as n parcelas travaria a tela com n enorme; o saldo depois do horizonte é longo prazo.
         // amortizacao[k] e saldoApos[k] referem-se à parcela k, que vence no índice contrato + k.
         const horizonte = Math.min(n, 23 - contrato);

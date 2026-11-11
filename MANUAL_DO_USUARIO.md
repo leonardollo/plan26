@@ -1,8 +1,10 @@
 
-# MANUAL DO USUÁRIO - PLAN 2026
+# MANUAL DO USUÁRIO - PLAN
 ## Sistema de Planejamento Estratégico e Financeiro
 
-Este documento serve como guia para a utilização da plataforma PLAN 2026, explicando o fluxo de trabalho sugerido e, principalmente, **como os dados estão interligados**.
+Este documento serve como guia para a utilização da plataforma PLAN, explicando o fluxo de trabalho sugerido e, principalmente, **como os dados estão interligados**.
+
+**Qual ano?** O PLAN é sempre o planejamento do **ano seguinte ao atual**: em 2026 você planeja 2027, em 2027 planeja 2028, e assim por diante. Neste manual, "ano do plano" é o ano que você está planejando e "ano base" é o ano anterior a ele, cujos números reais você informa. Ao virar o ano, o plano novo é criado sozinho a partir do anterior (perfil, produtos, mercado e regime tributário vêm junto; os números começam em branco), e os planos antigos continuam acessíveis no seletor de ano.
 
 ---
 
@@ -10,7 +12,7 @@ Este documento serve como guia para a utilização da plataforma PLAN 2026, expl
 
 O sistema foi desenhado para ser preenchido em uma ordem lógica, onde a etapa anterior alimenta a próxima. Recomenda-se seguir a numeração do menu lateral:
 
-1.  **Diagnóstico (Abas 1 a 3):** Olhar para o retrovisor (2025) e para o mercado.
+1.  **Diagnóstico (Abas 1 a 3):** Olhar para o retrovisor (o ano base) e para o mercado.
 2.  **Definição (Abas 4 a 8):** Definir onde queremos chegar (Metas) e como (Planos de Ação).
 3.  **Projeção (Abas 9 a 10):** Traduzir as metas em números financeiros (Orçamento).
 4.  **Controle (Abas 11 a 13):** Acompanhar a execução mês a mês.
@@ -25,7 +27,7 @@ O sistema foi desenhado para ser preenchido em uma ordem lógica, onde a etapa a
 
 | Dado de Origem | Onde é inserido? | Onde ele impacta/O que ele gera? |
 | :--- | :--- | :--- |
-| **Dados 2025** | Aba 1 (Coleta de Dados) | Base para **todas** as projeções de 2026. O sistema projeta o crescimento sobre essa base histórica. |
+| **Dados do ano base** | Aba 1 (Coleta de Dados) | Base para **todas** as projeções do ano do plano. O sistema projeta o crescimento sobre essa base histórica. |
 | **Regime Tributário** | Aba 2 (Impostos) | Calcula automaticamente a linha de "Impostos sobre Vendas" e o "Lucro Líquido" na DRE e no Simulador de Preços. |
 | **Investimentos (CAPEX)** | Aba 1 (Investimentos) | 1. Reduz o Caixa no **DFC** (Fluxo de Investimento).<br>2. Aumenta o Ativo Não Circulante no **Balanço Patrimonial**.<br>3. Gera Depreciação automática na **DRE**. |
 | **Capital de Giro (PMR/PMP)**| Aba 1 (Investimentos) | Calcula a necessidade de caixa. Se você vender mais (Cenários), o sistema calcula automaticamente o impacto no **Caixa (DFC)** baseado nesses prazos. |
@@ -35,8 +37,8 @@ O sistema foi desenhado para ser preenchido em uma ordem lógica, onde a etapa a
 
 | Dado de Origem | Onde é inserido? | Onde ele impacta/O que ele gera? |
 | :--- | :--- | :--- |
-| **Metas de RH** (Turnover/Treinamento) | Aba 4 (Metas) | Gera o **"Fator de Produtividade"**. Se a meta for melhor que o realizado de 2025, o sistema adiciona um bônus de crescimento na receita do Orçamento (Aba 9). |
-| **Inflação Prevista** | Aba 4 (Metas) | Reajusta automaticamente todos os **Custos Fixos** (Aluguel, Energia, Administrativo) na projeção de 2026 (Aba 9). |
+| **Metas de RH** (Turnover/Treinamento) | Aba 4 (Metas) | Gera o **"Fator de Produtividade"**. Se a meta for melhor que o realizado do ano base, o sistema adiciona um bônus de crescimento na receita do Orçamento (Aba 9). |
+| **Inflação Prevista** | Aba 4 (Metas) | Reajusta automaticamente todos os **Custos Fixos** (Aluguel, Energia, Administrativo) na projeção do ano do plano (Aba 9). |
 | **Pontuação Estratégica** | Aba 3 (Análise) | A soma dos scores (SWOT, Oceano Azul, etc.) cria um **"Fator Estratégico"** que ajusta a projeção de crescimento nos Cenários Otimista/Conservador. |
 | **Orçamento de Canais** | Aba 6 (Comercial) | O valor total orçado para Marketing aqui é comparado com a projeção financeira para garantir coerência. |
 
@@ -46,9 +48,9 @@ O sistema foi desenhado para ser preenchido em uma ordem lógica, onde a etapa a
 
 ### FASE 1: DIAGNÓSTICO
 
-*   **1. Coleta de Dados 2025:**
+*   **1. Coleta de Dados (ano base):**
     *   *Dica:* Use o botão "Colar Dados do Excel" se tiver uma planilha.
-    *   *Atenção:* Não deixe meses em branco. Se não tiver o dado exato, estime uma média. O sistema precisa desses números para calcular a sazonalidade de 2026.
+    *   *Atenção:* Não deixe meses em branco. Se não tiver o dado exato, estime uma média. O sistema precisa desses números para calcular a sazonalidade do ano do plano.
     *   *Investimentos:* Preencha o CAPEX e Prazos Médios aqui para que o Balanço Patrimonial funcione.
 
 *   **2. Impostos:**
@@ -90,7 +92,7 @@ O sistema foi desenhado para ser preenchido em uma ordem lógica, onde a etapa a
 
 O sistema possui botões de IA espalhados pelas telas. Eles não são apenas geradores de texto aleatório; eles leem os dados que você inseriu.
 
-*   **Diagnóstico (Dashboard):** Lê seus dados de 2025 e compara com benchmarks de mercado.
+*   **Diagnóstico (Dashboard):** Lê seus dados do ano base e compara com benchmarks de mercado.
 *   **Análise de Cenários (Aba 9):** Lê seus números projetados e aponta riscos de coerência (ex: "Você quer crescer 50% mas reduziu o budget de marketing?").
 *   **Plano de Ação (Aba 8/11):** Gera tarefas 5W2H baseadas nas suas fraquezas da SWOT e nos gaps financeiros.
 *   **Editor de Imagem:** Ferramenta auxiliar para criar criativos rápidos para testes de marketing.

@@ -7,8 +7,9 @@ code, identifiers and commit messages follow the project's conventions.
 <!-- project:start — filled by /onboard; preserved on pack updates -->
 ## Project
 
-- **What:** PLAN 2026 (Gestão de Impacto): SPA where business owners build their 2026 strategic,
-  commercial and financial plan; admins approve sign-ups and manage access.
+- **What:** PLAN (Gestão de Impacto): SPA where business owners build next year's strategic,
+  commercial and financial plan (always current year + 1, `anoDoPlanoAtual` in `src/services/planos.ts`;
+  `*2026`/`*2025` field names are historical: plan year / base year); admins approve sign-ups.
 - **Stack:** React 19 + Vite 7 + TypeScript 5.9 + Tailwind CSS 4; Firebase Auth + Firestore
   (project `plan-ea4cc`); Gemini (`@google/genai`); DPE import from an external Supabase.
 - **Commands** (verified by `/onboard`, npm — `pnpm-lock.yaml` is stale, ignore it):

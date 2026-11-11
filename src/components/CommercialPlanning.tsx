@@ -870,11 +870,11 @@ const CommercialPlanning: React.FC = () => {
     };
 
     /**
-     * Pré-preenche os drivers com o que 2025 realmente foi.
+     * Pré-preenche os drivers com o que o ano base realmente foi.
      *
      * Antes, quando não havia conversão medida, a função chutava 5% e derivava
      * os leads desse chute (leads = novos clientes ÷ 0,05), entregando um
-     * número 20× inventado com cara de "veio de 2025". Se o dado não existe, o
+     * número 20× inventado com cara de "veio do ano base". Se o dado não existe, o
      * campo fica em branco — em branco a pessoa percebe e preenche; número
      * errado ela usa.
      */
