@@ -365,6 +365,7 @@ export interface ScenarioRelatedData {
 export type ScenarioName = 'Otimista' | 'Conservador' | 'Disruptivo';
 export type ScenarioInputMode = 'percentage' | 'manual';
 
+// Nomes históricos: *2026 é o ano do plano aberto e *2025 é o ano base (anoPlano − 1), seja qual for o ano.
 export interface PlanData {
     companyProfile: CompanyProfile;
     financialSheet: FinancialSheetData;
@@ -673,6 +674,12 @@ export interface SensitivityScenario {
 export type SensitivityMatrix = SensitivityScenario[][];
 
 export interface PlanContextType {
+    /** Ano do plano aberto (os campos *2026 guardam este ano). */
+    anoPlano: number;
+    /** anoPlano − 1: o ano dos números de partida (campos *2025). */
+    anoBase: number;
+    /** Anos com plano salvo, mais o aberto, em ordem crescente. */
+    anosDisponiveis: number[];
     /** Por que a última gravação falhou, em português. Vazio quando deu certo. */
     motivoDoErroAoSalvar: string;
     /** Se o plano já foi lido do banco. Fora de 'carregado', nada é gravado. */

@@ -29,6 +29,9 @@ import { aliquotaDeducao, irpjCsllAnual } from '../utils/calculos/impostos';
 import { nopat, paybackCacMeses } from '../utils/calculos/indicadores';
 import { resumoDoCenario } from '../utils/calculos/resumo';
 import { bonusDeProdutividade, scoreEstrategico } from '../utils/calculos/analise';
+import {
+    anoDoPrimeiroPlano, anosDoPlano, caminhoDoPlano, chaveLocalDoPlano, listarPlanos, listarPlanosLocais,
+} from '../services/planos';
 
 // Firebase configuration - loaded from environment variables
 const firebaseConfig = {
@@ -333,6 +336,21 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     const subscriptionStatusRef = useRef<SubscriptionStatus>('loading');
     // Marca o commit em que o plano lido entra no estado; os efeitos abaixo o ignoram.
     const acabouDeCarregar = useRef(false);
+    // Ano cujos dados estão na tela: entra no estado no mesmo commit dos dados, e é para ele que a gravação vai.
+    const [anoCarregado, setAnoCarregado] = useState<number | null>(null);
+    // Ano da última carga pedida (null enquanto a lista de anos não foi lida).
+    const [anoPedido, setAnoPedido] = useState<number | null>(null);
+    const anoPedidoRef = useRef<number | null>(null);
+    const [anosSalvosState, setAnosSalvosState] = useState<number[]>([]);
+    const anosSalvos = useRef<number[]>([]);
+    // Número da carga mais recente: uma carga que termina depois de outra mais nova é descartada.
+    const cargaAtual = useRef(0);
+
+    const definirAnosSalvos = (anos: number[]) => {
+        const lista = [...new Set(anos)].sort((a, b) => a - b);
+        anosSalvos.current = lista;
+        setAnosSalvosState(lista);
+    };
 
     const setEstadoDaCarga = (estado: EstadoDaCarga) => {
         estadoDaCargaRef.current = estado;
@@ -344,7 +362,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
 
     const saveToFirebase = useCallback(async (manual: boolean = false) => {
         if (!user.uid) return Promise.resolve();
-        if (estadoDaCargaRef.current !== 'carregado') {
+        if (estadoDaCargaRef.current !== 'carregado' || anoCarregado === null) {
             // Gravar antes de ler o plano trocaria o plano real pelo estado vazio da tela.
             const motivo = 'O plano ainda não foi carregado';
             setMotivoDoErroAoSalvar(motivo);
@@ -353,12 +371,14 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         }
         setSaveStatus('saving');
         try {
+            // O caminho vem do ano dos dados desta renderização, nunca do ano escolhido no seletor.
             if (!isOfflineMode && db) {
-                const docRef = doc(db, 'users', user.uid);
+                const docRef = doc(db, ...(caminhoDoPlano(user.uid, anoCarregado) as [string, ...string[]]));
                 await setDoc(docRef, { planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems }, { merge: true });
             } else {
-                localStorage.setItem(`plan_data_${user.uid}`, JSON.stringify({ planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems }));
+                localStorage.setItem(chaveLocalDoPlano(user.uid, anoCarregado), JSON.stringify({ planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems }));
             }
+            if (!anosSalvos.current.includes(anoCarregado)) definirAnosSalvos([...anosSalvos.current, anoCarregado]);
             setSaveStatus('saved');
             setMotivoDoErroAoSalvar('');
             setLastSaved(new Date());
@@ -382,75 +402,99 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             setSaveStatus('error');
             return Promise.reject(error);
         }
-    }, [planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems, user.uid]);
+    }, [planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems, user.uid, anoCarregado]);
 
-    const carregarPlano = async (): Promise<void> => {
+    const carregarPlano = async (ano: number): Promise<void> => {
         if (!user.uid) return;
+        const carga = ++cargaAtual.current;
+        anoPedidoRef.current = ano;
+        setAnoPedido(ano);
         setEstadoDaCarga('carregando');
         // O navegador só guarda a chave de quem acabou de entrar.
         localStorage.removeItem('google_gemini_api_key');
-            try {
-                let data: any = null;
-                if (!isOfflineMode && db) {
-                    const docRef = doc(db, 'users', user.uid);
-                    const docSnap = await getDoc(docRef);
-                    if (docSnap.exists()) {
-                        data = docSnap.data();
-                    }
-                } else {
-                    const stored = localStorage.getItem(`plan_data_${user.uid}`);
-                    if (stored) data = JSON.parse(stored);
-                }
-                if (data) {
-                    // Recalcula na própria carga: o commit da carga não é gravado (entrega 1), então abrir não salva.
-                    const recalculado = recalcularPlanoLido(data, baseScenario);
-                    const { strategicScore, peopleAnalytics } = recalculado;
-                    if (data.planData) {
-                        const loadedFactors = data.planData.marketAnalysis?.blueOcean?.factors;
-                        const validFactors = (loadedFactors && loadedFactors.length > 0) ? loadedFactors : defaultBlueOceanFactors;
-                        setPlanData(prev => ({
-                            ...prev,
-                            ...data.planData,
-                            marketAnalysis: {
-                                ...prev.marketAnalysis,
-                                ...data.planData.marketAnalysis,
-                                blueOcean: {
-                                    ...prev.marketAnalysis.blueOcean,
-                                    ...data.planData.marketAnalysis?.blueOcean,
-                                    factors: validFactors
-                                }
-                            },
-                            analysis: { ...(data.planData.analysis ?? prev.analysis), strategicScore, peopleAnalytics },
-                            // Bloco completado na própria carga: se um efeito o completasse depois, abrir o plano gravaria.
-                            investment2026: recalculado.investment2026,
-                            financialPlan2026: recalculado.financialPlan2026
-                        }));
-                    } else {
-                        setPlanData(prev => ({ ...prev, analysis: { ...prev.analysis, strategicScore, peopleAnalytics }, financialPlan2026: recalculado.financialPlan2026 }));
-                    }
-                    setScenarios2026(prev => ({ ...prev, ...data.scenarios2026, ...recalculado.recalculados }));
-                    // Só depois da leitura: a chave gravada é a do plano de quem entrou.
-                    if (data.planData?.companyProfile?.geminiApiKey) {
-                        localStorage.setItem('google_gemini_api_key', data.planData.companyProfile.geminiApiKey);
-                    }
-                    if (data.goals2026) setGoals2026(prev => ({ ...prev, ...data.goals2026 }));
-                    if (data.tracking2026) setTracking2026(prev => ({ ...prev, ...data.tracking2026 }));
-                    if (data.taxes) setTaxes(prev => ({ ...prev, ...data.taxes }));
-                    if (data.pricingItems) setPricingItems(data.pricingItems);
-                }
-                // No mesmo tique dos setters acima: o commit que traz o plano lido é o mesmo que entra em 'carregado'.
-                acabouDeCarregar.current = true;
-                setEstadoDaCarga('carregado');
-            } catch (error) {
-                console.error("Error loading data:", error);
-                setEstadoDaCarga('falhou');
+        try {
+            let data: any = null;
+            if (!isOfflineMode && db) {
+                const docSnap = await getDoc(doc(db, ...(caminhoDoPlano(user.uid, ano) as [string, ...string[]])));
+                if (docSnap.exists()) data = docSnap.data();
+            } else {
+                const stored = localStorage.getItem(chaveLocalDoPlano(user.uid, ano));
+                if (stored) data = JSON.parse(stored);
             }
+            // Uma carga mais nova (troca de ano) já foi pedida: este resultado é de outro ano.
+            if (carga !== cargaAtual.current) return;
+            const lido = data ?? {};
+            const p = lido.planData ?? {};
+            // Recalcula na própria carga, também sem plano salvo: o commit da carga não é gravado, então abrir não salva.
+            const recalculado = recalcularPlanoLido(lido, baseScenario);
+            const { strategicScore, peopleAnalytics } = recalculado;
+            const loadedFactors = p.marketAnalysis?.blueOcean?.factors;
+            const validFactors = (loadedFactors && loadedFactors.length > 0) ? loadedFactors : defaultBlueOceanFactors;
+            // Monta dos valores iniciais, nunca do `prev`: carregar outro ano a partir do `prev` mostraria e gravaria o ano anterior.
+            setPlanData({
+                ...initialPlanData,
+                ...p,
+                marketAnalysis: {
+                    ...initialPlanData.marketAnalysis,
+                    ...p.marketAnalysis,
+                    blueOcean: {
+                        ...initialPlanData.marketAnalysis.blueOcean,
+                        ...p.marketAnalysis?.blueOcean,
+                        factors: validFactors
+                    }
+                },
+                analysis: { ...(p.analysis ?? initialPlanData.analysis), strategicScore, peopleAnalytics },
+                // Bloco completado na própria carga: se um efeito o completasse depois, abrir o plano gravaria.
+                investment2026: recalculado.investment2026,
+                financialPlan2026: recalculado.financialPlan2026
+            });
+            setScenarios2026({ ...initialScenarios, ...lido.scenarios2026, ...recalculado.recalculados });
+            // Só depois da leitura: a chave gravada é a do plano de quem entrou.
+            if (p.companyProfile?.geminiApiKey) {
+                localStorage.setItem('google_gemini_api_key', p.companyProfile.geminiApiKey);
+            }
+            setGoals2026({ ...initialGoals, ...lido.goals2026 });
+            setTracking2026({ ...lido.tracking2026 });
+            setTaxes({ ...initialTaxes, ...lido.taxes });
+            setPricingItems(lido.pricingItems ?? []);
+            setAnoCarregado(ano);
+            // No mesmo tique dos setters acima: o commit que traz o plano lido é o mesmo que entra em 'carregado'.
+            acabouDeCarregar.current = true;
+            setEstadoDaCarga('carregado');
+        } catch (error) {
+            console.error("Error loading data:", error);
+            if (carga === cargaAtual.current) setEstadoDaCarga('falhou');
+        }
     };
-    const tentarCarregarDeNovo = carregarPlano;
+
+    // Lê os anos salvos e abre o mais recente; sem nenhum, o ano do primeiro plano (sem gravar nada).
+    const abrirPlano = async (): Promise<void> => {
+        if (!user.uid) return;
+        const carga = ++cargaAtual.current;
+        anoPedidoRef.current = null;
+        setAnoPedido(null);
+        setEstadoDaCarga('carregando');
+        localStorage.removeItem('google_gemini_api_key');
+        try {
+            const lista = !isOfflineMode && db
+                ? await listarPlanos(db, user.uid)
+                : listarPlanosLocais(localStorage, user.uid);
+            if (carga !== cargaAtual.current) return;
+            definirAnosSalvos(lista);
+            await carregarPlano(lista.length > 0 ? lista[lista.length - 1] : anoDoPrimeiroPlano(new Date()));
+        } catch (error) {
+            console.error("Error listing plans:", error);
+            if (carga === cargaAtual.current) setEstadoDaCarga('falhou');
+        }
+    };
+
+    // Sem ano escolhido (a listagem falhou), refaz a listagem; senão recarrega o mesmo ano.
+    const tentarCarregarDeNovo = (): Promise<void> =>
+        anoPedidoRef.current === null ? abrirPlano() : carregarPlano(anoPedidoRef.current);
 
     useEffect(() => {
         if (!user.uid) return;
-        carregarPlano();
+        abrirPlano();
         checkSubscription();
     }, [user.uid]);
 
@@ -496,7 +540,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         // Pendente → liberado: a primeira carga foi negada pela regra; sem isto o app abriria vazio.
         // Na primeira conferência (anterior 'loading') não recarrega: a falha ali é da carga em si e a tela oferece "Tentar de novo".
         if (novo === 'active' && anterior !== 'loading' && estadoDaCargaRef.current === 'falhou') {
-            await carregarPlano();
+            await tentarCarregarDeNovo();
         }
     };
 
@@ -1555,7 +1599,12 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     };
 
     // ... (value object definition) ...
+    // Antes de a carga terminar, o ano mostrado é o pedido; antes da lista, o do primeiro plano.
+    const { anoPlano, anoBase } = anosDoPlano(anoCarregado ?? anoPedido ?? anoDoPrimeiroPlano(new Date()));
+    const anosDisponiveis = [...new Set([...anosSalvosState, anoPlano])].sort((a, b) => a - b);
+
     const value: PlanContextType = {
+        anoPlano, anoBase, anosDisponiveis,
         souAdmin, statusAcesso, listarAcessosDoBanco, mudarStatusDeAcesso, motivoDoErroAoSalvar,
         estadoDaCarga, tentarCarregarDeNovo,
         aplicarImportacaoDpe,
@@ -1626,8 +1675,9 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             });
             localStorage.removeItem('google_gemini_api_key');
             try {
-                if (!isOfflineMode && db) {
-                    const docRef = doc(db, 'users', user.uid);
+                // Apaga só o ano aberto: os outros anos do cliente ficam intactos.
+                if (!isOfflineMode && db && anoCarregado !== null) {
+                    const docRef = doc(db, ...(caminhoDoPlano(user.uid, anoCarregado) as [string, ...string[]]));
                     await setDoc(docRef, {
                         planData: initialPlanData,
                         goals2026: initialGoals,
