@@ -51,11 +51,15 @@ const ImportFromDpe: React.FC = () => {
   const [previa, setPrevia] = useState<ResultadoImportacao | null>(null);
   const [aplicado, setAplicado] = useState(false);
   const arquivoRef = useRef<HTMLInputElement>(null);
+  // Sobe a cada troca de ano: busca ou leitura iniciada antes dela traria a série do ano base anterior.
+  const geracao = useRef(0);
 
   // A prévia foi montada com os meses do ano base de outro plano: trocar de ano a descarta.
   useEffect(() => {
+    geracao.current += 1;
     setPrevia(null);
     setAplicado(false);
+    setErro('');
   }, [anoBase]);
 
   const processar = (foto: FotoDpe) => {
@@ -78,8 +82,10 @@ const ImportFromDpe: React.FC = () => {
     setErro('');
     setPrevia(null);
     setAplicado(false);
+    const minhaGeracao = geracao.current;
     const leitor = new FileReader();
     leitor.onload = () => {
+      if (minhaGeracao !== geracao.current) return;
       try {
         processar(JSON.parse(String(leitor.result)) as FotoDpe);
       } catch {
@@ -102,9 +108,13 @@ const ImportFromDpe: React.FC = () => {
       return;
     }
     setCarregando(true);
+    const minhaGeracao = geracao.current;
     try {
-      processar(await buscarFotoDpe(alvo));
+      const foto = await buscarFotoDpe(alvo);
+      if (minhaGeracao !== geracao.current) return;
+      processar(foto);
     } catch (e) {
+      if (minhaGeracao !== geracao.current) return;
       setErro(e instanceof Error ? e.message : 'Não consegui buscar o diagnóstico.');
     } finally {
       setCarregando(false);

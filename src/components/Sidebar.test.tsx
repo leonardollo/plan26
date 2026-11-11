@@ -49,6 +49,16 @@ describe('Sidebar — ano do plano', () => {
     expect((screen.getByRole('button', { name: /Começar plano 2027|Criando/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('com criandoAno o seletor de ano fica desabilitado; sem criação, habilitado', () => {
+    plano({ criandoAno: true });
+    montar();
+    expect((screen.getByLabelText('Ano do plano') as HTMLSelectElement).disabled).toBe(true);
+    cleanup();
+    plano({ criandoAno: false });
+    montar();
+    expect((screen.getByLabelText('Ano do plano') as HTMLSelectElement).disabled).toBe(false);
+  });
+
   it('sem próximo ano disponível o botão não aparece', () => {
     plano({ proximoAnoDisponivel: null });
     montar();

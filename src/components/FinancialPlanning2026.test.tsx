@@ -36,4 +36,13 @@ describe('FinancialPlanning2026 — anos do plano aberto', () => {
         expect(container.textContent).toMatch(/Saldo Dez\/27/);
         expect(container.textContent).not.toMatch(/Dez\/26/);
     });
+
+    it('no plano 2027, a dica do balanço cita a coluna "Saldo Dez/27" sem código no texto', () => {
+        const { container } = render(<FinancialPlanning2026 />);
+        fireEvent.click(screen.getByText('Balanço Patrimonial'));
+        const dica = screen.getByText('Dica de Visualização:').closest('p')!;
+        expect(dica.textContent).toContain('"Saldo Dez/27"');
+        expect(container.textContent).not.toContain('{String(');
+        expect(container.textContent).not.toContain('slice(');
+    });
 });

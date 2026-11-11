@@ -116,7 +116,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, on
                         aria-label="Ano do plano"
                         value={anoPlano}
                         onChange={e => { void trocarAno(Number(e.target.value)); }}
-                        className="flex-1 min-w-0 bg-white/10 text-white text-sm rounded-md px-2 py-2 border border-white/10 focus:outline-none focus:ring-2 focus:ring-brand-orange"
+                        // Trocar no meio da criação faria a criação reabrir o ano novo por cima da escolha.
+                        disabled={criandoAno}
+                        className="flex-1 min-w-0 bg-white/10 text-white text-sm rounded-md px-2 py-2 border border-white/10 focus:outline-none focus:ring-2 focus:ring-brand-orange disabled:opacity-60 disabled:cursor-wait"
                     >
                         {anosDisponiveis.map(ano => (
                             <option key={ano} value={ano} className="text-gray-900">{ano}</option>

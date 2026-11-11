@@ -523,6 +523,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         if (!user.uid || criandoAnoRef.current) return false;
         criandoAnoRef.current = true;
         setCriandoAno(true);
+        // Uma troca de ano pedida durante a criação vence: ao terminar, o ano novo só entra na lista.
+        const cargaNoInicio = cargaAtual.current;
         try {
             if (!(await gravarAntesDeSair())) return false;
             const ano = proximoAnoDoPlano(anosSalvos.current, new Date());
@@ -546,7 +548,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                 return false;
             }
             definirAnosSalvos([...anosSalvos.current, ano]);
-            await carregarPlano(ano);
+            if (cargaAtual.current === cargaNoInicio) await carregarPlano(ano);
             return true;
         } finally {
             criandoAnoRef.current = false;

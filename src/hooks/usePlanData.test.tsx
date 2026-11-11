@@ -869,19 +869,44 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
     expect(result.current.anoPlano).toBe(2027);
   });
 
-  it('ano sem documento começa dos valores iniciais', async () => {
-    bancoCom({ 'users/u1': perfil('A', { goals2026: { inflacaoPrevista: 9 }, taxes: { iss: 5 } }) });
+  it('ano sem documento começa dos valores iniciais em todos os blocos e a primeira gravação não leva nada do 2026', async () => {
+    bancoCom({ 'users/u1': perfil('A', {
+      goals2026: { inflacaoPrevista: 9 },
+      taxes: { iss: 5 },
+      scenarios2026: { Otimista: { growthPercentage: 37 } },
+      tracking2026: { jan: { receitaRealizada: 777 } },
+      pricingItems: [{ id: 'p2026', name: 'Produto de 2026' }],
+    }) });
     const { result } = await montar();
     expect(result.current.goals2026.inflacaoPrevista).toBe(9);
     expect(result.current.taxes.iss).toBe(5);
+    expect(result.current.scenarios2026.Otimista.growthPercentage).toBe(37);
+    expect(result.current.tracking2026).toEqual({ jan: { receitaRealizada: 777 } });
+    expect(result.current.pricingItems).toHaveLength(1);
     await act(() => result.current.trocarAno(2027));
     expect(result.current.anoPlano).toBe(2027);
     expect(result.current.planData.companyProfile.name).toBe('');
     expect(result.current.goals2026.inflacaoPrevista).toBe(4.5);
     expect(result.current.goals2026.financeiras.metaReceita).toEqual({});
     expect(result.current.taxes.iss).toBe(0);
+    expect(result.current.scenarios2026.Otimista.growthPercentage).toBe(20);
+    expect(result.current.tracking2026).toEqual({});
+    expect(result.current.pricingItems).toEqual([]);
     await avancar(10000);
     expect(setDocMock).not.toHaveBeenCalled();
+    act(() => result.current.updateCompanyProfile('name', 'B'));
+    await avancar(10000);
+    const gravacoes = setDocDe('users/u1/planos/2027');
+    expect(gravacoes.length).toBeGreaterThan(0);
+    const gravado = gravacoes.slice(-1)[0][1] as any;
+    expect(gravado.planData.companyProfile.name).toBe('B');
+    expect(gravado.goals2026.inflacaoPrevista).toBe(4.5);
+    expect(gravado.taxes.iss).toBe(0);
+    expect(gravado.scenarios2026.Otimista.growthPercentage).toBe(20);
+    expect(gravado.tracking2026).toEqual({});
+    expect(gravado.pricingItems).toEqual([]);
+    expect(JSON.stringify(gravado)).not.toMatch(/Produto de 2026|receitaRealizada/);
+    expect(setDocDe('users/u1')).toEqual([]);
   });
 
   it('troca rápida: só a última carga entra', async () => {
@@ -945,6 +970,26 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
     });
     expect(runTransactionMock).toHaveBeenCalledTimes(1);
     expect(result.current.anoPlano).toBe(2027);
+  });
+
+  it('trocar para 2026 enquanto 2027 é criado: a criação termina, 2027 entra na lista e o 2026 continua aberto', async () => {
+    const docs: Record<string, any> = { 'users/u1': perfil('A') };
+    bancoCom(docs);
+    const tx = transacaoSobre(docs);
+    const transacao = adiado();
+    runTransactionMock.mockImplementation(async (_db: any, fn: any) => { await transacao.promessa; return fn(tx); });
+    const { result } = await montar();
+    let criacao!: Promise<boolean>;
+    act(() => { criacao = result.current.comecarProximoAno(); });
+    await act(async () => {});
+    expect(result.current.criandoAno).toBe(true);
+    await act(() => result.current.trocarAno(2026));
+    await act(async () => { transacao.resolver(); await criacao; });
+    expect(tx.set.mock.calls[0][0]).toBe('users/u1/planos/2027');
+    expect(result.current.anoPlano).toBe(2026);
+    expect(result.current.planData.companyProfile.name).toBe('A');
+    expect(result.current.anosDisponiveis).toEqual([2026, 2027]);
+    expect(result.current.criandoAno).toBe(false);
   });
 
   it('proximoAnoDisponivel em 10/11/2026: [2026] dá 2027; depois de começar 2027, nenhum', async () => {
