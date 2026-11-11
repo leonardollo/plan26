@@ -680,6 +680,14 @@ export interface PlanContextType {
     anoBase: number;
     /** Anos com plano salvo, mais o aberto, em ordem crescente. */
     anosDisponiveis: number[];
+    /** Grava o ano aberto e abre `ano`; `false` quando a gravação falha e a troca não acontece. */
+    trocarAno: (ano: number) => Promise<boolean>;
+    /** Ano que "Começar plano {N}" criaria agora, ou null quando não há. */
+    proximoAnoDisponivel: number | null;
+    /** Cria o ano seguinte copiando o cadastro do último e o abre. */
+    comecarProximoAno: () => Promise<boolean>;
+    /** Verdadeiro enquanto o ano seguinte está sendo criado. */
+    criandoAno: boolean;
     /** Por que a última gravação falhou, em português. Vazio quando deu certo. */
     motivoDoErroAoSalvar: string;
     /** Se o plano já foi lido do banco. Fora de 'carregado', nada é gravado. */

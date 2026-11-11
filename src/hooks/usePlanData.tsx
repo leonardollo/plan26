@@ -30,7 +30,8 @@ import { nopat, paybackCacMeses } from '../utils/calculos/indicadores';
 import { resumoDoCenario } from '../utils/calculos/resumo';
 import { bonusDeProdutividade, scoreEstrategico } from '../utils/calculos/analise';
 import {
-    anoDoPrimeiroPlano, anosDoPlano, caminhoDoPlano, chaveLocalDoPlano, listarPlanos, listarPlanosLocais,
+    anoDoPrimeiroPlano, anosDoPlano, caminhoDoPlano, chaveLocalDoPlano, criarPlanoSeNaoExistir, listarPlanos,
+    listarPlanosLocais, montarPlanoDoAnoSeguinte, proximoAnoDoPlano, type DadosDoPlano,
 } from '../services/planos';
 
 // Firebase configuration - loaded from environment variables
@@ -305,6 +306,17 @@ const recalcularPlanoLido = (data: any, baseScenario: ScenarioName) => {
     return { recalculados, financialPlan2026, strategicScore, peopleAnalytics, investment2026 };
 };
 
+// "Erro" sozinho não ajuda ninguém. Quando o banco recusa por permissão, o problema é de acesso e não de
+// rede — e a pessoa precisa saber disso para não ficar tentando de novo à toa.
+const traduzirErroDeGravacao = (error: unknown): string => {
+    const bruto = error instanceof Error ? error.message : String(error);
+    return /permission|insufficient/i.test(bruto)
+        ? 'O banco recusou a gravação: seu acesso não está liberado. Fale com a Gestão de Impacto.'
+        : /offline|network|unavailable/i.test(bruto)
+            ? 'Sem conexão com o banco. O que você escreveu não se perdeu; assim que voltar, salvo de novo.'
+            : bruto;
+};
+
 const PlanContext = createContext<PlanContextType | undefined>(undefined);
 
 export const usePlan = () => {
@@ -345,6 +357,11 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     const anosSalvos = useRef<number[]>([]);
     // Número da carga mais recente: uma carga que termina depois de outra mais nova é descartada.
     const cargaAtual = useRef(0);
+    // Escrita no banco ainda sem resposta: trocar de ano espera por ela antes de gravar de novo.
+    const gravacaoEmAndamento = useRef<Promise<void> | null>(null);
+    const [criandoAno, setCriandoAno] = useState(false);
+    // Ref além do estado: duas chamadas no mesmo tique ainda não veem o estado novo.
+    const criandoAnoRef = useRef(false);
 
     const definirAnosSalvos = (anos: number[]) => {
         const lista = [...new Set(anos)].sort((a, b) => a - b);
@@ -374,7 +391,9 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             // O caminho vem do ano dos dados desta renderização, nunca do ano escolhido no seletor.
             if (!isOfflineMode && db) {
                 const docRef = doc(db, ...(caminhoDoPlano(user.uid, anoCarregado) as [string, ...string[]]));
-                await setDoc(docRef, { planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems }, { merge: true });
+                const escrita = setDoc(docRef, { planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems }, { merge: true });
+                gravacaoEmAndamento.current = escrita.catch(() => {});
+                await escrita;
             } else {
                 localStorage.setItem(chaveLocalDoPlano(user.uid, anoCarregado), JSON.stringify({ planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems }));
             }
@@ -388,21 +407,14 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             return Promise.resolve();
         } catch (error) {
             console.error("Error saving data:", error);
-            // "Erro" sozinho não ajuda ninguém. Quando o banco recusa por
-            // permissão, o problema é de acesso e não de rede — e a pessoa
-            // precisa saber disso para não ficar tentando de novo à toa.
-            const bruto = error instanceof Error ? error.message : String(error);
-            setMotivoDoErroAoSalvar(
-                /permission|insufficient/i.test(bruto)
-                    ? 'O banco recusou a gravação: seu acesso não está liberado. Fale com a Gestão de Impacto.'
-                    : /offline|network|unavailable/i.test(bruto)
-                        ? 'Sem conexão com o banco. O que você escreveu não se perdeu; assim que voltar, salvo de novo.'
-                        : bruto
-            );
+            setMotivoDoErroAoSalvar(traduzirErroDeGravacao(error));
             setSaveStatus('error');
             return Promise.reject(error);
         }
     }, [planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems, user.uid, anoCarregado]);
+    // A gravação antes de sair usa os dados da última renderização, não os da closure de quem chamou.
+    const gravarRef = useRef(saveToFirebase);
+    gravarRef.current = saveToFirebase;
 
     const carregarPlano = async (ano: number): Promise<void> => {
         if (!user.uid) return;
@@ -485,6 +497,60 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         } catch (error) {
             console.error("Error listing plans:", error);
             if (carga === cargaAtual.current) setEstadoDaCarga('falhou');
+        }
+    };
+
+    // Antes de trocar de ano, o que foi editado vai para o ano aberto; se não gravar, a troca não acontece.
+    const gravarAntesDeSair = async (): Promise<boolean> => {
+        const status = saveStatusRef.current;
+        if (status !== 'unsaved' && status !== 'saving' && status !== 'error') return true;
+        if (gravacaoEmAndamento.current) await gravacaoEmAndamento.current;
+        try {
+            await gravarRef.current(true);
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
+    const trocarAno = async (ano: number): Promise<boolean> => {
+        if (!(await gravarAntesDeSair())) return false;
+        await carregarPlano(ano);
+        return true;
+    };
+
+    const comecarProximoAno = async (): Promise<boolean> => {
+        if (!user.uid || criandoAnoRef.current) return false;
+        criandoAnoRef.current = true;
+        setCriandoAno(true);
+        try {
+            if (!(await gravarAntesDeSair())) return false;
+            const ano = proximoAnoDoPlano(anosSalvos.current, new Date());
+            if (ano === null) return false;
+            const anoOrigem = Math.max(...anosSalvos.current);
+            const iniciais: DadosDoPlano = {
+                planData: initialPlanData, goals2026: initialGoals, scenarios2026: initialScenarios,
+                tracking2026: {}, taxes: initialTaxes, pricingItems: [],
+            };
+            try {
+                if (!isOfflineMode && db) {
+                    await criarPlanoSeNaoExistir(db, user.uid, ano, anoOrigem, iniciais);
+                } else if (!listarPlanosLocais(localStorage, user.uid).includes(ano)) {
+                    const origem = localStorage.getItem(chaveLocalDoPlano(user.uid, anoOrigem));
+                    const novo = montarPlanoDoAnoSeguinte(origem ? JSON.parse(origem) : {}, iniciais);
+                    localStorage.setItem(chaveLocalDoPlano(user.uid, ano), JSON.stringify(novo));
+                }
+            } catch (error) {
+                console.error('Error creating plan:', error);
+                setMotivoDoErroAoSalvar(traduzirErroDeGravacao(error));
+                return false;
+            }
+            definirAnosSalvos([...anosSalvos.current, ano]);
+            await carregarPlano(ano);
+            return true;
+        } finally {
+            criandoAnoRef.current = false;
+            setCriandoAno(false);
         }
     };
 
@@ -1605,6 +1671,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
 
     const value: PlanContextType = {
         anoPlano, anoBase, anosDisponiveis,
+        trocarAno, comecarProximoAno, criandoAno,
+        proximoAnoDisponivel: proximoAnoDoPlano(anosSalvosState, new Date()),
         souAdmin, statusAcesso, listarAcessosDoBanco, mudarStatusDeAcesso, motivoDoErroAoSalvar,
         estadoDaCarga, tentarCarregarDeNovo,
         aplicarImportacaoDpe,
