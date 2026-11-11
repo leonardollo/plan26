@@ -227,7 +227,7 @@ export const getTaxRecommendation = async (cnpj: string, regimeTributario: strin
     const calendarioDaReforma = `CONTEXTO 2026-2027:
 - Reforma Tributaria em transicao (EC 132/2023, LC 214/2025)
 - 2026: Fase de testes com aliquota 1% (0,9% CBS + 0,1% IBS)
-- 2027: Extincao de PIS/COFINS, CBS com aliquota cheia (~8,8%)
+- 2027: Extincao de PIS/COFINS; CBS de 11,2% + 0,1% de IBS em 2027-28 (referencia de 11,3% do TCU, a confirmar pelo Senado)
 - Split Payment obrigatorio a partir de 2027
 - Ajuste fiscal do governo com ampliacao da base tributavel
 - Simples Nacional com regime hibrido opcional (setembro/2026)`;

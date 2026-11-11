@@ -14,8 +14,8 @@ type TaxTab = 'config' | 'cenario' | 'simulador' | 'engenharia' | 'sugestao';
 // ano-real:início
 const timelineData = [
     { year: '2026', title: 'Fase de Testes', color: 'bg-yellow-500', items: ['Alíquota-teste: 0,9% CBS + 0,1% IBS = 1%', 'PIS e COFINS continuam normalmente', 'Valor pago no teste é compensado com PIS/COFINS', 'Notas fiscais com novos campos CBS/IBS', 'Sem aumento real de carga tributária'] },
-    { year: '2027', title: 'Virada Federal', color: 'bg-red-500', items: ['PIS e COFINS são EXTINTOS definitivamente', 'CBS entra com alíquota cheia (~8,8%)', 'IPI reduzido a zero (exceto Zona Franca)', 'Split Payment obrigatório (imposto retido na hora)', 'Imposto Seletivo entra em vigor'] },
-    { year: '2029-32', title: 'Transição Estadual', color: 'bg-blue-500', items: ['Redução progressiva do ICMS e ISS', '2029: 90% ICMS/ISS + 10% IBS', '2030: 80% ICMS/ISS + 20% IBS', '2031: 60% ICMS/ISS + 40% IBS', '2032: 40% ICMS/ISS + 60% IBS'] },
+    { year: '2027', title: 'Virada Federal', color: 'bg-red-500', items: ['PIS e COFINS são EXTINTOS definitivamente', 'CBS de 11,2% + 0,1% de IBS em 2027-28 (referência de 11,3% do TCU, a confirmar pelo Senado)', 'IPI reduzido a zero (exceto Zona Franca)', 'Split Payment obrigatório (imposto retido na hora)', 'Imposto Seletivo entra em vigor'] },
+    { year: '2029-32', title: 'Transição Estadual', color: 'bg-blue-500', items: ['Redução progressiva do ICMS e ISS', '2029: 90% ICMS/ISS + 10% IBS', '2030: 80% ICMS/ISS + 20% IBS', '2031: 70% ICMS/ISS + 30% IBS', '2032: 60% ICMS/ISS + 40% IBS'] },
     { year: '2033', title: 'Sistema Definitivo', color: 'bg-green-500', items: ['ICMS e ISS extintos totalmente', 'IBS em 100% da alíquota plena', 'IVA Dual completo (CBS + IBS)', 'Alíquota total estimada: 26,5% a 28,6%', 'Brasil entre maiores IVAs do mundo'] },
 ];
 // ano-real:fim
@@ -383,8 +383,8 @@ const Taxes: React.FC = () => {
                     </div>
                     <div className="p-4 bg-orange-50 rounded-xl border border-orange-200 text-center">
                         <p className="text-xs font-bold text-orange-500 uppercase tracking-wider">Novo Tributo Federal</p>
-                        <p className="text-lg font-extrabold text-orange-700 mt-2">CBS ~8,8%</p>
-                        <p className="text-xs text-orange-500 mt-1">Substitui PIS/COFINS com alíquota cheia</p>
+                        <p className="text-lg font-extrabold text-orange-700 mt-2">CBS ~11,2%</p>
+                        <p className="text-xs text-orange-500 mt-1">+ 0,1% de IBS em 2027-28; referência do TCU, a confirmar pelo Senado</p>
                     </div>
                     <div className="p-4 bg-purple-50 rounded-xl border border-purple-200 text-center">
                         <p className="text-xs font-bold text-purple-500 uppercase tracking-wider">IVA Total Estimado</p>

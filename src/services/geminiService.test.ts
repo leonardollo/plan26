@@ -115,7 +115,7 @@ describe('prompts com os anos do plano aberto (plano 2027, base 2026)', () => {
     vi.unstubAllGlobals();
     const prompt = promptEnviado();
     expect(prompt).toContain('PLANO DE 2027');
-    expect(prompt).toContain('2027: Extincao de PIS/COFINS, CBS com aliquota cheia (~8,8%)');
+    expect(prompt).toContain('2027: Extincao de PIS/COFINS; CBS de 11,2% + 0,1% de IBS em 2027-28 (referencia de 11,3% do TCU, a confirmar pelo Senado)');
     expect(prompt).toContain('2026: Fase de testes com aliquota 1% (0,9% CBS + 0,1% IBS)');
   });
 });
