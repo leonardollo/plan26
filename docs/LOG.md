@@ -3,6 +3,41 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
+## 2026-11-11 — Ambiente local com emuladores do Firebase
+
+- **O quê:** um modo de desenvolvimento que liga o app aos emuladores de Auth e Firestore (projeto `demo-plan`, `127.0.0.1`).
+  - `src/services/emuladores.ts`: `usarEmuladores(dev, modo)` e `conectarAosEmuladores`. Em `usePlanData.tsx` o modo só liga com
+    `import.meta.env.DEV` e `--mode emuladores`, e aí troca a config pelo projeto `demo-plan`.
+  - O `firebase.json` ganhou o bloco `emulators` (auth 9099, firestore 8080, sem UI). O emulador aplica o `firestore.rules` real.
+  - Scripts novos: `npm run emuladores`, `npm run emuladores:semear` e `npm run dev:local`. O AGENTS.md lista os três.
+  - `scripts/semear-emuladores.mjs` cria `cliente@exemplo.com` (liberado) e `admin@exemplo.com` (admin, e-mail verificado). A senha
+    fictícia está no script.
+- **Por quê:** as telas internas das entregas 1, CAPEX, 3A e 3B nunca tinham sido vistas no navegador, porque não havia conta de
+  teste. Decisão do usuário: "Sim, montar".
+- **Verificação:** em `88504af`:
+  - `npm run build` ok, em 1.85s;
+  - `npm test`: 31 arquivos, 269/269;
+  - `npm run test:rules`: 63/63;
+  - `npm audit --audit-level=high`: passa, com 13 moderadas;
+  - `grep` no `dist/assets/*.js` por `9099`, `demo-chave-local` e `connectAuthEmulator`: nenhuma ocorrência, então o modo não
+    chega ao build de produção.
+- **Visto como usuário** (`agent-browser`, 1440 e 390 px):
+  - O cliente entra, passa pelo cadastro inicial e o plano abre em 2027 com o seletor de ano. Com Lucro Presumido, a aba Impostos
+    mostra "CBS efetiva (%)" com sugestão de 5,54%, as dicas de PIS e COFINS e "Imposto sobre a receita em 2027".
+  - A aba "Investimentos e Financiamentos" abre e aceita uma linha nova.
+  - O admin vê "Gestão de Acessos", e a fila lista as duas contas como liberadas.
+  - O seed não gravava `criadoEm`, e a fila, que ordena por esse campo, aparecia vazia. Corrigido antes do commit. Em produção todo
+    pedido nasce com `criadoEm`.
+  - "Começar plano" não aparece com só um plano de 2027, porque o limite é o ano atual + 1, como previsto na 3A.
+- **Revisão:** Codex, Normal + Sensível (toca `usePlanData.tsx`, `firebase.json` e `src/services/**`). As revisões base e de
+  segurança vieram sem achados. A de segurança diz que não rodou build nem testes (sandbox somente leitura); isso foi feito aqui.
+- **Em aberto:**
+  - **Celular:** no celular o menu lateral fixo (`w-72`) ocupa cerca de ¾ da tela e espreme o conteúdo, inclusive na aba Impostos.
+    Isso já está em `origin/main`, não vem desta entrega, e precisa de uma entrega própria de layout móvel.
+  - **Rede local:** o `vite` local escuta também na rede local (configuração já existente). No modo emuladores os dados são
+    fictícios.
+- **Commits:** `88504af`.
+
 ## 2026-11-11 — Entrega 3B: reforma tributária
 
 - **O quê:** plano `docs/superpowers/plans/2026-11-11-reforma-tributaria.md` (spec
