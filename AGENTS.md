@@ -16,8 +16,7 @@ code, identifiers and commit messages follow the project's conventions.
   - lint: _none_
   - typecheck: `npm run typecheck`
   - test, affected only: `npx vitest related --run <files>`
-  - test, full: `npm test && npm run test:rules` (rules need Java 21 and run in the Firestore
-    emulator, project `demo-plan`)
+  - test, full: `npm test && npm run test:rules` (rules: Java 21, Firestore emulator, `demo-plan`)
   - build: `npm run build` (typecheck + `vite build`)
   - audit: `npm audit --audit-level=high` (passes at high; 13 moderate remain, from the `firebase-tools` devDependency)
   - disposable local DB: `npm run test:rules` starts and discards the Firestore emulator
@@ -30,7 +29,8 @@ code, identifiers and commit messages follow the project's conventions.
 - **Human-only steps** (agents stop and ask): setting secrets · writing production data ·
   pulling production env · merging to `main` · publishing Firestore rules
   (`firebase deploy --only firestore:rules`) · approving or blocking users in production
-- **Deploy:** _TBD — hosting not identified in the repo; ask the user_
+- **Deploy:** Vercel, `https://plan2026.gestaoimpacto.com`, by Leonardo via `vercel` CLI (Git→Vercel link broken;
+  `wbicca-5368` can't see it); rules apart, `firebase deploy --only firestore:rules`. No migrations.
 - **Notes:** read by range, never whole: `src/hooks/usePlanData.tsx`,
   `src/components/CommercialPlanning.tsx`, `src/services/geminiService.ts`. The Firebase web
   config fallbacks in `usePlanData.tsx` and the DPE anon key are public client keys, not secrets;
