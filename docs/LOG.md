@@ -3,6 +3,49 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
+## 2026-11-11 — Entrega 3B: reforma tributária
+
+- **O quê:** plano `docs/superpowers/plans/2026-11-11-reforma-tributaria.md` (spec
+  `…/specs/2026-11-11-reforma-tributaria-design.md`).
+  - **Cálculo:** nos planos de 2027 em diante (Lucro Presumido e Real), a CBS substitui PIS + COFINS no imposto sobre a receita do ano do
+  plano. `aliquotaDoAnoDoPlano(taxes, anoPlano, base)` e `cbsSugerida(base)` ficam em `src/utils/calculos/impostos.ts`. A sugestão é
+  11,3% × (1 − custos variáveis ÷ receita da base), e o campo novo `cbsEfetiva` deixa o cliente digitar a sua; vazio ou 0 usa a
+  sugestão. O campo não é copiado para o ano seguinte. `projetarCenario`, a carga do plano, a projeção e a sensibilidade usam o ano do
+  plano. O ano base continua com `aliquotaDeducao`.
+  - **Aba Impostos:** campo "CBS efetiva (%)" com a sugestão no placeholder, linha "Imposto sobre a receita em {ano}", dicas de PIS e
+  COFINS e um aviso quando a alíquota efetiva está preenchida.
+  - **Textos:** a CBS passa a 11,2% + 0,1% de IBS (referência do TCU, a confirmar pelo Senado), a transição de 2031-32 foi corrigida
+  e o prompt do Gemini foi atualizado.
+- **Por quê:** um plano 2027 saía com PIS e COFINS, que deixam de existir em 2027. Decisões do usuário: "Estimar e deixar editar";
+  desenho e especificação aprovados.
+- **Decisões do implementador:**
+  - A linha "Imposto sobre a receita em {ano}" aparece também no Simples, mostrando a alíquota do Simples.
+  - O valor esperado de sensibilidade de 2026 passou de 21592,78 para 21592,775, que é a conta exata.
+  - `geminiService.test.ts` foi atualizado para o texto novo do prompt.
+  - Os testes que passaram antes do código (CBS não copiada, mudar só a CBS sem preencher o imposto do ano base, campo apagado) foram
+  vistos falhando com o código estragado de propósito.
+- **Verificação:** em `0098b60`:
+  - `npm run build` ok: o typecheck passou sem erros e o build terminou em 1.75s;
+  - `npm test`: 30 arquivos, 265/265;
+  - `npm run test:rules`: 63/63, rodado em `a5f3871`; a correção mexe só num dado de teste;
+  - `npm audit --audit-level=high` ok, com as mesmas 13 moderadas.
+- **Revisão:** Codex, Estrutural + Sensível (toca `usePlanData.tsx` e `geminiService.ts`).
+  - **Plano e segurança:** as duas revisões acharam o mesmo bloqueador, [P1]. O dado de teste `origemCheia()` em `planos.test.ts:97`
+  não tinha `cbsEfetiva`, e o typecheck falhava. Corrigido em `0098b60`.
+  - **Vulnerabilidades:** a revisão de segurança não achou nenhuma nova.
+  - **Re-revisão do commit de correção:** sem achados, com a lente do plano e com a de segurança.
+  - **Lição:** o implementador rodava só os testes afetados e não o `tsc`, então um campo obrigatório novo quebrou um dado de teste
+  que ninguém executou. Os próximos planos pedem um `tsc --noEmit` ao fim de cada tarefa que muda tipos.
+- **Em aberto:**
+  - A aba Impostos de um plano 2027 não foi vista no navegador: não há conta de teste.
+  - Quando o Senado fixar a alíquota (prazo em dezembro de 2026), atualizar `CBS_DE_REFERENCIA` e os textos.
+  - Ainda falta decidir:
+    - se a linha do ano do plano deve sumir no Simples;
+    - se "Simular impacto da alíquota cheia" (Simulador, 27,5%, fora do escopo) precisa de texto novo.
+  - A publicação depende dos acessos da entrega 1.
+- **Commit/PR:** branch `feat/reforma-tributaria`: spec `ace88d3`, plano `6e526e3`, `c45d510`, `5e028f6`, `6798e10`, `a5f3871`,
+  `0098b60`. Sem PR.
+
 ## 2026-11-10 — Entrega 3A: um plano por ano
 
 - **O quê:** plano `docs/superpowers/plans/2026-11-10-plano-por-ano.md` (spec
