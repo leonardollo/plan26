@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const mesesIguais = (valor: number) => Object.fromEntries(MESES.map(m => [m, valor]));
@@ -129,5 +129,30 @@ describe('Taxes — CBS a partir de 2027', () => {
         planoFalso.taxes = { ...planoFalso.taxes, cbsEfetiva: 8 };
         rerender(<Taxes />);
         expect(planoFalso.applyTaxesTo2025).toHaveBeenCalledTimes(chamadas);
+    });
+});
+
+describe('Taxes — cronograma marca o ano do plano', () => {
+    beforeEach(() => { for (const k of Object.keys(planoFalso)) delete planoFalso[k]; });
+    afterEach(cleanup);
+
+    const faseMarcada = (ano: number) => {
+        montarPlanoCbs(ano);
+        render(<Taxes />);
+        fireEvent.click(screen.getByText('Cenário Tributário'));
+        const selo = screen.getByText(`Ano do seu plano (${ano})`);
+        return selo.closest('[data-fase]')?.getAttribute('data-fase');
+    };
+
+    it('2027 cai na virada federal', () => expect(faseMarcada(2027)).toBe('2027'));
+    it('2028 continua na virada federal (CBS de 2027-28)', () => expect(faseMarcada(2028)).toBe('2027'));
+    it('2030 cai na transição estadual', () => expect(faseMarcada(2030)).toBe('2029-32'));
+    it('2035 cai no sistema definitivo', () => expect(faseMarcada(2035)).toBe('2033'));
+    it('títulos sem ano fixo: cabeçalho e plano de ação seguem o ano do plano', () => {
+        montarPlanoCbs(2028);
+        render(<Taxes />);
+        expect(screen.getByText(/prepare sua empresa para a reforma em 2028/)).toBeTruthy();
+        fireEvent.click(screen.getByText('Cenário Tributário'));
+        expect(screen.queryByText(/AGORA em 2026/)).toBeNull();
     });
 });

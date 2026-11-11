@@ -224,13 +224,14 @@ export const getTaxRecommendation = async (cnpj: string, regimeTributario: strin
 
     // Calendário da Reforma Tributária: são os anos da lei, que não seguem o ano do plano.
     // ano-real:início
-    const calendarioDaReforma = `CONTEXTO 2026-2027:
-- Reforma Tributaria em transicao (EC 132/2023, LC 214/2025)
+    const calendarioDaReforma = `CALENDARIO DA REFORMA TRIBUTARIA (EC 132/2023, LC 214/2025):
 - 2026: Fase de testes com aliquota 1% (0,9% CBS + 0,1% IBS)
 - 2027: Extincao de PIS/COFINS; CBS de 11,2% + 0,1% de IBS em 2027-28 (referencia de 11,3% do TCU, a confirmar pelo Senado)
-- Split Payment obrigatorio a partir de 2027
+- Split Payment obrigatorio a partir de 2027; IPI zerado (exceto Zona Franca) e Imposto Seletivo em vigor
+- 2029 a 2032: IBS sobe 10 pontos por ano (10%, 20%, 30%, 40% da aliquota plena) e ICMS/ISS caem na mesma proporcao
+- 2033: Sistema completo; ICMS e ISS extintos, IVA dual (CBS + IBS)
 - Ajuste fiscal do governo com ampliacao da base tributavel
-- Simples Nacional com regime hibrido opcional (setembro/2026)`;
+- Simples Nacional com regime hibrido opcional: a opcao e semestral (confira a janela no Portal do Simples Nacional)`;
     // ano-real:fim
 
     const prompt = `

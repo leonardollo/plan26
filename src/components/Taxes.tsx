@@ -13,12 +13,15 @@ type TaxTab = 'config' | 'cenario' | 'simulador' | 'engenharia' | 'sugestao';
 // ===== TIMELINE DATA =====
 // ano-real:início
 const timelineData = [
-    { year: '2026', title: 'Fase de Testes', color: 'bg-yellow-500', items: ['Alíquota-teste: 0,9% CBS + 0,1% IBS = 1%', 'PIS e COFINS continuam normalmente', 'Valor pago no teste é compensado com PIS/COFINS', 'Notas fiscais com novos campos CBS/IBS', 'Sem aumento real de carga tributária'] },
-    { year: '2027', title: 'Virada Federal', color: 'bg-red-500', items: ['PIS e COFINS são EXTINTOS definitivamente', 'CBS de 11,2% + 0,1% de IBS em 2027-28 (referência de 11,3% do TCU, a confirmar pelo Senado)', 'IPI reduzido a zero (exceto Zona Franca)', 'Split Payment obrigatório (imposto retido na hora)', 'Imposto Seletivo entra em vigor'] },
-    { year: '2029-32', title: 'Transição Estadual', color: 'bg-blue-500', items: ['Redução progressiva do ICMS e ISS', '2029: 90% ICMS/ISS + 10% IBS', '2030: 80% ICMS/ISS + 20% IBS', '2031: 70% ICMS/ISS + 30% IBS', '2032: 60% ICMS/ISS + 40% IBS'] },
-    { year: '2033', title: 'Sistema Definitivo', color: 'bg-green-500', items: ['ICMS e ISS extintos totalmente', 'IBS em 100% da alíquota plena', 'IVA Dual completo (CBS + IBS)', 'Alíquota total estimada: 26,5% a 28,6%', 'Brasil entre maiores IVAs do mundo'] },
+    { year: '2026', inicio: 2026, fim: 2026, title: 'Fase de Testes', color: 'bg-yellow-500', items: ['Alíquota-teste: 0,9% CBS + 0,1% IBS = 1%', 'PIS e COFINS continuam normalmente', 'Valor pago no teste é compensado com PIS/COFINS', 'Notas fiscais com novos campos CBS/IBS', 'Sem aumento real de carga tributária'] },
+    { year: '2027', inicio: 2027, fim: 2028, title: 'Virada Federal', color: 'bg-red-500', items: ['PIS e COFINS são EXTINTOS definitivamente', 'CBS de 11,2% + 0,1% de IBS em 2027-28 (referência de 11,3% do TCU, a confirmar pelo Senado)', 'IPI reduzido a zero (exceto Zona Franca)', 'Split Payment obrigatório (imposto retido na hora)', 'Imposto Seletivo entra em vigor'] },
+    { year: '2029-32', inicio: 2029, fim: 2032, title: 'Transição Estadual', color: 'bg-blue-500', items: ['Redução progressiva do ICMS e ISS', '2029: 90% ICMS/ISS + 10% IBS', '2030: 80% ICMS/ISS + 20% IBS', '2031: 70% ICMS/ISS + 30% IBS', '2032: 60% ICMS/ISS + 40% IBS'] },
+    { year: '2033', inicio: 2033, fim: Infinity, title: 'Sistema Definitivo', color: 'bg-green-500', items: ['ICMS e ISS extintos totalmente', 'IBS em 100% da alíquota plena', 'IVA Dual completo (CBS + IBS)', 'Alíquota total estimada: 26,5% a 28,6%', 'Brasil entre maiores IVAs do mundo'] },
 ];
 // ano-real:fim
+
+// A fase da transição em que cai o ano do plano; ano anterior a todas não marca nenhuma.
+const faseDoAno = (ano: number) => timelineData.find(fase => ano >= fase.inicio && ano <= fase.fim);
 
 // ano-real:início
 // Cita a alíquota de referência da lei (CBS_DE_REFERENCIA).
@@ -68,6 +71,7 @@ const Taxes: React.FC = () => {
 
     // A partir da CBS, o imposto sobre a receita do ano do plano difere do ano base: PIS e COFINS valem só para a base.
     const temCbs = anoPlano >= ANO_DA_CBS;
+    const faseDoPlano = faseDoAno(anoPlano);
     const baseDoPlano = planData.financialSheet;
     const foraDoSimples = taxes.regimeTributario !== 'Simples Nacional';
 
@@ -309,15 +313,15 @@ const Taxes: React.FC = () => {
                 </div>
             </div>
 
-            {/* O que está acontecendo AGORA em 2026 */}
+            {/* 2026: a fase de testes */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                 <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 bg-yellow-100 rounded-xl flex items-center justify-center">
                         <span className="text-xl font-bold text-yellow-700">26</span>
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold text-gray-900">O que está acontecendo AGORA em 2026</h2>
-                        <p className="text-sm text-gray-500">Fase de testes operacionais com movimentação financeira real</p>
+                        <h2 className="text-xl font-bold text-gray-900">2026: Fase de Testes</h2>
+                        <p className="text-sm text-gray-500">O ano que antecede a virada: testes operacionais com movimentação financeira real</p>
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -348,7 +352,7 @@ const Taxes: React.FC = () => {
                     </div>
                     <div className="space-y-4">
                         <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
-                            <h4 className="font-bold text-blue-800 text-sm mb-2">O que sua empresa precisa fazer em 2026</h4>
+                            <h4 className="font-bold text-blue-800 text-sm mb-2">O que sua empresa precisa ter pronto</h4>
                             <ul className="space-y-2 text-sm text-blue-700">
                                 <li className="flex items-start gap-2"><span className="text-blue-500 mt-0.5">&#9679;</span> Atualizar sistema de emissão de notas fiscais (novos campos CBS/IBS)</li>
                                 <li className="flex items-start gap-2"><span className="text-blue-500 mt-0.5">&#9679;</span> Revisar cadastro de produtos (NCMs e classificação fiscal)</li>
@@ -490,7 +494,7 @@ const Taxes: React.FC = () => {
                 <h2 className="text-xl font-bold text-gray-900 mb-6">Cronograma Completo da Transição (2026-2033)</h2>
                 <div className="space-y-6">
                     {timelineData.map((phase, idx) => (
-                        <div key={phase.year} className="flex gap-4">
+                        <div key={phase.year} data-fase={phase.year} className={`flex gap-4 ${phase === faseDoPlano ? 'bg-brand-orange/5 ring-2 ring-brand-orange/40 rounded-xl p-3 -m-3' : ''}`}>
                             <div className="flex flex-col items-center">
                                 <div className={`w-12 h-12 ${phase.color} rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-md`}>
                                     {phase.year.substring(0, 4)}
@@ -498,7 +502,12 @@ const Taxes: React.FC = () => {
                                 {idx < timelineData.length - 1 && <div className="w-0.5 h-full bg-gray-200 mt-2" />}
                             </div>
                             <div className="flex-1 pb-6">
-                                <h3 className="text-base font-bold text-gray-900">{phase.title}</h3>
+                                <h3 className="text-base font-bold text-gray-900 flex flex-wrap items-center gap-2">
+                                    {phase.title}
+                                    {phase === faseDoPlano && (
+                                        <span className="text-xs font-semibold text-brand-orange bg-brand-orange/10 px-2 py-0.5 rounded-full">{`Ano do seu plano (${anoPlano})`}</span>
+                                    )}
+                                </h3>
                                 <ul className="mt-2 space-y-1">
                                     {phase.items.map((item, i) => (
                                         <li key={i} className="text-sm text-gray-600 flex items-start gap-2">
@@ -599,9 +608,7 @@ const Taxes: React.FC = () => {
                     <h3 className="text-lg font-bold text-gray-900 mb-6">Comparativo: Modelo Atual vs Novo Sistema</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="p-5 bg-blue-50 rounded-xl border border-blue-200 text-center">
-                            {/* ano-real:início */}
-                            <p className="text-xs font-bold text-blue-500 uppercase tracking-wider">Modelo Atual (2026)</p>
-                            {/* ano-real:fim */}
+                            <p className="text-xs font-bold text-blue-500 uppercase tracking-wider">{`Modelo atual (${anoBase})`}</p>
                             <p className="text-4xl font-extrabold text-blue-700 mt-3">{formatPercentage(calculatedRate)}</p>
                             <p className="text-sm text-blue-600 mt-1">Alíquota efetiva</p>
                             <div className="mt-3 pt-3 border-t border-blue-200">
@@ -911,9 +918,7 @@ const Taxes: React.FC = () => {
                     </div>
                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
                         <p className="text-xs font-bold text-gray-700">Plano de Ação</p>
-                        {/* ano-real:início */}
-                        <p className="text-xs text-gray-500">Cronograma 2026-2027</p>
-                        {/* ano-real:fim */}
+                        <p className="text-xs text-gray-500">{`Cronograma de ${anoPlano}`}</p>
                     </div>
                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
                         <p className="text-xs font-bold text-gray-700">Alertas</p>
@@ -1012,9 +1017,7 @@ const Taxes: React.FC = () => {
             <header className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 gradient-border">
                 <h1 className="text-4xl font-bold text-gray-900">2. Configuração de Impostos</h1>
                 <p className="text-lg text-gray-600 mt-2">
-                    {/* ano-real:início */}
-                    Configure seus impostos, entenda o cenário da Reforma Tributária e prepare sua empresa para as mudanças de 2027.
-                    {/* ano-real:fim */}
+                    {`Configure seus impostos, entenda o cenário da Reforma Tributária e prepare sua empresa para a reforma em ${anoPlano}.`}
                 </p>
             </header>
 

@@ -117,5 +117,11 @@ describe('prompts com os anos do plano aberto (plano 2027, base 2026)', () => {
     expect(prompt).toContain('PLANO DE 2027');
     expect(prompt).toContain('2027: Extincao de PIS/COFINS; CBS de 11,2% + 0,1% de IBS em 2027-28 (referencia de 11,3% do TCU, a confirmar pelo Senado)');
     expect(prompt).toContain('2026: Fase de testes com aliquota 1% (0,9% CBS + 0,1% IBS)');
+    // Calendário inteiro: um plano de 2030 ou 2033 também acha a sua fase; e sem o prazo vencido do Simples.
+    expect(prompt).toContain('CALENDARIO DA REFORMA');
+    expect(prompt).toContain('2029 a 2032');
+    expect(prompt).toContain('2033: Sistema completo');
+    expect(prompt).not.toContain('setembro/2026');
+    expect(prompt).not.toContain('CONTEXTO 2026-2027');
   });
 });
