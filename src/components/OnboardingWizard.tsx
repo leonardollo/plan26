@@ -5,7 +5,7 @@ import { formatCurrency } from '../utils/formatters';
 import CurrencyInput from './shared/CurrencyInput';
 
 const OnboardingWizard: React.FC = () => {
-    const { planData, updateCompanyProfile, updateSheetValue, goals2026, updateInflation, updateScenarioGrowthPercentage, updateGoal } = usePlan();
+    const { planData, updateCompanyProfile, updateSheetValue, goals2026, updateInflation, updateScenarioGrowthPercentage, updateGoal, anoPlano, anoBase } = usePlan();
     
     // Logic to determine if wizard should show: Only if logged in AND company name is empty
     // We use local state to close it once finished in this session, even if data is still technically syncing
@@ -83,7 +83,7 @@ const OnboardingWizard: React.FC = () => {
                         <div className="space-y-6 animate-fadeIn">
                             <div className="text-center">
                                 <span className="text-4xl">🚀</span>
-                                <h2 className="text-2xl font-bold text-gray-900 mt-4">Bem-vindo ao PLAN 2026</h2>
+                                <h2 className="text-2xl font-bold text-gray-900 mt-4">Bem-vindo ao PLAN {anoPlano}</h2>
                                 <p className="text-gray-600 mt-2">Vamos configurar o sistema para o seu negócio em menos de 1 minuto.</p>
                             </div>
                             
@@ -127,12 +127,12 @@ const OnboardingWizard: React.FC = () => {
                             <div className="text-center">
                                 <span className="text-4xl">📊</span>
                                 <h2 className="text-2xl font-bold text-gray-900 mt-4">Ponto de Partida</h2>
-                                <p className="text-gray-600 mt-2">Nos dê uma estimativa de 2025 para gerar os gráficos iniciais.</p>
+                                <p className="text-gray-600 mt-2">Nos dê uma estimativa de {anoBase} para gerar os gráficos iniciais.</p>
                             </div>
                             
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700">Faturamento Anual 2025 (Aprox.)</label>
+                                    <label className="block text-sm font-medium text-gray-700">Faturamento Anual {anoBase} (Aprox.)</label>
                                     <div className="relative mt-1">
                                         <span className="absolute left-3 top-3 text-gray-500">R$</span>
                                         <CurrencyInput 
@@ -172,7 +172,7 @@ const OnboardingWizard: React.FC = () => {
                         <div className="space-y-6 animate-fadeIn">
                             <div className="text-center">
                                 <span className="text-4xl">🎯</span>
-                                <h2 className="text-2xl font-bold text-gray-900 mt-4">Ambição para 2026</h2>
+                                <h2 className="text-2xl font-bold text-gray-900 mt-4">Ambição para {anoPlano}</h2>
                                 <p className="text-gray-600 mt-2">Qual o seu objetivo principal de crescimento?</p>
                             </div>
                             

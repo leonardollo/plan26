@@ -5,7 +5,7 @@ import { formatPercentage, formatCurrency } from '../utils/formatters';
 import CurrencyInput from './shared/CurrencyInput';
 
 const MarketAnalysis: React.FC = () => {
-    const { planData, updateMarketCompetitionData, summary2025 } = usePlan();
+    const { planData, updateMarketCompetitionData, summary2025, anoBase } = usePlan();
     const { marketCompetition } = planData.marketAnalysis;
 
     // Calcular automaticamente a participação de mercado
@@ -63,7 +63,7 @@ const MarketAnalysis: React.FC = () => {
     return (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4 mt-6">
             <h2 className="text-lg font-bold text-gray-900 border-b pb-2">Mercado e Concorrência</h2>
-            <p className="text-sm text-gray-600">Preencha os dados do seu mercado. A participação de mercado é calculada automaticamente com base na sua receita de 2025.</p>
+            <p className="text-sm text-gray-600">Preencha os dados do seu mercado. A participação de mercado é calculada automaticamente com base na sua receita de {anoBase}.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {renderCurrencyField('tamanhoMercado', 'Tamanho do Mercado (R$)', 'Estimativa do faturamento total do seu setor.')}
                 {renderCurrencyField('taxaCrescimentoMercado', 'Taxa Crescimento Mercado (%)', 'Crescimento anual esperado do setor.')}

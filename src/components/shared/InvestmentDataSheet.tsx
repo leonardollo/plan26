@@ -3,6 +3,7 @@ import React from 'react';
 import type { InvestmentData2025 } from '../../types';
 import { formatCurrency, formatNumber } from '../../utils/formatters';
 import CurrencyInput from './CurrencyInput';
+import { usePlan } from '../../hooks/usePlanData';
 
 interface InvestmentDataSheetProps {
   data: InvestmentData2025;
@@ -10,6 +11,7 @@ interface InvestmentDataSheetProps {
 }
 
 const InvestmentDataSheet: React.FC<InvestmentDataSheetProps> = ({ data, onUpdate }) => {
+    const { anoPlano, anoBase } = usePlan();
 
     const renderInput = <S extends keyof InvestmentData2025>(
         label: string,
@@ -67,7 +69,7 @@ const InvestmentDataSheet: React.FC<InvestmentDataSheetProps> = ({ data, onUpdat
                 {renderInput('CAPEX - Software', 'capex', 'software', 'Licencas, desenvolvimento.')}
                 {renderInput('CAPEX - P&D', 'capex', 'pesquisaDesenvolvimento', 'Pesquisa e Desenvolvimento.')}
                 <div className="pt-2 border-t mt-4">
-                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total CAPEX 2025</p>
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total CAPEX {anoBase}</p>
                     <p className="text-2xl font-black text-brand-orange">{formatCurrency(totalCapex)}</p>
                     <p className="text-[10px] text-gray-400 mt-1 italic">*Soma automática dos itens acima</p>
                 </div>
@@ -94,8 +96,8 @@ const InvestmentDataSheet: React.FC<InvestmentDataSheetProps> = ({ data, onUpdat
                 {renderInput('Aporte de Capital', 'financing', 'aporteCapital', 'Investimento dos socios.')}
                 
                 <div className="pt-4 border-t mt-2">
-                    <h4 className="font-bold text-sm text-brand-blue mb-2">Saldo Inicial para 2026</h4>
-                    {renderInput('Saldo Final de Caixa 2025', 'financing', 'saldoCaixaFinal2025', 'Dinheiro em conta em 31/12/25.')}
+                    <h4 className="font-bold text-sm text-brand-blue mb-2">Saldo Inicial para {anoPlano}</h4>
+                    {renderInput(`Saldo Final de Caixa ${anoBase}`, 'financing', 'saldoCaixaFinal2025', `Dinheiro em conta em 31/12/${anoBase}.`)}
                 </div>
 
                 <div className="pt-2 border-t mt-2">

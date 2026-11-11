@@ -13,6 +13,7 @@ const ComparisonCard: React.FC<{
     growth: number;
     growthIsGood: boolean;
 }> = ({ title, value2025, value2026, growth, growthIsGood }) => {
+    const { anoPlano, anoBase } = usePlan();
     const growthIsPositive = growth >= 0;
     const growthColor = growthIsGood ? (growthIsPositive ? 'text-green-500' : 'text-red-500') : (growthIsPositive ? 'text-red-500' : 'text-green-500');
     const arrow = growthIsPositive ? '▲' : '▼';
@@ -22,11 +23,11 @@ const ComparisonCard: React.FC<{
             <h3 className="text-xs font-semibold text-gray-500 truncate">{title}</h3>
             <div className="mt-3 grid grid-cols-2 gap-2 items-baseline">
                 <div>
-                    <p className="text-[10px] text-gray-400">2025 Realizado</p>
+                    <p className="text-[10px] text-gray-400">{anoBase} Realizado</p>
                     <p className="text-lg font-bold text-gray-700">{value2025}</p>
                 </div>
                 <div>
-                    <p className="text-[10px] text-brand-blue font-medium">2026 Plano</p>
+                    <p className="text-[10px] text-brand-blue font-medium">{anoPlano} Plano</p>
                     <p className="text-lg font-bold text-gray-900">{value2026}</p>
                 </div>
             </div>
@@ -39,7 +40,7 @@ const ComparisonCard: React.FC<{
 
 
 const PlanSummary: React.FC = () => {
-    const { planData, summary2025, goals2026, scenarios2026, baseScenario, generateStrategicSummaryAndActions } = usePlan();
+    const { planData, summary2025, goals2026, scenarios2026, baseScenario, generateStrategicSummaryAndActions, anoPlano, anoBase } = usePlan();
     const [isLoading, setIsLoading] = useState(false);
 
     const sumMonthlyData = (data: { [key: string]: number | null }): number => 
@@ -71,13 +72,13 @@ const PlanSummary: React.FC = () => {
     };
     
     const chartData = [
-        { name: 'Receita', '2025': summary2025.receitaBrutaTotal, '2026': summary2026.receitaTotal },
-        { name: 'EBITDA', '2025': summary2025.ebitda, '2026': summary2026.ebitda },
+        { name: 'Receita', base: summary2025.receitaBrutaTotal, plano: summary2026.receitaTotal },
+        { name: 'EBITDA', base: summary2025.ebitda, plano: summary2026.ebitda },
     ];
 
     const kpiData = [
-        { name: 'Novos Clientes', '2025': summary2025.novosClientesTotal, '2026': summary2026.novosClientes },
-        { name: 'Headcount', '2025': summary2025.headcountFinal, '2026': summary2026.headcount },
+        { name: 'Novos Clientes', base: summary2025.novosClientesTotal, plano: summary2026.novosClientes },
+        { name: 'Headcount', base: summary2025.headcountFinal, plano: summary2026.headcount },
     ];
 
     const handleGenerateAnalysis = async () => {
@@ -90,9 +91,9 @@ const PlanSummary: React.FC = () => {
     return (
         <div className="space-y-8">
             <header className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 gradient-border">
-                <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Resumo do Plano: 2025 vs 2026</h1>
+                <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Resumo do Plano: {anoBase} vs {anoPlano}</h1>
                 <p className="text-gray-500 mt-2">
-                    Visão executiva comparando os resultados de 2025 com as metas e projeções para 2026 (cenário <span className="font-bold">{baseScenario}</span>).
+                    Visão executiva comparando os resultados de {anoBase} com as metas e projeções para {anoPlano} (cenário <span className="font-bold">{baseScenario}</span>).
                 </p>
             </header>
             
@@ -152,7 +153,7 @@ const PlanSummary: React.FC = () => {
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-300">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4">Financeiro: 2025 vs 2026</h2>
+                    <h2 className="text-lg font-bold text-gray-900 mb-4">Financeiro: {anoBase} vs {anoPlano}</h2>
                     <div style={{ width: '100%', height: 300 }}>
                         <ResponsiveContainer>
                             <BarChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
@@ -161,15 +162,15 @@ const PlanSummary: React.FC = () => {
                                 <YAxis tickFormatter={(value) => formatCurrency(value, true)} tick={{ fill: '#6B7280', fontSize: 12 }} />
                                 <Tooltip formatter={(value: number) => formatCurrency(value)} />
                                 <Legend />
-                                <Bar dataKey="2025" fill="#a1a1aa" name="2025 (Realizado)" />
-                                <Bar dataKey="2026" fill="#EE7533" name="2026 (Plano)" />
+                                <Bar dataKey="base" fill="#a1a1aa" name={`${anoBase} (Realizado)`} />
+                                <Bar dataKey="plano" fill="#EE7533" name={`${anoPlano} (Plano)`} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
 
                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-300">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4">Operacional: 2025 vs 2026</h2>
+                    <h2 className="text-lg font-bold text-gray-900 mb-4">Operacional: {anoBase} vs {anoPlano}</h2>
                     <div style={{ width: '100%', height: 300 }}>
                         <ResponsiveContainer>
                             <BarChart data={kpiData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
@@ -178,8 +179,8 @@ const PlanSummary: React.FC = () => {
                                 <YAxis tickFormatter={(value) => formatNumber(value, true)} tick={{ fill: '#6B7280', fontSize: 12 }} />
                                 <Tooltip formatter={(value: number) => formatNumber(value)} />
                                 <Legend />
-                                <Bar dataKey="2025" fill="#a1a1aa" name="2025 (Realizado)" />
-                                <Bar dataKey="2026" fill="#213242" name="2026 (Plano)" />
+                                <Bar dataKey="base" fill="#a1a1aa" name={`${anoBase} (Realizado)`} />
+                                <Bar dataKey="plano" fill="#213242" name={`${anoPlano} (Plano)`} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>

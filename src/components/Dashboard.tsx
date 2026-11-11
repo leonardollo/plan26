@@ -132,7 +132,7 @@ const ResultRow: React.FC<{ label: string, baseValue: string, simValue: string, 
 };
 
 const WhatIfSimulator: React.FC = () => {
-    const { summary2025 } = usePlan();
+    const { summary2025, anoPlano, anoBase } = usePlan();
 
     const [simTicket, setSimTicket] = useState(0);
     const [simNewHires, setSimNewHires] = useState(0);
@@ -169,13 +169,13 @@ const WhatIfSimulator: React.FC = () => {
                 </div>
                 <div>
                     <h2 className="text-lg font-bold text-gray-900">Simulador What-If</h2>
-                    <p className="text-xs text-gray-400">Análise o impacto de diferentes alavancas no resultado de 2026</p>
+                    <p className="text-xs text-gray-400">Análise o impacto de diferentes alavancas no resultado de {anoPlano}</p>
                 </div>
             </div>
             {!isEnabled && (
                 <div className="text-center py-10 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 mt-4">
                     <svg className="h-10 w-10 text-gray-300 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    <p className="font-semibold text-gray-600">Preencha os dados de Receita de 2025</p>
+                    <p className="font-semibold text-gray-600">Preencha os dados de Receita de {anoBase}</p>
                     <p className="text-sm text-gray-400 mt-1">Va para "Coleta de Dados" e insira a Receita Bruta</p>
                 </div>
             )}
@@ -195,7 +195,7 @@ const WhatIfSimulator: React.FC = () => {
                         <thead>
                             <tr className="text-gray-400 text-xs">
                                 <th className="text-left font-medium py-2">Metrica</th>
-                                <th className="text-right font-medium py-2">2025</th>
+                                <th className="text-right font-medium py-2">{anoBase}</th>
                                 <th className="text-right font-medium py-2">Simulado</th>
                                 <th className="text-right font-medium py-2">Variacao</th>
                             </tr>
@@ -296,7 +296,7 @@ const FinancialAlerts: React.FC = () => {
 };
 
 const Dashboard: React.FC = () => {
-    const { summary2025, planData, generateBenchmarkAnalysis } = usePlan();
+    const { summary2025, planData, generateBenchmarkAnalysis, anoPlano, anoBase } = usePlan();
     const [isLoading, setIsLoading] = useState(false);
 
     const handleGenerateAnalysis = async () => {
@@ -311,12 +311,12 @@ const Dashboard: React.FC = () => {
             <header className="flex items-end justify-between bg-white p-6 rounded-2xl shadow-sm border border-gray-100 gradient-border">
                 <div>
                     <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Dashboard Estratégico</h1>
-                    <p className="text-gray-500 mt-1">Visão consolidada da performance de 2025 e insights para 2026</p>
+                    <p className="text-gray-500 mt-1">Visão consolidada da performance de {anoBase} e insights para {anoPlano}</p>
                 </div>
                 <div className="text-right">
                     <span className="inline-flex items-center gap-2 px-4 py-2 bg-brand-dark rounded-xl">
                         <span className="text-xs text-gray-400">Ano base</span>
-                        <span className="text-lg font-bold text-brand-orange">2025</span>
+                        <span className="text-lg font-bold text-brand-orange">{anoBase}</span>
                     </span>
                 </div>
             </header>
@@ -324,7 +324,7 @@ const Dashboard: React.FC = () => {
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <KpiCard 
-                    title="Receita Liquida 2025" 
+                    title={`Receita Liquida ${anoBase}`} 
                     value={formatCurrency(summary2025.receitaTotal, true)} 
                     note="Faturamento total do ano" 
                     color="blue" 
@@ -359,7 +359,7 @@ const Dashboard: React.FC = () => {
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h2 className="text-lg font-bold text-gray-900 mb-1">Performance Mensal 2025</h2>
+                    <h2 className="text-lg font-bold text-gray-900 mb-1">Performance Mensal {anoBase}</h2>
                     <p className="text-xs text-gray-400 mb-4">Receita, custos e EBITDA ao longo do ano</p>
                     <div style={{ width: '100%', height: 280 }}>
                         <ResponsiveContainer>

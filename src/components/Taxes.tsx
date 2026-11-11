@@ -11,12 +11,14 @@ import ReactMarkdown from 'react-markdown';
 type TaxTab = 'config' | 'cenario' | 'simulador' | 'engenharia' | 'sugestao';
 
 // ===== TIMELINE DATA =====
+// ano-real:início
 const timelineData = [
     { year: '2026', title: 'Fase de Testes', color: 'bg-yellow-500', items: ['Alíquota-teste: 0,9% CBS + 0,1% IBS = 1%', 'PIS e COFINS continuam normalmente', 'Valor pago no teste é compensado com PIS/COFINS', 'Notas fiscais com novos campos CBS/IBS', 'Sem aumento real de carga tributária'] },
     { year: '2027', title: 'Virada Federal', color: 'bg-red-500', items: ['PIS e COFINS são EXTINTOS definitivamente', 'CBS entra com alíquota cheia (~8,8%)', 'IPI reduzido a zero (exceto Zona Franca)', 'Split Payment obrigatório (imposto retido na hora)', 'Imposto Seletivo entra em vigor'] },
     { year: '2029-32', title: 'Transição Estadual', color: 'bg-blue-500', items: ['Redução progressiva do ICMS e ISS', '2029: 90% ICMS/ISS + 10% IBS', '2030: 80% ICMS/ISS + 20% IBS', '2031: 60% ICMS/ISS + 40% IBS', '2032: 40% ICMS/ISS + 60% IBS'] },
     { year: '2033', title: 'Sistema Definitivo', color: 'bg-green-500', items: ['ICMS e ISS extintos totalmente', 'IBS em 100% da alíquota plena', 'IVA Dual completo (CBS + IBS)', 'Alíquota total estimada: 26,5% a 28,6%', 'Brasil entre maiores IVAs do mundo'] },
 ];
+// ano-real:fim
 
 const Taxes: React.FC = () => {
     const { taxes, updateTaxes, applyTaxesTo2025, summary2025, planData, anoPlano, anoBase } = usePlan();
@@ -150,7 +152,7 @@ const Taxes: React.FC = () => {
                         <p className="text-3xl font-extrabold text-brand-orange mt-1">{formatPercentage(calculatedRate)}</p>
                     </div>
                     <div className="bg-blue-50 p-4 rounded-lg text-center">
-                        <p className="text-xs font-semibold text-gray-500 uppercase">Receita Bruta 2025</p>
+                        <p className="text-xs font-semibold text-gray-500 uppercase">Receita Bruta {anoBase}</p>
                         <p className="text-xl font-bold text-gray-900 mt-1">{formatCurrency(receitaBruta2025, true)}</p>
                     </div>
                     <div className="bg-red-50 p-4 rounded-lg text-center">
@@ -165,7 +167,7 @@ const Taxes: React.FC = () => {
                 <div className="flex items-center p-3 bg-green-50 border border-green-200 rounded-lg">
                     <span className="text-green-600 mr-2 text-lg">&#10003;</span>
                     <p className="text-sm text-green-800">
-                        <strong>Aplicação automática:</strong> Ao alterar as alíquotas, os valores de impostos na aba "Coleta de Dados 2025" são recalculados automaticamente.
+                        <strong>Aplicação automática:</strong> Ao alterar as alíquotas, os valores de impostos na aba "Coleta de Dados {anoBase}" são recalculados automaticamente.
                     </p>
                 </div>
             </div>
@@ -218,8 +220,10 @@ const Taxes: React.FC = () => {
                             <>
                                 {renderPercentInput('iss', 'ISS (%)', 'Imposto Sobre Serviço')}
                                 {renderPercentInput('icms', 'ICMS (%)', 'Se vende produto')}
+                                {/* ano-real:início */}
                                 {renderPercentInput('pis', 'PIS (%)', 'Será extinto em 2027')}
                                 {renderPercentInput('cofins', 'COFINS (%)', 'Será extinta em 2027')}
+                                {/* ano-real:fim */}
                                 {renderPercentInput('irpj', 'IRPJ (%)', 'Imposto de Renda Pessoa Jurídica')}
                                 {renderPercentInput('csll', 'CSLL (%)', 'Contribuição Social sobre o Lucro Líquido')}
                             </>
@@ -241,8 +245,8 @@ const Taxes: React.FC = () => {
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
                         <h2 className="text-lg font-bold text-gray-900 border-b pb-2">Valores Pagos</h2>
                         <div className="space-y-4">
-                            {renderCurrencyField('totalImpostos2024', 'Total Impostos 2024 (R$)', 'Valor total pago em impostos em 2024')}
-                            {renderCurrencyField('totalImpostos2025', 'Total Impostos 2025 (R$)', 'Valor total pago em impostos em 2025')}
+                            {renderCurrencyField('totalImpostos2024', `Total Impostos ${anoPlano - 2} (R$)`, `Valor total pago em impostos em ${anoPlano - 2}`)}
+                            {renderCurrencyField('totalImpostos2025', `Total Impostos ${anoBase} (R$)`, `Valor total pago em impostos em ${anoBase}`)}
                         </div>
                     </div>
                 </div>
@@ -261,6 +265,7 @@ const Taxes: React.FC = () => {
                     </div>
                     <div>
                         <h3 className="text-lg font-bold text-red-800">Contexto: Ajuste Fiscal do Governo</h3>
+                        {/* ano-real:início */}
                         <p className="text-sm text-red-700 mt-2 leading-relaxed">
                             O Brasil está em processo de <strong>ajuste fiscal</strong>. A Reforma Tributária (EC 132/2023 + LC 214/2025) foi desenhada para ser <strong>neutra em arrecadação global</strong>, mas <strong>redistributiva entre setores</strong>. Na prática, isso significa que alguns setores pagarão mais e outros menos. A LC 224/2025 já ampliou a base tributável do Lucro Presumido (presunção de 32% para 35,2%), sinalizando que o governo busca aumentar a arrecadação efetiva.
                         </p>
@@ -359,6 +364,7 @@ const Taxes: React.FC = () => {
                     <p className="text-sm text-red-700 leading-relaxed mb-4">
                         A partir de 2027, o <strong>Split Payment</strong> será obrigatório. Quando o cliente pagar com cartão, Pix ou qualquer meio eletrônico, o sistema bancário <strong>separará automaticamente o imposto</strong> e enviará direto para o governo. Na conta da sua empresa cairá apenas o valor líquido.
                     </p>
+                    {/* ano-real:fim */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="p-3 bg-white rounded-lg border border-red-100 text-center">
                             <p className="text-xs font-bold text-gray-500 uppercase">Cliente Paga</p>
@@ -444,6 +450,7 @@ const Taxes: React.FC = () => {
 
             {/* Timeline da Transição */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                {/* ano-real:início */}
                 <h2 className="text-xl font-bold text-gray-900 mb-6">Cronograma Completo da Transição (2026-2033)</h2>
                 <div className="space-y-6">
                     {timelineData.map((phase, idx) => (
@@ -491,6 +498,7 @@ const Taxes: React.FC = () => {
                                 { tributo: 'IPI', comp: 'Federal', extinto: '2027*', sub: 'Imposto Seletivo', muda: '*Zerado exceto Zona Franca. IS para produtos nocivos.' },
                                 { tributo: 'ICMS', comp: 'Estadual', extinto: '2033', sub: 'IBS', muda: 'Transição gradual 2029-2033. Cobrança no destino.' },
                                 { tributo: 'ISS', comp: 'Municipal', extinto: '2033', sub: 'IBS', muda: 'Fim da distinção mercadoria vs serviço.' },
+                                // ano-real:fim
                             ].map(t => (
                                 <tr key={t.tributo} className="hover:bg-gray-50">
                                     <td className="p-3 font-bold text-gray-900">{t.tributo}</td>
@@ -526,7 +534,9 @@ const Taxes: React.FC = () => {
             ivaEstimadoRegime = 27.5;
             creditoEstimado = isServicos ? 5 : 15;
             cargaEfetivaEstimada = ivaEstimadoRegime - creditoEstimado;
+            // ano-real:início
             observacao = 'No Lucro Presumido, a presunção de lucro subiu de 32% para 35,2% (LC 224/2025). Com a CBS cheia em 2027, avalie migrar para Lucro Real se tiver muitos insumos para creditar.';
+            // ano-real:fim
         } else {
             ivaEstimadoRegime = 27.5;
             creditoEstimado = isServicos ? 5 : 20;
@@ -542,7 +552,7 @@ const Taxes: React.FC = () => {
             <div className="space-y-8">
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-2xl border border-blue-200">
                     <h2 className="text-xl font-bold text-blue-900 mb-2">Simulador de Impacto da Reforma Tributária</h2>
-                    <p className="text-sm text-blue-700">Estimativa baseada no seu regime tributário ({regimeAtual}) e receita bruta de 2025. Valores são aproximações para planejamento.</p>
+                    <p className="text-sm text-blue-700">Estimativa baseada no seu regime tributário ({regimeAtual}) e receita bruta de {anoBase}. Valores são aproximações para planejamento.</p>
                 </div>
 
                 {/* Comparativo Visual */}
@@ -550,7 +560,9 @@ const Taxes: React.FC = () => {
                     <h3 className="text-lg font-bold text-gray-900 mb-6">Comparativo: Modelo Atual vs Novo Sistema</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="p-5 bg-blue-50 rounded-xl border border-blue-200 text-center">
+                            {/* ano-real:início */}
                             <p className="text-xs font-bold text-blue-500 uppercase tracking-wider">Modelo Atual (2026)</p>
+                            {/* ano-real:fim */}
                             <p className="text-4xl font-extrabold text-blue-700 mt-3">{formatPercentage(calculatedRate)}</p>
                             <p className="text-sm text-blue-600 mt-1">Alíquota efetiva</p>
                             <div className="mt-3 pt-3 border-t border-blue-200">
@@ -572,7 +584,9 @@ const Taxes: React.FC = () => {
                             </div>
                         </div>
                         <div className="p-5 bg-orange-50 rounded-xl border border-orange-200 text-center">
+                            {/* ano-real:início */}
                             <p className="text-xs font-bold text-orange-500 uppercase tracking-wider">Novo Sistema (2027+)</p>
+                            {/* ano-real:fim */}
                             <p className="text-4xl font-extrabold text-orange-700 mt-3">{formatPercentage(cargaEfetivaEstimada)}</p>
                             <p className="text-sm text-orange-600 mt-1">Carga efetiva estimada</p>
                             <div className="mt-3 pt-3 border-t border-orange-200">
@@ -595,7 +609,7 @@ const Taxes: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                <tr><td className="p-3 text-gray-700">Receita Bruta Anual (base 2025)</td><td className="p-3 text-right font-bold">{formatCurrency(receitaBruta2025)}</td></tr>
+                                <tr><td className="p-3 text-gray-700">Receita Bruta Anual (base {anoBase})</td><td className="p-3 text-right font-bold">{formatCurrency(receitaBruta2025)}</td></tr>
                                 <tr><td className="p-3 text-gray-700">Alíquota IVA Bruta Estimada (CBS + IBS)</td><td className="p-3 text-right font-bold text-orange-600">{formatPercentage(ivaEstimadoRegime)}</td></tr>
                                 <tr><td className="p-3 text-gray-700">Créditos Tributários Estimados</td><td className="p-3 text-right font-bold text-green-600">-{formatPercentage(creditoEstimado)}</td></tr>
                                 <tr className="bg-orange-50"><td className="p-3 font-bold text-gray-900">Carga Efetiva Estimada</td><td className="p-3 text-right font-extrabold text-orange-700">{formatPercentage(cargaEfetivaEstimada)}</td></tr>
@@ -673,12 +687,14 @@ const Taxes: React.FC = () => {
                                 <td className="p-3 font-bold text-gray-900">Simples Nacional</td>
                                 <td className="p-3 text-gray-600">Faturamento até R$ 4,8M. Venda para consumidor final (B2C).</td>
                                 <td className="p-3 text-red-600">Clientes B2B preferirão fornecedores que geram crédito integral de IBS/CBS.</td>
+                                {/* ano-real:início */}
                                 <td className="p-3 text-indigo-600 font-medium">Avaliar regime híbrido até setembro/2026. Se vende para empresas, pode ser hora de sair do Simples.</td>
                             </tr>
                             <tr>
                                 <td className="p-3 font-bold text-gray-900">Lucro Presumido</td>
                                 <td className="p-3 text-gray-600">Margens altas e estáveis. Poucos insumos para creditar.</td>
                                 <td className="p-3 text-red-600">Presunção subiu para 35,2%. CBS cheia em 2027 pode tornar mais caro que Lucro Real.</td>
+                                {/* ano-real:fim */}
                                 <td className="p-3 text-indigo-600 font-medium">Simular comparativo com Lucro Real. Se tem muitos insumos, migre.</td>
                             </tr>
                             <tr>
@@ -744,7 +760,9 @@ const Taxes: React.FC = () => {
                         { titulo: 'Revise o Capital de Giro', desc: 'Calcule quanto do seu caixa atual depende do "float" dos impostos (prazo entre venda e pagamento da guia). Esse dinheiro não estará mais disponível.' },
                         { titulo: 'Negocie Prazos com Fornecedores', desc: 'Se o imposto sai na hora da venda, você precisa de mais prazo para pagar fornecedores ou reduzir prazos de recebimento de clientes.' },
                         { titulo: 'Crie Reserva de Emergência', desc: 'Recomendação: tenha pelo menos 1,5x o valor mensal de impostos como reserva de caixa para absorver o impacto da transição.' },
+                        // ano-real:início
                         { titulo: 'Avalie Linhas de Crédito', desc: 'Empresas que dependiam do float podem precisar de capital de giro bancário. Negocie agora, antes da demanda aumentar em 2027.' },
+                        // ano-real:fim
                     ].map((item, i) => (
                         <div key={i} className="p-4 bg-indigo-50 rounded-xl border border-indigo-200">
                             <h4 className="font-bold text-indigo-800 text-sm mb-2">{item.titulo}</h4>
@@ -795,7 +813,9 @@ const Taxes: React.FC = () => {
                         'Avaliar cisão de atividades se empresa é mista',
                         'Revisar planejamento sucessório (ITCMD progressivo)',
                         'Treinar equipe contábil e financeira nas novas regras',
+                        // ano-real:início
                         'Avaliar regime híbrido do Simples (prazo: setembro/2026)',
+                        // ano-real:fim
                         'Criar reserva de caixa equivalente a 1,5x impostos mensais',
                     ].map((item, i) => (
                         <div key={i} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-green-100">
@@ -811,7 +831,9 @@ const Taxes: React.FC = () => {
             {/* Disclaimer */}
             <div className="p-4 bg-gray-100 rounded-xl border border-gray-200">
                 <p className="text-xs text-gray-500 leading-relaxed">
+                    {/* ano-real:início */}
                     <strong>Aviso importante:</strong> As informações acima são de caráter educativo e baseadas na legislação vigente (EC 132/2023, LC 214/2025, LC 224/2025, PLP 108/24). As alíquotas definitivas do IBS ainda serão definidas por resolução do Senado. Consulte sempre um contador ou advogado tributarista para decisões específicas do seu negócio. Fontes: Receita Federal, TaxGroup, ContaAzul, Jota, FecomercioSP.
+                    {/* ano-real:fim */}
                 </p>
             </div>
         </div>
@@ -831,7 +853,7 @@ const Taxes: React.FC = () => {
                     </div>
                 </div>
                 <p className="text-sm text-gray-600 leading-relaxed mb-4">
-                    Com base nos dados do seu <strong>CNPJ</strong> (CNAE, porte, localização), no <strong>regime tributário</strong> configurado e na <strong>receita bruta</strong> de 2025, a IA vai analisar:
+                    Com base nos dados do seu <strong>CNPJ</strong> (CNAE, porte, localização), no <strong>regime tributário</strong> configurado e na <strong>receita bruta</strong> de {anoBase}, a IA vai analisar:
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
@@ -852,7 +874,9 @@ const Taxes: React.FC = () => {
                     </div>
                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
                         <p className="text-xs font-bold text-gray-700">Plano de Ação</p>
+                        {/* ano-real:início */}
                         <p className="text-xs text-gray-500">Cronograma 2026-2027</p>
+                        {/* ano-real:fim */}
                     </div>
                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
                         <p className="text-xs font-bold text-gray-700">Alertas</p>
@@ -873,7 +897,7 @@ const Taxes: React.FC = () => {
                             <p className="text-sm font-semibold text-gray-800">{taxes.regimeTributario || 'Não informado'}</p>
                         </div>
                         <div>
-                            <p className="text-xs text-gray-500">Receita Bruta 2025</p>
+                            <p className="text-xs text-gray-500">Receita Bruta {anoBase}</p>
                             <p className="text-sm font-semibold text-gray-800">{formatCurrency(receitaBruta2025)}</p>
                         </div>
                     </div>
@@ -951,7 +975,9 @@ const Taxes: React.FC = () => {
             <header className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 gradient-border">
                 <h1 className="text-4xl font-bold text-gray-900">2. Configuração de Impostos</h1>
                 <p className="text-lg text-gray-600 mt-2">
+                    {/* ano-real:início */}
                     Configure seus impostos, entenda o cenário da Reforma Tributária e prepare sua empresa para as mudanças de 2027.
+                    {/* ano-real:fim */}
                 </p>
             </header>
 

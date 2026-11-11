@@ -5,7 +5,7 @@ import CurrencyInput from './shared/CurrencyInput';
 import clsx from 'clsx';
 
 const ProductPortfolio: React.FC = () => {
-    const { planData, updateProductPortfolioItem, addProductPortfolioItem, removeProductPortfolioItem } = usePlan();
+    const { planData, updateProductPortfolioItem, addProductPortfolioItem, removeProductPortfolioItem, anoBase } = usePlan();
 
     // Calcular Curva ABC com Margem de Contribuicao
     const abcAnalysis = useMemo(() => {
@@ -68,8 +68,8 @@ const ProductPortfolio: React.FC = () => {
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="px-4 py-3 text-left font-semibold text-gray-600 w-1/4">Produto/Servico</th>
-                            <th className="px-4 py-3 text-right font-semibold text-gray-600">Receita 2025 (R$)</th>
-                            <th className="px-4 py-3 text-right font-semibold text-gray-600">Custo Direto 2025 (R$)</th>
+                            <th className="px-4 py-3 text-right font-semibold text-gray-600">Receita {anoBase} (R$)</th>
+                            <th className="px-4 py-3 text-right font-semibold text-gray-600">Custo Direto {anoBase} (R$)</th>
                             <th className="px-4 py-3 text-right font-semibold text-gray-600">Quantidade Vendida</th>
                             <th className="px-4 py-3 text-center font-semibold text-gray-600 w-16"></th>
                         </tr>

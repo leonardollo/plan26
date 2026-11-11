@@ -3,12 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { MONTHS, Month, MonthlyData } from '../../types';
 import { formatCurrency, formatPercentage } from '../../utils/formatters';
 import CurrencyInput from './CurrencyInput';
+import { usePlan } from '../../hooks/usePlanData';
 
 const DistributeButton: React.FC<{
     total: number;
     onDistribute: (newValues: MonthlyData) => void;
     referenceData?: MonthlyData;
 }> = ({ total, onDistribute, referenceData }) => {
+    const { anoBase } = usePlan();
     const [isOpen, setIsOpen] = useState(false);
 
     const handleDistribute = (method: 'linear' | 'seasonal' | 'progressive') => {
@@ -45,7 +47,7 @@ const DistributeButton: React.FC<{
                     <div className="py-1" role="menu" aria-orientation="vertical">
                         <a href="#" onClick={(e) => { e.preventDefault(); handleDistribute('linear'); }} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Linear (Igualmente)</a>
                         <a href="#" onClick={(e) => { e.preventDefault(); handleDistribute('progressive'); }} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Crescente</a>
-                        <a href="#" onClick={(e) => { e.preventDefault(); handleDistribute('seasonal'); }} className={`block px-4 py-2 text-sm ${!referenceData ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'}`} title={!referenceData ? 'Dados de referência não disponíveis' : ''}>Baseado em 2025</a>
+                        <a href="#" onClick={(e) => { e.preventDefault(); handleDistribute('seasonal'); }} className={`block px-4 py-2 text-sm ${!referenceData ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'}`} title={!referenceData ? 'Dados de referência não disponíveis' : ''}>Baseado em {anoBase}</a>
                     </div>
                 </div>
             )}

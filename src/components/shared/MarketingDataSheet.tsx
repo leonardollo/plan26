@@ -3,6 +3,7 @@ import React from 'react';
 import { MarketingData2025, Month, MONTHS, MONTH_LABELS, Summary2025, FinancialSheetData, CommercialData2025 } from '../../types';
 import { formatCurrency, formatNumber, formatPercentage } from '../../utils/formatters';
 import CurrencyInput from './CurrencyInput';
+import { usePlan } from '../../hooks/usePlanData';
 
 interface MarketingDataSheetProps {
   data: MarketingData2025;
@@ -13,6 +14,7 @@ interface MarketingDataSheetProps {
 }
 
 const MarketingDataSheet: React.FC<MarketingDataSheetProps> = ({ data, onUpdate, summary, financialSheet, commercial }) => {
+    const { anoBase } = usePlan();
     
     const sumMonthlyData = (monthlyData: { [key: string]: number | undefined }) => Object.values(monthlyData).reduce((sum, val) => sum + (val || 0), 0);
 
@@ -137,7 +139,7 @@ const MarketingDataSheet: React.FC<MarketingDataSheetProps> = ({ data, onUpdate,
                     <tr>
                         <th className="sticky left-0 bg-gray-100 z-10 p-3 text-left font-semibold" style={{width: '250px'}}>Indicador</th>
                         <th className="p-3 text-left font-semibold">Instruções</th>
-                        <th className="p-3 text-right font-semibold">Total 2025</th>
+                        <th className="p-3 text-right font-semibold">Total {anoBase}</th>
                         {MONTHS.map(m => <th key={`25-${m}`} className="p-2 text-center font-medium">{MONTH_LABELS[m]}</th>)}
                     </tr>
                 </thead>
