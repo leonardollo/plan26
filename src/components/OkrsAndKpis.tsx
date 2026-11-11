@@ -88,7 +88,7 @@ const KpiDashboard: React.FC = () => {
 
     return (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-300">
-             <div className="border-b border-gray-200">
+             <div className="border-b border-gray-200 overflow-x-auto">
                 <nav className="-mb-px flex space-x-8" aria-label="Tabs">
                     {TABS.map(tab => (
                         <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={clsx("whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm", activeTab === tab.id ? 'border-brand-orange text-brand-orange' : 'border-transparent text-gray-500 hover:text-gray-700')}>

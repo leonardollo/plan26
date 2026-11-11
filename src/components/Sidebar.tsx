@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { View } from '../types';
 import { User } from '../types';
 import { usePlan } from '../hooks/usePlanData';
@@ -63,7 +63,17 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, on
       setFalhouAoComecar(!(await comecarProximoAno()));
   };
   const [isCollapsed, setIsCollapsed] = useState(false);
-  
+  // No celular a barra lateral é uma gaveta: abre pelo botão do topo e fecha ao escolher uma tela.
+  const [aberta, setAberta] = useState(false);
+  const irPara = (view: View) => { setCurrentView(view); setAberta(false); };
+
+  useEffect(() => {
+      if (!aberta) return;
+      const fecharComEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setAberta(false); };
+      document.addEventListener('keydown', fecharComEsc);
+      return () => document.removeEventListener('keydown', fecharComEsc);
+  }, [aberta]);
+
   const handleLogout = async () => {
       setIsLoggingOut(true);
       if (saveStatus === 'unsaved' || saveStatus === 'saving') {
@@ -99,12 +109,48 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, on
   };
 
   return (
-    <div className={clsx(
-        "bg-gradient-to-b from-brand-dark to-[#111827] text-brand-gray flex flex-col h-full no-print transition-all duration-300",
+    <>
+    {/* Topo só no celular: no desktop (lg) a barra lateral fica sempre à vista. */}
+    <header className="lg:hidden no-print flex items-center gap-3 px-4 h-14 flex-shrink-0 bg-brand-dark text-white">
+        <button
+            onClick={() => setAberta(true)}
+            aria-label="Abrir menu"
+            aria-expanded={aberta}
+            aria-controls="menu-do-plano"
+            className="p-2 -ml-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-brand-orange"
+        >
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+        <img src="/logo-gi.png" alt="Gestão de Impacto" className="h-7 w-auto object-contain" />
+        <span className="ml-auto text-sm font-bold tracking-wide whitespace-nowrap">PLAN <span>{anoPlano}</span></span>
+    </header>
+    {aberta && (
+        <div
+            data-testid="fundo-da-gaveta"
+            aria-hidden="true"
+            onClick={() => setAberta(false)}
+            className="lg:hidden no-print fixed inset-0 z-40 bg-black/50"
+        />
+    )}
+    <div
+      id="menu-do-plano"
+      data-gaveta={aberta ? 'aberta' : 'fechada'}
+      className={clsx(
+        "bg-gradient-to-b from-brand-dark to-[#111827] text-brand-gray flex flex-col no-print transition-transform duration-300",
+        "fixed inset-y-0 left-0 z-50 max-w-[85vw] lg:static lg:z-auto lg:h-full lg:max-w-none lg:translate-x-0 lg:visible",
+        // Fechada fica invisível, não só fora da tela: senão o Tab ainda passa pelos botões escondidos.
+        aberta ? "translate-x-0" : "-translate-x-full invisible",
         isCollapsed ? "w-20" : "w-72"
     )}>
       {/* Header com Logo */}
-      <div className="flex flex-col items-center border-b border-white/10 flex-shrink-0 px-4 py-4">
+      <div className="relative flex flex-col items-center border-b border-white/10 flex-shrink-0 px-4 pt-12 pb-4 lg:pt-4">
+         <button
+            onClick={() => setAberta(false)}
+            aria-label="Fechar menu"
+            className="lg:hidden absolute top-2 right-2 p-2 rounded-md text-gray-400 hover:text-white hover:bg-white/10"
+         >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+         </button>
          {!isCollapsed && (
             <div className="flex flex-col items-center gap-1 w-full">
                 <img src="/logo-gi.png" alt="Gestão de Impacto" className="h-10 w-auto object-contain" />
@@ -148,43 +194,43 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, on
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5 scrollbar-thin">
-        <NavButton id="dashboard" label="Dashboard" icon={icons.dashboard} currentView={currentView} onClick={() => setCurrentView('dashboard')} />
-        <NavButton id="settings" label="Configurações" icon={icons.settings} currentView={currentView} onClick={() => setCurrentView('settings')} />
+      <nav aria-label="Menu do plano" className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5 scrollbar-thin">
+        <NavButton id="dashboard" label="Dashboard" icon={icons.dashboard} currentView={currentView} onClick={() => irPara('dashboard')} />
+        <NavButton id="settings" label="Configurações" icon={icons.settings} currentView={currentView} onClick={() => irPara('settings')} />
 
         {souAdmin && (
-          <NavButton id="gestao-acessos" label="Gestão de Acessos" icon={icons.people} currentView={currentView} onClick={() => setCurrentView('gestao-acessos')} />
+          <NavButton id="gestao-acessos" label="Gestão de Acessos" icon={icons.people} currentView={currentView} onClick={() => irPara('gestao-acessos')} />
         )}
 
         <SectionTitle title="Diagnóstico" />
-        <NavButton id="import-dpe" label="Importar do Diagnóstico" icon={icons.clipboard} currentView={currentView} onClick={() => setCurrentView('import-dpe')} />
-        <NavButton id="data-collection" label={`Coleta de Dados ${anoBase}`} icon={icons.clipboard} currentView={currentView} onClick={() => setCurrentView('data-collection')} />
-        <NavButton id="taxes" label="Impostos" icon={icons.scale} currentView={currentView} onClick={() => setCurrentView('taxes')} />
-        <NavButton id="strategic-analysis" label="Análise Estratégica" icon={icons.search} currentView={currentView} onClick={() => setCurrentView('strategic-analysis')} />
+        <NavButton id="import-dpe" label="Importar do Diagnóstico" icon={icons.clipboard} currentView={currentView} onClick={() => irPara('import-dpe')} />
+        <NavButton id="data-collection" label={`Coleta de Dados ${anoBase}`} icon={icons.clipboard} currentView={currentView} onClick={() => irPara('data-collection')} />
+        <NavButton id="taxes" label="Impostos" icon={icons.scale} currentView={currentView} onClick={() => irPara('taxes')} />
+        <NavButton id="strategic-analysis" label="Análise Estratégica" icon={icons.search} currentView={currentView} onClick={() => irPara('strategic-analysis')} />
         
         <SectionTitle title={`Planejamento ${anoPlano}`} />
-        <NavButton id="goal-setting" label="Metas e Objetivos" icon={icons.trending} currentView={currentView} onClick={() => setCurrentView('goal-setting')} />
-        <NavButton id="okrs-kpis" label="OKRs e KPIs" icon={icons.target} currentView={currentView} onClick={() => setCurrentView('okrs-kpis')} />
-        <NavButton id="commercial-planning" label="Comercial e RH" icon={icons.people} currentView={currentView} onClick={() => setCurrentView('commercial-planning')} />
-        <NavButton id="marketing-funnel" label="Funil de Marketing" icon={icons.funnel} currentView={currentView} onClick={() => setCurrentView('marketing-funnel')} />
-        <NavButton id="action-plan" label="Plano de Ação" icon={icons.checklist} currentView={currentView} onClick={() => setCurrentView('action-plan')} />
-        <NavButton id="scenario-planning" label="Orçamento e Cenários" icon={icons.grid} currentView={currentView} onClick={() => setCurrentView('scenario-planning')} />
-        <NavButton id="financial-planning" label="Planejamento Financeiro" icon={icons.chart} currentView={currentView} onClick={() => setCurrentView('financial-planning')} />
-        <NavButton id="plan-summary" label="Resumo do Plano" icon={icons.info} currentView={currentView} onClick={() => setCurrentView('plan-summary')} />
+        <NavButton id="goal-setting" label="Metas e Objetivos" icon={icons.trending} currentView={currentView} onClick={() => irPara('goal-setting')} />
+        <NavButton id="okrs-kpis" label="OKRs e KPIs" icon={icons.target} currentView={currentView} onClick={() => irPara('okrs-kpis')} />
+        <NavButton id="commercial-planning" label="Comercial e RH" icon={icons.people} currentView={currentView} onClick={() => irPara('commercial-planning')} />
+        <NavButton id="marketing-funnel" label="Funil de Marketing" icon={icons.funnel} currentView={currentView} onClick={() => irPara('marketing-funnel')} />
+        <NavButton id="action-plan" label="Plano de Ação" icon={icons.checklist} currentView={currentView} onClick={() => irPara('action-plan')} />
+        <NavButton id="scenario-planning" label="Orçamento e Cenários" icon={icons.grid} currentView={currentView} onClick={() => irPara('scenario-planning')} />
+        <NavButton id="financial-planning" label="Planejamento Financeiro" icon={icons.chart} currentView={currentView} onClick={() => irPara('financial-planning')} />
+        <NavButton id="plan-summary" label="Resumo do Plano" icon={icons.info} currentView={currentView} onClick={() => irPara('plan-summary')} />
 
         <SectionTitle title="Execução" />
-        <NavButton id="monthly-tracking" label="Acompanhamento Mensal" icon={icons.calendar} currentView={currentView} onClick={() => setCurrentView('monthly-tracking')} />
-        <NavButton id="dre-comparison" label="Comparativo DRE" icon={icons.bars} currentView={currentView} onClick={() => setCurrentView('dre-comparison')} />
+        <NavButton id="monthly-tracking" label="Acompanhamento Mensal" icon={icons.calendar} currentView={currentView} onClick={() => irPara('monthly-tracking')} />
+        <NavButton id="dre-comparison" label="Comparativo DRE" icon={icons.bars} currentView={currentView} onClick={() => irPara('dre-comparison')} />
 
         <SectionTitle title="Gestão Financeira" />
-        <NavButton id="liquidity-dashboard" label="Caixa e Liquidez" icon={icons.droplet} currentView={currentView} onClick={() => setCurrentView('liquidity-dashboard')} />
-        <NavButton id="financial-ratios" label="KPIs Financeiros" icon={icons.pie} currentView={currentView} onClick={() => setCurrentView('financial-ratios')} />
-        <NavButton id="sensitivity-analysis" label="Matriz de Sensibilidade" icon={icons.matrix} currentView={currentView} onClick={() => setCurrentView('sensitivity-analysis')} />
+        <NavButton id="liquidity-dashboard" label="Caixa e Liquidez" icon={icons.droplet} currentView={currentView} onClick={() => irPara('liquidity-dashboard')} />
+        <NavButton id="financial-ratios" label="KPIs Financeiros" icon={icons.pie} currentView={currentView} onClick={() => irPara('financial-ratios')} />
+        <NavButton id="sensitivity-analysis" label="Matriz de Sensibilidade" icon={icons.matrix} currentView={currentView} onClick={() => irPara('sensitivity-analysis')} />
 
         <SectionTitle title="Ferramentas" />
-        <NavButton id="report-generator" label="Relatórios" icon={icons.printer} currentView={currentView} onClick={() => setCurrentView('report-generator')} />
-        <NavButton id="pricing-calculator" label="Precificação Estratégica" icon={icons.calculator} currentView={currentView} onClick={() => setCurrentView('pricing-calculator')} />
-        <NavButton id="help-guide" label="Guia de Uso" icon={icons.helpGuide} currentView={currentView} onClick={() => setCurrentView('help-guide')} />
+        <NavButton id="report-generator" label="Relatórios" icon={icons.printer} currentView={currentView} onClick={() => irPara('report-generator')} />
+        <NavButton id="pricing-calculator" label="Precificação Estratégica" icon={icons.calculator} currentView={currentView} onClick={() => irPara('pricing-calculator')} />
+        <NavButton id="help-guide" label="Guia de Uso" icon={icons.helpGuide} currentView={currentView} onClick={() => irPara('help-guide')} />
       </nav>
 
       {/* Footer */}
@@ -244,6 +290,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, on
             </div>
       </div>
     </div>
+    </>
   );
 };
 

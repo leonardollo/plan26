@@ -101,3 +101,36 @@ describe('Sidebar — ano do plano', () => {
     expect(screen.queryByText('Coleta de Dados 2025')).toBeNull();
   });
 });
+
+describe('Sidebar — gaveta no celular', () => {
+  const botaoMenu = () => screen.getByRole('button', { name: 'Abrir menu' });
+  const gaveta = () => screen.getByRole('navigation', { name: 'Menu do plano' }).closest('[data-gaveta]') as HTMLElement;
+
+  it('começa fechada e o botão de menu abre', () => {
+    montar();
+    expect(botaoMenu().getAttribute('aria-expanded')).toBe('false');
+    expect(gaveta().dataset.gaveta).toBe('fechada');
+    fireEvent.click(botaoMenu());
+    expect(botaoMenu().getAttribute('aria-expanded')).toBe('true');
+    expect(gaveta().dataset.gaveta).toBe('aberta');
+  });
+
+  it('escolher uma tela troca a tela e fecha a gaveta', () => {
+    const setCurrentView = vi.fn();
+    render(<Sidebar currentView="dashboard" setCurrentView={setCurrentView} user={USUARIO} onLogout={vi.fn()} />);
+    fireEvent.click(botaoMenu());
+    fireEvent.click(screen.getByText('Impostos'));
+    expect(setCurrentView).toHaveBeenCalledWith('taxes');
+    expect(gaveta().dataset.gaveta).toBe('fechada');
+  });
+
+  it('o fundo escuro e a tecla Esc fecham a gaveta', () => {
+    montar();
+    fireEvent.click(botaoMenu());
+    fireEvent.click(screen.getByTestId('fundo-da-gaveta'));
+    expect(gaveta().dataset.gaveta).toBe('fechada');
+    fireEvent.click(botaoMenu());
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(gaveta().dataset.gaveta).toBe('fechada');
+  });
+});

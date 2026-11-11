@@ -207,7 +207,7 @@ const DataCollection: React.FC = () => {
             </header>
 
             <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100">
-                <div className="border-b border-gray-200">
+                <div className="border-b border-gray-200 overflow-x-auto">
                     <nav className="-mb-px flex space-x-4 sm:space-x-8" aria-label="Tabs">
                         {TABS.map((tab) => (
                             <button

@@ -105,7 +105,7 @@ const MainLayout: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLo
 
     case 'app':
         return (
-            <div className="flex h-screen bg-[#f1f5f9] text-gray-800 relative">
+            <div className="flex flex-col lg:flex-row h-screen bg-[#f1f5f9] text-gray-800 relative">
                 <OnboardingWizard />
                 <Sidebar 
                     currentView={currentView} 
@@ -113,7 +113,7 @@ const MainLayout: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLo
                     user={user}
                     onLogout={onLogout}
                 />
-                <main className="flex-1 p-6 lg:p-8 xl:p-10 overflow-y-auto">
+                <main className="flex-1 min-h-0 min-w-0 p-4 sm:p-6 lg:p-8 xl:p-10 overflow-y-auto">
                     <div className="max-w-7xl mx-auto animate-fadeIn">
                         {renderView()}
                     </div>

@@ -185,14 +185,14 @@ const ScenarioPlanning: React.FC = () => {
 
     return (
         <div className="space-y-8">
-            <header className="flex justify-between items-start gap-4">
+            <header className="flex flex-col sm:flex-row justify-between items-start gap-4">
                 <div>
                     <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Orçamento e Cenários {anoPlano}</h1>
                     <p className="text-gray-500 mt-1">
                         Projete o orcamento para {anoPlano} em diferentes cenarios e defina gatilhos e acoes estrategicas.
                     </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                     <button 
                         onClick={() => recalculateAllScenarios()}
                         className="flex items-center gap-2 px-5 py-2.5 font-semibold text-white bg-brand-orange rounded-xl hover:bg-orange-700 shadow-md shadow-orange-200 btn-glow shadow-sm text-sm no-print transition-colors"

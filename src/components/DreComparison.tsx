@@ -354,7 +354,7 @@ const DreComparison: React.FC = () => {
             </div>
 
             {/* Filtro de Trimestre */}
-            <div className="flex items-center gap-2 no-print">
+            <div className="flex flex-wrap items-center gap-2 no-print">
                 <span className="text-sm font-medium text-gray-600">Visualizar:</span>
                 {[
                     { key: 'all', label: 'Ano Completo' },
@@ -378,9 +378,9 @@ const DreComparison: React.FC = () => {
 
             {/* Main Comparison Table */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
+                <div className="p-4 bg-gray-50 border-b flex flex-wrap justify-between items-center gap-2">
                     <h2 className="text-lg font-bold text-brand-blue">Demonstrativo de Resultados Comparativo</h2>
-                    <div className="text-xs text-gray-500 flex items-center gap-3">
+                    <div className="text-xs text-gray-500 flex flex-wrap items-center gap-3">
                         <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 bg-gray-200 rounded-sm"></span> Orçado</span>
                         <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 bg-white border border-gray-300 rounded-sm"></span> Realizado</span>
                         <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 bg-green-100 rounded-sm"></span> Favorável</span>
