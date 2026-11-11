@@ -494,7 +494,7 @@ const Taxes: React.FC = () => {
                 <h2 className="text-xl font-bold text-gray-900 mb-6">Cronograma Completo da Transição (2026-2033)</h2>
                 <div className="space-y-6">
                     {timelineData.map((phase, idx) => (
-                        <div key={phase.year} data-fase={phase.year} className={`flex gap-4 ${phase === faseDoPlano ? 'bg-brand-orange/5 ring-2 ring-brand-orange/40 rounded-xl p-3 -m-3' : ''}`}>
+                        <div key={phase.year} data-fase={phase.year} className={`flex gap-4 ${phase === faseDoPlano ? 'bg-brand-orange/5 ring-2 ring-brand-orange/40 rounded-xl p-3 -mx-3' : ''}`}>
                             <div className="flex flex-col items-center">
                                 <div className={`w-12 h-12 ${phase.color} rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-md`}>
                                     {phase.year.substring(0, 4)}
