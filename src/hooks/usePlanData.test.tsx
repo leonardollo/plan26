@@ -1030,3 +1030,52 @@ describe('usePlanData — modo offline, uma chave por ano', () => {
     expect(getDocMock).not.toHaveBeenCalled();
   });
 });
+
+describe('usePlanData — CBS no plano 2027', () => {
+  // Base: R 1,2 mi e V 480 mil → CBS 6,78. Score de mercado vazio (−1,5): crescimento 8,5% → janeiro 108.500.
+  const doc = () => perfil('B', {
+    planData: { financialSheet: baseDeExemplo() },
+    taxes: { regimeTributario: 'Lucro Presumido', iss: 5, pis: 0.65, cofins: 3, irpj: 4.8, csll: 2.88 },
+    scenarios2026: { Conservador: { growthPercentage: 10, projection: projecaoVazia() } },
+  });
+
+  it('plano 2027 abre com a CBS no cenário e não grava', async () => {
+    bancoCom({ 'users/u1/planos/2027': doc() });
+    const { result } = await montar();
+    expect(result.current.anoPlano).toBe(2027);
+    expect(result.current.scenarios2026.Conservador.projection.impostosSobreFaturamento.jan).toBeCloseTo(12781.3);
+    await avancar(10000);
+    expect(setDocMock).not.toHaveBeenCalled();
+  });
+
+  it('o mesmo plano em 2026 continua com PIS e COFINS', async () => {
+    bancoCom({ 'users/u1': doc() });
+    const { result } = await montar();
+    expect(result.current.anoPlano).toBe(2026);
+    expect(result.current.scenarios2026.Conservador.projection.impostosSobreFaturamento.jan).toBeCloseTo(9385.25);
+    await avancar(10000);
+    expect(setDocMock).not.toHaveBeenCalled();
+  });
+
+  it('CBS digitada no 2027 recalcula o cenário', async () => {
+    bancoCom({ 'users/u1/planos/2027': doc() });
+    const { result } = await montar();
+    act(() => result.current.updateTaxes('cbsEfetiva', '8'));
+    await act(async () => {});
+    expect(result.current.scenarios2026.Conservador.projection.impostosSobreFaturamento.jan).toBeCloseTo(14105);
+  });
+
+  it('sensibilidade no 2027 reconstrói a receita bruta com a CBS', async () => {
+    bancoCom({ 'users/u1/planos/2027': doc() });
+    const { result } = await montar();
+    // 30.000 − 7,68% × 100.000 ÷ (1 − 11,78%)
+    expect(result.current.calculateSensitivityAnalysis(100000, 40000, 30000, 20)[2][2].netProfit).toBeCloseTo(21294.49);
+  });
+
+  it('sensibilidade no mesmo documento em 2026 usa PIS e COFINS', async () => {
+    bancoCom({ 'users/u1': doc() });
+    const { result } = await montar();
+    // 30.000 − 7,68% × 100.000 ÷ (1 − 8,65%)
+    expect(result.current.calculateSensitivityAnalysis(100000, 40000, 30000, 20)[2][2].netProfit).toBeCloseTo(21592.775);
+  });
+});

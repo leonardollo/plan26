@@ -25,7 +25,7 @@ import { projetarCenario } from '../utils/calculos/cenario';
 import { calcularPlanoFinanceiro2026 } from '../utils/calculos/planoFinanceiro';
 import { custoContratacoesMensal } from '../utils/calculos/contratacoes';
 import { investimento2026Vazio, normalizarInvestimento2026 } from '../utils/calculos/investimentos';
-import { aliquotaDeducao, irpjCsllAnual } from '../utils/calculos/impostos';
+import { aliquotaDeducao, aliquotaDoAnoDoPlano, irpjCsllAnual } from '../utils/calculos/impostos';
 import { nopat, paybackCacMeses } from '../utils/calculos/indicadores';
 import { resumoDoCenario } from '../utils/calculos/resumo';
 import { bonusDeProdutividade, scoreEstrategico } from '../utils/calculos/analise';
@@ -260,7 +260,8 @@ const novoItemInvestimento2026 = (lista: ListaInvestimento2026) => {
     return base;
 };
 
-const recalcularPlanoLido = (data: any, baseScenario: ScenarioName) => {
+// `anoPlano` é o do plano que está sendo lido, não o do estado anterior: a alíquota do ano do plano depende dele.
+const recalcularPlanoLido = (data: any, baseScenario: ScenarioName, anoPlano: number) => {
     const lido = data.planData || {};
     const financialSheet: FinancialSheetData = lido.financialSheet ?? initialPlanData.financialSheet;
     const modos = lido.scenariosInputMode ?? initialPlanData.scenariosInputMode;
@@ -298,7 +299,7 @@ const recalcularPlanoLido = (data: any, baseScenario: ScenarioName) => {
             if (modos?.[nome] === 'manual') return;
             const cenario = cenarios[nome];
             const crescimento = (cenario?.growthPercentage || 0) + score + bonus;
-            recalculados[nome] = { ...cenario, projection: projetarCenario(financialSheet, crescimento, inflacao, taxes, custoContratacoes) };
+            recalculados[nome] = { ...cenario, projection: projetarCenario(financialSheet, crescimento, inflacao, taxes, anoPlano, custoContratacoes) };
         });
     }
     const projecaoBase = (recalculados[baseScenario] ?? cenarios[baseScenario])?.projection;
@@ -438,7 +439,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             const lido = data ?? {};
             const p = lido.planData ?? {};
             // Recalcula na própria carga, também sem plano salvo: o commit da carga não é gravado, então abrir não salva.
-            const recalculado = recalcularPlanoLido(lido, baseScenario);
+            const recalculado = recalcularPlanoLido(lido, baseScenario, ano);
             const { strategicScore, peopleAnalytics } = recalculado;
             const loadedFactors = p.marketAnalysis?.blueOcean?.factors;
             const validFactors = (loadedFactors && loadedFactors.length > 0) ? loadedFactors : defaultBlueOceanFactors;
@@ -943,7 +944,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         const steps = [-range, -range/2, 0, range/2, range];
         const matrix: SensitivityMatrix = [];
         // A matriz recebe receita líquida; o Presumido cobra IRPJ/CSLL sobre a bruta, então ela é reconstruída.
-        const fracaoLiquida = 1 - aliquotaDeducao(taxes) / 100;
+        const fracaoLiquida = 1 - aliquotaDoAnoDoPlano(taxes, anoPlano, planData.financialSheet) / 100;
         steps.forEach(volumeChangePct => {
             const row: any[] = [];
             steps.forEach(priceChangePct => {
@@ -1343,7 +1344,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     const calculateScenarioProjection = (baseSheet: FinancialSheetData, growthPct: number, strategicScore: number): ScenarioProjectionData => {
         // Fórmula completa: Crescimento Base + Fator Estratégico + Bônus de Produtividade
         const productivityBonus = planData.analysis.peopleAnalytics.productivityGainFactor || 0;
-        return projetarCenario(baseSheet, growthPct + strategicScore + productivityBonus, goals2026.inflacaoPrevista ?? 0, taxes, custoContratacoesMensal(planData.hiringProjection));
+        return projetarCenario(baseSheet, growthPct + strategicScore + productivityBonus, goals2026.inflacaoPrevista ?? 0, taxes, anoPlano, custoContratacoesMensal(planData.hiringProjection));
     };
 
     const recalculateScenario = (scenario: ScenarioName) => {

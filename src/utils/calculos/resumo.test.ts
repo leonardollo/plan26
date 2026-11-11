@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { MONTHS, FinancialSheetData, MonthlyData, PlanData, TaxesData } from '../../types';
 import { projetarCenario } from './cenario';
+
+// Ano do plano dos testes antigos: 2026, ainda com PIS e COFINS.
+const ANO = 2026;
 import { calcularPlanoFinanceiro2026 } from './planoFinanceiro';
 import { resumoDoCenario } from './resumo';
 
@@ -33,7 +36,7 @@ const investimento = {
 
 describe('resumoDoCenario', () => {
     it('Otimista: receita 120 mil, custos 55.200 (com impostos), despesas 41.800 e EBITDA 23 mil, igual à DRE', () => {
-        const projecao = projetarCenario(baseDeExemplo(), 20, 4.5, simples);
+        const projecao = projetarCenario(baseDeExemplo(), 20, 4.5, simples, ANO);
         const resumo = resumoDoCenario(projecao);
         expect(resumo.receita.jan).toBeCloseTo(120000);
         expect(resumo.custos.jan).toBeCloseTo(55200);

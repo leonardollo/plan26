@@ -1,7 +1,7 @@
 import {
     MONTHS, CustomLineItem, CustomProjectionLineItem, FinancialSheetData, MonthlyData, ScenarioProjectionData, TaxesData,
 } from '../../types';
-import { aliquotaDeducao, num } from './impostos';
+import { aliquotaDoAnoDoPlano, num } from './impostos';
 
 const multiplicar = (dados: MonthlyData | undefined, fator: number): MonthlyData =>
     MONTHS.reduce((acc, m) => ({ ...acc, [m]: num(dados?.[m]) * fator }), {} as MonthlyData);
@@ -10,7 +10,7 @@ const multiplicarItens = (itens: CustomLineItem[] | undefined, fator: number): C
     (itens || []).map(item => ({ id: item.id, name: item.name, values: multiplicar(item.values2025, fator) }));
 
 /**
- * Projeção de 2026 a partir da base de 2025.
+ * Projeção do ano do plano a partir da base.
  * `crescimentoPct` já chega somado (crescimento do cenário + score estratégico + bônus de produtividade).
  */
 export const projetarCenario = (
@@ -18,6 +18,7 @@ export const projetarCenario = (
     crescimentoPct: number,
     inflacaoPct: number,
     taxes: Partial<TaxesData>,
+    anoPlano: number,
     custoContratacoes?: MonthlyData,
 ): ScenarioProjectionData => {
     // Receita e custos variáveis acompanham o volume de vendas; custos fixos e despesas, só a inflação.
@@ -25,8 +26,9 @@ export const projetarCenario = (
     const fatorInflacao = 1 + num(inflacaoPct) / 100;
 
     const receitaBruta = multiplicar(base.receitaBruta?.values2025, fatorCrescimento);
-    // Impostos sobre faturamento saem da receita projetada, não do imposto de 2025 crescido.
-    const aliquota = aliquotaDeducao(taxes) / 100;
+    // Impostos sobre faturamento saem da receita projetada, não do imposto da base crescido.
+    // A alíquota é a do ano do plano: a partir da CBS, ela substitui PIS e COFINS.
+    const aliquota = aliquotaDoAnoDoPlano(taxes, anoPlano, base) / 100;
     const impostosSobreFaturamento = MONTHS.reduce(
         (acc, m) => ({ ...acc, [m]: num(receitaBruta[m]) * aliquota }), {} as MonthlyData,
     );

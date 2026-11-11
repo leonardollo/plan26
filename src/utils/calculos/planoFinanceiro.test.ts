@@ -3,6 +3,9 @@ import {
     MONTHS, FinancialSheetData, InvestmentData2026, MonthlyData, PlanData, ScenarioProjectionData, TaxesData,
 } from '../../types';
 import { projetarCenario } from './cenario';
+
+// Ano do plano dos testes antigos: 2026, ainda com PIS e COFINS.
+const ANO = 2026;
 import { calcularPlanoFinanceiro2026, despesasFixasDaDre } from './planoFinanceiro';
 
 const mesesIguais = (valor: number): MonthlyData =>
@@ -34,7 +37,7 @@ const investimento = {
 } as unknown as PlanData['investment'];
 
 // Otimista da Tarefa 2: receita 120 mil, impostos 7.200, CMV 48 mil, aluguel 10.450, folha 31.350.
-const otimista = () => projetarCenario(baseDeExemplo(), 20, 4.5, simples);
+const otimista = () => projetarCenario(baseDeExemplo(), 20, 4.5, simples, ANO);
 
 describe('calcularPlanoFinanceiro2026', () => {
     it('Simples: EBITDA 23 mil, IRPJ/CSLL 0 e lucro líquido igual ao EBITDA', () => {
