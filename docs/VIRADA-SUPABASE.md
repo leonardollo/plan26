@@ -164,10 +164,11 @@ Texto sugerido:
 Se o passo 4 listar "Planos não sobrescritos", alguém editou esse plano no app novo antes da importação; o plano do
 app novo vale. Antes do passo 5, rodar o passo 4 de novo é seguro: reaproveita os usuários e não duplica nada.
 
-**Depois do passo 5, não rode a importação de novo.** A partir do deploy, a URL de produção da Vercel já aceita login
-(o Google volta para `window.location.origin`), então o admin pode mudar acessos mesmo antes de o domínio mudar. Ela devolve a cada usuário o status de acesso do Firebase
-(e `liberado_em`/`liberado_por`), desfazendo o que um admin liberou ou bloqueou no app novo. Os planos editados no
-app novo ficam protegidos; os acessos, não.
+Depois do passo 5, a URL de produção da Vercel já aceita login (o Google volta para `window.location.origin`), então
+clientes editam planos e o admin muda acessos mesmo antes de o domínio mudar. Rodar o passo 4 de novo continua seguro:
+o script não sobrescreve plano editado no app novo nem acesso cujo status um admin mudou no app novo
+(`acessos.alterado_no_app_em` preenchida), e lista os dois em "Planos não sobrescritos" e "Acessos não sobrescritos".
+Quem ninguém decidiu no app novo, inclusive quem se cadastrou nele antes da importação, recebe o status do Firebase.
 
 ## 4. Volta atrás
 

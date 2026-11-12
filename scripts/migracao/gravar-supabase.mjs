@@ -1,6 +1,7 @@
 // Grava no Supabase o que transformar() devolveu. Recebe um cliente com a chave service_role
 // (passa por cima do RLS), por isso só roda nos scripts, nunca no app.
-// Pode rodar de novo: reaproveita usuários pelo e-mail e não sobrescreve plano editado no app novo.
+// Pode rodar de novo: reaproveita usuários pelo e-mail e não sobrescreve plano editado nem acesso
+// decidido por um admin no app novo.
 
 const POR_PAGINA = 1000;
 
@@ -47,16 +48,26 @@ export async function gravarSupabase(cliente, m) {
     return id;
   };
 
+  const acessosRecusados = [];
   for (const a of m.acessos) {
-    exigir(
+    const userId = idDe(a.email);
+    // O filtro na própria gravação fecha a janela entre ler e gravar: o que um admin decidiu no app novo vale.
+    const atualizados = exigir(
       await cliente
         .from('acessos')
         .update({ status: a.status, liberado_em: a.liberadoEm, liberado_por: a.liberadoPor })
-        .eq('user_id', idDe(a.email))
-        .select('user_id')
-        .single(),
+        .eq('user_id', userId)
+        .is('alterado_no_app_em', null)
+        .select('user_id'),
       `acesso de ${a.email}`,
     );
+    if (atualizados.length === 1) continue;
+    const existente = exigir(
+      await cliente.from('acessos').select('alterado_no_app_em').eq('user_id', userId).maybeSingle(),
+      `ler acesso de ${a.email}`,
+    );
+    if (!existente) throw new Error(`acesso de ${a.email} não existe no Supabase.`);
+    acessosRecusados.push(a.email);
   }
 
   let planosGravados = 0;
@@ -108,5 +119,5 @@ export async function gravarSupabase(cliente, m) {
     );
   }
 
-  return { criados, reaproveitados, planosGravados, planosRecusados };
+  return { criados, reaproveitados, planosGravados, planosRecusados, acessosRecusados };
 }

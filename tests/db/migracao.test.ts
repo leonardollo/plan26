@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
-import { clienteAnonimo, clienteServico, emailUnico, variaveis } from './ambiente';
+import { clienteAnonimo, clienteServico, criarPessoa, emailUnico, variaveis } from './ambiente';
+import { definirStatus } from '../../src/services/acesso';
 import { gravarSupabase } from '../../scripts/migracao/gravar-supabase.mjs';
 import { conferir } from '../../scripts/migracao/conferir.mjs';
 
@@ -61,7 +62,7 @@ describe('importação do Firebase para o Supabase', () => {
   it('cria usuários confirmados, acessos, planos e admins; conferir não acha diferença', async () => {
     const { m, emails } = migracaoDeExemplo();
     const r = await gravarSupabase(clienteServico(), m);
-    expect(r).toEqual({ criados: 3, reaproveitados: 0, planosGravados: 3, planosRecusados: [] });
+    expect(r).toEqual({ criados: 3, reaproveitados: 0, planosGravados: 3, planosRecusados: [], acessosRecusados: [] });
 
     const servico = clienteServico();
     const { data: usuario } = await servico.auth.admin.getUserById(await idDoEmail(emails.cliente));
@@ -105,7 +106,7 @@ describe('importação do Firebase para o Supabase', () => {
     const { m, emails } = migracaoDeExemplo();
     await gravarSupabase(clienteServico(), m);
     const r = await gravarSupabase(clienteServico(), m);
-    expect(r).toEqual({ criados: 0, reaproveitados: 3, planosGravados: 3, planosRecusados: [] });
+    expect(r).toEqual({ criados: 0, reaproveitados: 3, planosGravados: 3, planosRecusados: [], acessosRecusados: [] });
 
     const id = await idDoEmail(emails.cliente);
     const { data: planos } = await clienteServico().from('planos').select('ano').eq('user_id', id);
@@ -134,6 +135,49 @@ describe('importação do Firebase para o Supabase', () => {
     expect(r.planosGravados).toBe(2);
     const { data } = await servico.from('planos').select('dados').eq('user_id', id).eq('ano', 2026).single();
     expect(data?.dados).toEqual(editado);
+  });
+
+  it('acesso mudado pelo admin no app novo não é sobrescrito na reimportação', async () => {
+    const { m, emails } = migracaoDeExemplo();
+    await gravarSupabase(clienteServico(), m);
+
+    // Depois do deploy, um admin libera no app novo quem estava bloqueado no Firebase.
+    const admin = await criarPessoa({ email: emailUnico('admin-app'), admin: true });
+    const id = await idDoEmail(emails.bloqueado);
+    await definirStatus(admin.cliente, id, 'liberado');
+
+    const r = await gravarSupabase(clienteServico(), m);
+    expect(r.acessosRecusados).toEqual([emails.bloqueado]);
+    const { data } = await clienteServico().from('acessos').select('status').eq('user_id', id).single();
+    expect(data?.status).toBe('liberado');
+    // O cliente liberado no Firebase, que ninguém mexeu, continua recebendo o status de lá.
+    const idCliente = await idDoEmail(emails.cliente);
+    const { data: c } = await clienteServico().from('acessos').select('status').eq('user_id', idCliente).single();
+    expect(c?.status).toBe('liberado');
+  });
+
+  it('conta criada no app novo antes da importação: sem decisão do admin recebe o status do Firebase', async () => {
+    const { m, emails } = migracaoDeExemplo();
+    // O cliente entrou com Google pela URL nova antes da importação: o gatilho o deixou pendente.
+    const pessoa = await criarPessoa({ email: emails.cliente });
+
+    const r = await gravarSupabase(clienteServico(), m);
+    expect(r.reaproveitados).toBe(1);
+    expect(r.acessosRecusados).toEqual([]);
+    const { data } = await clienteServico().from('acessos').select('status, liberado_por').eq('user_id', pessoa.id).single();
+    expect(data).toEqual({ status: 'liberado', liberado_por: 'chefe@exemplo.com' });
+  });
+
+  it('conta criada no app novo e já decidida pelo admin antes da importação mantém a decisão', async () => {
+    const { m, emails } = migracaoDeExemplo();
+    const pessoa = await criarPessoa({ email: emails.cliente });
+    const admin = await criarPessoa({ email: emailUnico('admin-app'), admin: true });
+    await definirStatus(admin.cliente, pessoa.id, 'bloqueado');
+
+    const r = await gravarSupabase(clienteServico(), m);
+    expect(r.acessosRecusados).toEqual([emails.cliente]);
+    const { data } = await clienteServico().from('acessos').select('status').eq('user_id', pessoa.id).single();
+    expect(data?.status).toBe('bloqueado');
   });
 
   it('usuário migrado pede "esqueci minha senha", define a senha e lê o próprio plano', async () => {

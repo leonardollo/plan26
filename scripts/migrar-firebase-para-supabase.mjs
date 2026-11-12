@@ -57,13 +57,15 @@ async function principal() {
   const r = await gravarSupabase(cliente, m);
   console.log(`  usuários criados ${r.criados}, reaproveitados ${r.reaproveitados}; planos gravados ${r.planosGravados}`);
   listar('Planos não sobrescritos (editados no app novo)', r.planosRecusados);
+  listar('Acessos não sobrescritos (decididos por um admin no app novo)', r.acessosRecusados);
 
   const c = await conferir(cliente, m);
   console.log('\nConferência:');
   for (const [nome, { esperado, achado }] of Object.entries(c.contagens)) console.log(`  ${nome}: esperado ${esperado}, achado ${achado}`);
-  // O plano recusado difere do Firebase de propósito (vale a edição do cliente); o resto é erro.
+  // Plano e acesso recusados diferem do Firebase de propósito (vale o app novo); o resto é erro.
   const esperadas = new Set(r.planosRecusados.map((rotulo) => `plano ${rotulo}: dados diferentes do Firebase`));
-  const inesperadas = c.diferencas.filter((d) => !esperadas.has(d));
+  const acessoMantido = (d) => r.acessosRecusados.some((email) => d.startsWith(`acesso de ${email}: `));
+  const inesperadas = c.diferencas.filter((d) => !esperadas.has(d) && !acessoMantido(d));
   listar('Diferenças', inesperadas);
   return inesperadas.length > 0 ? 1 : 0;
 }

@@ -27,7 +27,9 @@ create table public.acessos (
   email_verificado boolean not null default false,
   criado_em timestamptz not null default now(),
   liberado_em timestamptz,
-  liberado_por text
+  liberado_por text,
+  -- Quando um admin mudou o status no app novo. Preenchida: a importação do Firebase não mexe mais neste acesso.
+  alterado_no_app_em timestamptz
 );
 
 create index acessos_criado_em_idx on public.acessos (criado_em desc);
@@ -100,7 +102,8 @@ begin
   update public.acessos
      set status = novo_status,
          liberado_em = now(),
-         liberado_por = lower(auth.jwt() ->> 'email')
+         liberado_por = lower(auth.jwt() ->> 'email'),
+         alterado_no_app_em = now()
    where user_id = alvo;
   if not found then
     raise exception 'acesso não encontrado' using errcode = 'P0002';
