@@ -43,14 +43,21 @@ automaticamente: sessões novas leem as últimas entradas e o plano em andamento
   - **Re-revisão** (`de85007`, as duas lentes): o mesmo P1 com o limite no passo 6, corrigido em `34f7669` sem nova
     rodada.
 - **Em aberto:**
-  - a importação repetida devolve o status de acesso do Firebase; hoje só o roteiro impede rodar depois do deploy.
-    Recomendado antes da virada: uma trava no script que não sobrescreva acesso mudado no app novo;
+  - ~~a importação repetida devolve o status de acesso do Firebase~~: resolvido em `4fc19c7` (abaixo);
   - Google ligando à conta migrada só se testa na prévia (passo 1.6 do roteiro);
   - `.claude/settings.json` e `.codex/rules/project.rules` ainda liberam `test:rules`; trocar por `test:db` (humano);
   - a virada inteira (PLAN26, painel, Vercel, DNS, importação, e-mails, congelar regras) espera o "sim" do usuário;
   - na verificação no navegador, o subagente fechou com `agent-browser close --all` uma sessão de outro projeto.
 - **Commits:** `bf9d895`, `d867e51`, `af45f89`, `a217ccd`, `903ecf1`, `96d9b4f`, `21c4135`, `c5556a6`, `889c937`,
   `3b7865d`, `de85007`, `48e8538`, `34f7669`.
+- **Trava na reimportação** (pedido do usuário antes do merge, `4fc19c7`): `acessos.alterado_no_app_em`, preenchida por
+  `definir_status_de_acesso`; a importação só grava acesso com ela vazia (filtro na própria gravação) e lista os
+  recusados em "Acessos não sobrescritos". Quem se cadastrou no app novo e ninguém decidiu recebe o status do Firebase.
+  O roteiro deixa de proibir reimportar depois do passo 5. Migração editada no lugar, porque ainda não foi aplicada ao PLAN26.
+  - Testes: 3 novos em `tests/db/migracao.test.ts`, vistos falhando antes da correção. `npm run test:db` 31/31,
+    `npm test` 338/338, typecheck sem erros.
+  - Revisão (Codex, base e segurança, só o commit): nenhum defeito na trava. P2 e-mails no terminal da reimportação,
+    **rejeitado** de novo pelo mesmo motivo da primeira rodada.
 
 ## 2026-11-11 — Layout no celular
 
