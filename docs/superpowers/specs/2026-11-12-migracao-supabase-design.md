@@ -202,8 +202,9 @@ Supabase). O relatório fica só no terminal; não vai para o log nem para o vau
    6. Teste final com o admin, um cliente com senha e um com Google.
 
 **Volta atrás**
-- até o passo 3.3, antes de ligar os endereços: republicar a cópia das regras; nada se perde (a partir do 3.4 quem
-  entra com Google já grava no banco novo; corrigido na revisão de 2026-11-12);
+- até o passo 3.3, antes do deploy de produção e de ligar os endereços: republicar a cópia das regras; nada se perde
+  (depois do deploy, quem entra com Google pela URL da Vercel já grava no banco novo; corrigido na revisão de
+  2026-11-12);
 - depois que os clientes editam no app novo, voltar perde essas edições; a janela de volta é de algumas horas.
 
 **Depois:**
