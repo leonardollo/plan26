@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 
 const { authFalso, banco } = vi.hoisted(() => ({
-  authFalso: { signOut: vi.fn(), refreshSession: vi.fn(), onAuthStateChange: vi.fn() },
+  authFalso: { signOut: vi.fn(), refreshSession: vi.fn(), onAuthStateChange: vi.fn(), resend: vi.fn() },
   // Fora do vi.mock: o modo local reimporta o módulo e os testes continuam olhando os mesmos falsos.
   banco: { listarPlanos: vi.fn(), carregarPlano: vi.fn(), salvarPlano: vi.fn(), criarPlanoSeNaoExistir: vi.fn() },
 }));
@@ -287,6 +287,16 @@ describe('usePlanData — e-mail do admin', () => {
   it('recarregarUsuario lança o erro do Supabase', async () => {
     authFalso.refreshSession.mockResolvedValue({ data: { session: null, user: null }, error: new Error('sessão expirada') });
     await expect(authService.recarregarUsuario()).rejects.toThrow('sessão expirada');
+  });
+
+  it('o reenvio da confirmação volta para este mesmo endereço (prévia ou local), não para a Site URL', async () => {
+    authFalso.resend.mockResolvedValue({ data: {}, error: null });
+    await authService.enviarVerificacaoDeEmail('ana@empresa.com');
+    expect(authFalso.resend).toHaveBeenCalledWith({
+      type: 'signup',
+      email: 'ana@empresa.com',
+      options: { emailRedirectTo: window.location.origin },
+    });
   });
 
   // A linha de acesso nasce no banco, por gatilho; o cliente só lê. Sem linha, fica na fila.

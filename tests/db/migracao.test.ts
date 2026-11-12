@@ -86,6 +86,19 @@ describe('importação do Firebase para o Supabase', () => {
     const c = await conferir(servico, m);
     expect(c.diferencas).toEqual([]);
     expect(c.contagens.planos).toEqual({ esperado: 3, achado: 3 });
+    // Um acesso por usuário migrado (o gatilho cria), inclusive o do Google, que não tinha acesso no Firebase.
+    expect(c.contagens.acessos).toEqual({ esperado: 3, achado: 3 });
+  });
+
+  it('conferir aponta usuário migrado sem linha de acesso, mesmo sem acesso no Firebase', async () => {
+    const { m, emails } = migracaoDeExemplo();
+    await gravarSupabase(clienteServico(), m);
+    const { error } = await clienteServico().from('acessos').delete().eq('user_id', await idDoEmail(emails.google));
+    expect(error).toBeNull();
+
+    const c = await conferir(clienteServico(), m);
+    expect(c.contagens.acessos).toEqual({ esperado: 3, achado: 2 });
+    expect(c.diferencas).toEqual([`acesso de ${emails.google} não existe`]);
   });
 
   it('aplicar duas vezes reaproveita todos e não duplica nada', async () => {

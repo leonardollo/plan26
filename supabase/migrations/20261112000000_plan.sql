@@ -36,7 +36,10 @@ create index acessos_criado_em_idx on public.acessos (criado_em desc);
 create table public.planos (
   user_id uuid not null references auth.users (id) on delete cascade,
   ano int not null,
-  dados jsonb not null,
+  -- Objeto de até 1 MiB: o mesmo limite por documento do Firestore, então nenhum plano legítimo passa dele;
+  -- sem o limite, um cliente liberado podia encher o banco com um único plano.
+  dados jsonb not null
+    check (jsonb_typeof(dados) = 'object' and octet_length(dados::text) <= 1048576),
   atualizado_em timestamptz not null default now(),
   -- Só a importação do Firebase preenche. O script não sobrescreve uma linha com
   -- atualizado_em > importado_em: alguém já a editou no app novo.

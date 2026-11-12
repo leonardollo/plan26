@@ -38,14 +38,17 @@ export async function conferir(cliente, m) {
   const acessos = new Map(
     (await lerEmLotes(cliente, 'acessos', 'user_id, status, liberado_em, liberado_por', 'user_id', idsEsperados)).map((a) => [a.user_id, a]),
   );
+  // O gatilho cria um acesso para cada usuário, então se espera um por usuário migrado,
+  // e não só os que tinham documento de acesso no Firebase.
   let acessosAchados = 0;
+  for (const u of m.usuarios) {
+    if (!ids.has(u.email)) continue; // já apontado como usuário ausente
+    if (acessos.has(ids.get(u.email))) acessosAchados++;
+    else diferencas.push(`acesso de ${u.email} não existe`);
+  }
   for (const a of m.acessos) {
     const achado = acessos.get(ids.get(a.email));
-    if (!achado) {
-      diferencas.push(`acesso de ${a.email} não existe`);
-      continue;
-    }
-    acessosAchados++;
+    if (!achado) continue; // a falta já entrou nas diferenças acima
     if (achado.status !== a.status) diferencas.push(`acesso de ${a.email}: status ${achado.status}, esperado ${a.status}`);
     if (instante(achado.liberado_em) !== instante(a.liberadoEm)) diferencas.push(`acesso de ${a.email}: liberado_em diferente`);
     if ((achado.liberado_por ?? null) !== a.liberadoPor) diferencas.push(`acesso de ${a.email}: liberado_por diferente`);
@@ -72,7 +75,7 @@ export async function conferir(cliente, m) {
   return {
     contagens: {
       usuarios: { esperado: m.usuarios.length, achado: usuariosAchados },
-      acessos: { esperado: m.acessos.length, achado: acessosAchados },
+      acessos: { esperado: m.usuarios.length, achado: acessosAchados },
       planos: { esperado: m.planos.length, achado: planosAchados },
       admins: { esperado: emailsAdmins.length, achado: admins.size },
     },

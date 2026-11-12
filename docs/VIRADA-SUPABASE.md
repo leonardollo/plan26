@@ -162,15 +162,22 @@ Texto sugerido:
 | 9 | Teste final | [humano] | entrar com o admin, com um cliente de senha (pelo e-mail recebido) e com um cliente Google | cada um vê os próprios planos de cada ano e o status de acesso que tinha |
 
 Se o passo 4 listar "Planos não sobrescritos", alguém editou esse plano no app novo antes da importação; o plano do
-app novo vale. Rodar o passo 4 de novo é seguro: reaproveita os usuários e não duplica nada.
+app novo vale. Antes do passo 6, rodar o passo 4 de novo é seguro: reaproveita os usuários e não duplica nada.
+
+**Depois do passo 6, não rode a importação de novo.** Ela devolve a cada usuário o status de acesso do Firebase
+(e `liberado_em`/`liberado_por`), desfazendo o que um admin liberou ou bloqueou no app novo. Os planos editados no
+app novo ficam protegidos; os acessos, não.
 
 ## 4. Volta atrás
 
-- **Até o passo 8**, nada se perde: [humano] devolver os domínios ao projeto antigo (Leo, na conta antiga da Vercel)
-  e `node --env-file=.env.local scripts/regras-do-firebase.mjs restaurar`. Conferir no console que as regras no ar
-  são as de `firestore.no-ar.rules`.
-- **Depois que os clientes editam no app novo**, voltar perde essas edições. A janela de volta é de algumas horas
-  depois do passo 9.
+- **Até antes do passo 6** (domínio ainda no projeto antigo), nada se perde: ninguém grava no banco novo, e o
+  Firebase só está congelado. [humano] `node --env-file=.env.local scripts/regras-do-firebase.mjs restaurar` e
+  conferir no console que as regras no ar são as de `firestore.no-ar.rules`.
+- **Depois do passo 6**, os clientes já gravam no Supabase. Voltar (devolver os domínios ao projeto antigo, pelo Leo
+  na conta antiga da Vercel, e restaurar as regras) **perde tudo o que foi feito no app novo**: edições de plano,
+  planos criados, cadastros novos e liberações ou bloqueios feitos pelo admin. O Supabase guarda esses dados, mas o
+  app antigo não os vê, e não há caminho de volta para o Firebase. **A decisão de voltar é do usuário**, pesando o
+  problema contra essa perda; quanto mais tempo passa, maior ela fica.
 
 ## 5. Depois
 

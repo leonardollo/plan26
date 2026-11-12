@@ -115,7 +115,8 @@ export const authService = {
     enviarVerificacaoDeEmail: async (email?: string): Promise<void> => {
         const destino = email ?? usuarioAtual?.email;
         if (isOfflineMode || !destino) return;
-        semErro(await supabase.auth.resend({ type: 'signup', email: destino }));
+        // Como no cadastro: sem a origem, o link reenviado cai na Site URL (produção) mesmo vindo da prévia ou do local.
+        semErro(await supabase.auth.resend({ type: 'signup', email: destino, options: { emailRedirectTo: window.location.origin } }));
     },
     recarregarUsuario: async (): Promise<void> => {
         if (isOfflineMode) return;

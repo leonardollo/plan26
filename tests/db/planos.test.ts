@@ -64,4 +64,16 @@ describe('planos no Supabase', () => {
     const { id, cliente } = await criarPessoa({ email: emailUnico('planos') });
     await expect(salvarPlano(cliente, id, 2027, comEmpresa('X'))).rejects.toBeTruthy();
   });
+
+  it('plano acima de 1 MiB ou que não seja objeto é recusado pelo banco (check constraint)', async () => {
+    const { id, cliente } = await criarPessoa({ email: emailUnico('planos'), status: 'liberado' });
+    const grande = { planData: { texto: 'x'.repeat(1024 * 1024) } };
+    const r1 = await cliente.from('planos').insert({ user_id: id, ano: 2026, dados: grande });
+    expect(r1.error?.code).toBe('23514');
+    const r2 = await cliente.from('planos').insert({ user_id: id, ano: 2026, dados: [1, 2] });
+    expect(r2.error?.code).toBe('23514');
+    // Um plano normal continua passando.
+    const r3 = await cliente.from('planos').insert({ user_id: id, ano: 2026, dados: { planData: { texto: 'x'.repeat(1000) } } });
+    expect(r3.error).toBeNull();
+  });
 });
