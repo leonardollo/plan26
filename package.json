@@ -6,14 +6,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:local": "vite --mode emuladores",
-    "emuladores": "firebase emulators:start --only auth,firestore --project demo-plan",
-    "emuladores:semear": "node scripts/semear-emuladores.mjs",
+    "dev:local": "vite --mode banco-local",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:local": "supabase start",
+    "db:local:semear": "node scripts/semear-local.mjs",
     "test:db": "supabase db reset --local && vitest run --config vitest.db.config.ts"
   },
   "dependencies": {

@@ -2,6 +2,12 @@ import React, { useState } from 'react';
 import { authService } from '../hooks/usePlanData';
 import { SENHA_MINIMA } from '../services/supabase';
 
+export function mensagemDeErroAoDefinirSenha(erro: unknown): string {
+  // O Auth recusa a senha igual à atual; o link continua valendo, então não mande pedir outro.
+  if ((erro as { code?: string } | null)?.code === 'same_password') return 'Essa já é a sua senha atual. Escolha uma diferente.';
+  return 'Não consegui salvar a senha. Peça um link novo em "Esqueceu a senha?" e tente de novo.';
+}
+
 /**
  * Aberta pelo link de "criar/redefinir senha": o link já abriu a sessão,
  * mas a pessoa só entra no app depois de escolher a senha nova.
@@ -27,9 +33,9 @@ const DefinirSenha: React.FC<{ email: string | null; onConcluido: () => void }> 
     try {
       await authService.definirSenha(senha);
       onConcluido();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      setErro('Não consegui salvar a senha. Peça um link novo em "Esqueceu a senha?" e tente de novo.');
+      setErro(mensagemDeErroAoDefinirSenha(error));
       setGravando(false);
     }
   };

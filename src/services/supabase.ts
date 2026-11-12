@@ -16,9 +16,12 @@ type Ambiente = {
   VITE_SUPABASE_ANON_KEY?: string;
 };
 
+// Modo do `npm run dev:local`. Não pode ser "local": o Vite o recusa, por colidir com o sufixo .local dos .env.
+export const MODO_LOCAL = 'banco-local';
+
 export function configDoSupabase(env: Ambiente): { url: string; chave: string } {
-  // Só no `vite --mode local` de desenvolvimento: um build de produção nunca aponta para 127.0.0.1.
-  if (env.DEV && env.MODE === 'local') return { url: URL_LOCAL, chave: CHAVE_LOCAL };
+  // Só no `vite --mode banco-local` de desenvolvimento: um build de produção nunca aponta para 127.0.0.1.
+  if (env.DEV && env.MODE === MODO_LOCAL) return { url: URL_LOCAL, chave: CHAVE_LOCAL };
   return {
     url: env.VITE_SUPABASE_URL || URL_DO_PLAN26,
     chave: env.VITE_SUPABASE_ANON_KEY || CHAVE_DO_PLAN26,

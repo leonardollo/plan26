@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { configDoSupabase, telaDeEntrada, usuarioDoSupabase } from './supabase';
+import { MODO_LOCAL, configDoSupabase, telaDeEntrada, usuarioDoSupabase } from './supabase';
 
 describe('usuarioDoSupabase', () => {
   it('sem usuário, devolve null', () => {
@@ -68,10 +70,17 @@ describe('configDoSupabase', () => {
     expect(c).toEqual({ url: 'https://outro.supabase.co', chave: 'chave' });
   });
 
-  it('o Supabase local só vale em desenvolvimento com o modo local', () => {
-    expect(configDoSupabase({ ...ambiente, DEV: true, MODE: 'local' }).url).toBe('http://127.0.0.1:54321');
+  it('o Supabase local só vale em desenvolvimento com o modo banco-local', () => {
+    expect(configDoSupabase({ ...ambiente, DEV: true, MODE: MODO_LOCAL }).url).toBe('http://127.0.0.1:54321');
     expect(configDoSupabase({ ...ambiente, DEV: true, MODE: 'development' }).url).not.toContain('127.0.0.1');
-    // Um build de produção feito com --mode local não pode apontar para a máquina de quem abre o site.
-    expect(configDoSupabase({ ...ambiente, DEV: false, MODE: 'local' }).url).not.toContain('127.0.0.1');
+    // Um build de produção feito com --mode banco-local não pode apontar para a máquina de quem abre o site.
+    expect(configDoSupabase({ ...ambiente, DEV: false, MODE: MODO_LOCAL }).url).not.toContain('127.0.0.1');
+  });
+
+  it('o npm run dev:local usa o modo que o app reconhece', () => {
+    // O Vite recusa o modo "local" (colide com o sufixo .local dos .env); o script e o app precisam do mesmo nome.
+    const scripts = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf8')).scripts;
+    expect(scripts['dev:local']).toBe(`vite --mode ${MODO_LOCAL}`);
+    expect(MODO_LOCAL).not.toBe('local');
   });
 });

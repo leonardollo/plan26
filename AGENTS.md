@@ -10,32 +10,39 @@ code, identifiers and commit messages follow the project's conventions.
 - **What:** PLAN (Gestão de Impacto): SPA where business owners build next year's strategic,
   commercial and financial plan (always current year + 1, `anoDoPlanoAtual` in `src/services/planos.ts`;
   `*2026`/`*2025` field names are historical: plan year / base year); admins approve sign-ups.
-- **Stack:** React 19 + Vite 7 + TypeScript 5.9 + Tailwind CSS 4; Firebase Auth + Firestore
-  (project `plan-ea4cc`); Gemini (`@google/genai`); DPE import from an external Supabase.
+- **Stack:** React 19 + Vite 7 + TypeScript 5.9 + Tailwind CSS 4; Supabase Auth + Postgres with RLS
+  (project PLAN26, `aixjmxfkaziqlxnpudkk`; schema in `supabase/migrations/`); Gemini (`@google/genai`);
+  DPE import from an external Supabase. The old Firebase (`plan-ea4cc`) stays only as the migration source.
 - **Commands** (verified by `/onboard`, npm — `pnpm-lock.yaml` is stale, ignore it):
   - install: `npm ci`
   - lint: _none_
   - typecheck: `npm run typecheck`
   - test, affected only: `npx vitest related --run <files>`
-  - test, full: `npm test && npm run test:rules` (rules: Java 21, Firestore emulator, `demo-plan`)
+  - test, full: `npm test && npm run test:db` (`test:db`: needs `npm run db:local`, Docker; resets the local DB)
   - build: `npm run build` (typecheck + `vite build`)
   - audit: `npm audit --audit-level=high` (passes at high; 13 moderate remain, from the `firebase-tools` devDependency)
-  - disposable local DB: `npm run test:rules` starts and discards the Firestore emulator
-  - local app with fake login (dev only, project `demo-plan`): `npm run emuladores`, then
-    `npm run emuladores:semear` (accounts in `scripts/semear-emuladores.mjs`), then `npm run dev:local`
+  - disposable local DB: `npm run db:local` (local Supabase; `npx supabase stop` ends it) + `npm run test:db`
+  - local app with fake login (dev only, local Supabase): `npm run db:local`, then
+    `npm run db:local:semear` (accounts in `scripts/semear-local.mjs`), then `npm run dev:local`;
+    e-mails land in Mailpit, `http://127.0.0.1:54324`
 - **Sensitive paths** (a diff touching them triggers the security review): `firestore.rules`,
   `firebase.json`, `.firebaserc`, `.env.example`, `src/App.tsx`, `src/hooks/usePlanData.tsx`,
   `src/services/**`, `src/components/Login.tsx`, `src/components/GestaoDeAcessos.tsx`,
-  `src/components/AguardandoLiberacao.tsx`, `src/components/SubscriptionExpiredPage.tsx`
+  `src/components/AguardandoLiberacao.tsx`, `src/components/SubscriptionExpiredPage.tsx`, `supabase/**`,
+  `scripts/migrar-*`, `scripts/migracao/**`
 - **Human-only steps** (agents stop and ask): setting secrets · writing production data ·
   pulling production env · merging to `main` · publishing Firestore rules
-  (`firebase deploy --only firestore:rules`) · approving or blocking users in production
-- **Deploy:** Vercel, `https://plan2026.gestaoimpacto.com`, by Leonardo via `vercel` CLI (Git→Vercel link broken;
-  `wbicca-5368` can't see it); rules apart, `firebase deploy --only firestore:rules`. No migrations.
+  (`firebase deploy --only firestore:rules`) · approving or blocking users in production ·
+  `supabase db push` (or `supabase link`) to PLAN26 · running the migration scripts against production ·
+  sending the "create your password" e-mails · DNS · freezing or restoring the Firebase rules
+- **Deploy:** Vercel, project `plan` in team `gestao-de-impactos-projects`, `https://plan.gestaoimpacto.com`
+  (human-only). Schema changes are migrations in `supabase/migrations/`, applied to PLAN26 by a human
+  (`supabase db push`). The old `https://plan2026.gestaoimpacto.com` (Leonardo's Vercel) runs on Firebase until the switch.
 - **Notes:** read by range, never whole: `src/hooks/usePlanData.tsx`,
-  `src/components/CommercialPlanning.tsx`, `src/services/geminiService.ts`. The Firebase web
-  config fallbacks in `usePlanData.tsx` and the DPE anon key are public client keys, not secrets;
-  access control lives in `firestore.rules`. `origin` is `leonardollo/plan26`.
+  `src/components/CommercialPlanning.tsx`, `src/services/geminiService.ts`. The PLAN26 publishable key
+  fallback in `src/services/supabase.ts` and the DPE anon key are public client keys, not secrets;
+  access control lives in the RLS policies (`supabase/migrations/`). The service role key never goes in `src/`
+  (`src/seguranca.test.ts`). `origin` is `leonardollo/plan26`.
 <!-- project:end -->
 
 ## Triage — pick the level before acting
