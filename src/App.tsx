@@ -88,8 +88,8 @@ const MainLayout: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLo
         return <LoadingScreen message="Conferindo seu acesso..." />;
 
     // Quem ainda não foi liberado não passa daqui. A tela é só o aviso — quem
-    // realmente barra é a regra do Firestore, que recusa ler e escrever
-    // `users/{uid}` enquanto o acesso não estiver liberado.
+    // realmente barra é o RLS do Supabase, que recusa ler e gravar na tabela
+    // `planos` enquanto o acesso não estiver liberado.
     case 'aguardando':
         return <AguardandoLiberacao onLogout={onLogout} bloqueado={statusAcesso === 'bloqueado'} />;
 

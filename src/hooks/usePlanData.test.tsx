@@ -2,54 +2,43 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 
-const { authFalso } = vi.hoisted(() => ({
+const { authFalso, banco } = vi.hoisted(() => ({
   authFalso: { signOut: vi.fn(), refreshSession: vi.fn(), onAuthStateChange: vi.fn() },
+  // Fora do vi.mock: o modo local reimporta o módulo e os testes continuam olhando os mesmos falsos.
+  banco: { listarPlanos: vi.fn(), carregarPlano: vi.fn(), salvarPlano: vi.fn(), criarPlanoSeNaoExistir: vi.fn() },
 }));
 
 // O cliente do Supabase é trocado por este falso; usuarioDoSupabase continua o de verdade.
 vi.mock('@supabase/supabase-js', () => ({ createClient: vi.fn(() => ({ auth: authFalso })) }));
 
-vi.mock('firebase/app', () => ({
-  initializeApp: vi.fn(() => ({})),
-  getApps: vi.fn(() => []),
-  getApp: vi.fn(() => ({})),
-}));
-
-vi.mock('firebase/firestore', () => ({
-  getFirestore: vi.fn(() => ({})),
-  doc: vi.fn((_db: unknown, ...p: string[]) => p.join('/')),
-  getDoc: vi.fn(),
-  setDoc: vi.fn(),
-  collection: vi.fn((_db: unknown, ...p: string[]) => p.join('/')),
-  query: vi.fn(),
-  where: vi.fn(),
-  getDocs: vi.fn(),
-  limit: vi.fn(),
-  orderBy: vi.fn(),
-  runTransaction: vi.fn(),
+// As consultas ao banco são falsas (o banco de verdade está em tests/db); as regras puras de planos.ts continuam as reais.
+vi.mock('../services/planos', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/planos')>()),
+  ...banco,
 }));
 
 vi.mock('../services/acesso', () => ({
   ehAdministrador: vi.fn(),
-  obterOuCriarAcesso: vi.fn(),
+  obterAcesso: vi.fn(),
   listarAcessos: vi.fn(),
   definirStatus: vi.fn(),
 }));
 
 vi.mock('../services/geminiService');
 
-import { getDoc, getDocs, runTransaction, setDoc } from 'firebase/firestore';
-import { ehAdministrador, obterOuCriarAcesso } from '../services/acesso';
+import { ehAdministrador, obterAcesso } from '../services/acesso';
+import { montarPlanoDoAnoSeguinte } from '../services/planos';
 import { PlanProvider, authService, usePlan } from './usePlanData';
 import { MONTHS } from '../types';
 import { investimento2026Vazio } from '../utils/calculos/investimentos';
 
-const getDocMock = vi.mocked(getDoc);
-const getDocsMock = vi.mocked(getDocs);
-const setDocMock = vi.mocked(setDoc);
-const runTransactionMock = vi.mocked(runTransaction);
+// carregarPlano(cliente, uid, ano), salvarPlano(cliente, uid, ano, dados), listarPlanos(cliente, uid).
+const lerMock = banco.carregarPlano;
+const gravarMock = banco.salvarPlano;
+const listarMock = banco.listarPlanos;
+const criarMock = banco.criarPlanoSeNaoExistir;
 const ehAdminMock = vi.mocked(ehAdministrador);
-const acessoMock = vi.mocked(obterOuCriarAcesso);
+const acessoMock = vi.mocked(obterAcesso);
 
 const USUARIO = { uid: 'u1', email: 'c@x.com', name: 'C', emailVerified: true } as any;
 
@@ -57,14 +46,13 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
   <PlanProvider user={USUARIO}>{children}</PlanProvider>
 );
 
+// O que está na coluna `dados` do plano.
 function documento(perfil: Record<string, unknown> = {}) {
-  return {
-    exists: () => true,
-    data: () => ({ planData: { companyProfile: { name: 'Empresa Real', cnpj: '', industry: '', geminiApiKey: '', ...perfil } } }),
-  } as any;
+  return { planData: { companyProfile: { name: 'Empresa Real', cnpj: '', industry: '', geminiApiKey: '', ...perfil } } } as any;
 }
 
-const negado = () => Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' });
+// Recusa do RLS como o PostgREST devolve: objeto com código, não Error.
+const negado = () => ({ code: '42501', message: 'new row violates row-level security policy for table "planos"' });
 
 async function montar() {
   const r = renderHook(() => usePlan(), { wrapper });
@@ -74,7 +62,7 @@ async function montar() {
 
 const avancar = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
 
-// Em 2025 o plano do ano seguinte é o próprio 2026: o legado abre sem criar outro ano.
+// Em 2025 o plano do ano seguinte é o próprio 2026: ele abre sem criar outro ano.
 const emNovembroDe2025 = () => vi.setSystemTime(new Date(2025, 10, 10));
 
 beforeEach(() => {
@@ -82,11 +70,13 @@ beforeEach(() => {
   // O primeiro plano de quem não tem nenhum depende da data: fixa 10/11/2026 (vale 2027).
   vi.setSystemTime(new Date(2026, 10, 10));
   vi.clearAllMocks();
-  getDocsMock.mockResolvedValue({ docs: [] } as any);
+  listarMock.mockResolvedValue([]);
+  lerMock.mockResolvedValue(null);
+  criarMock.mockResolvedValue(undefined);
   localStorage.clear();
   ehAdminMock.mockResolvedValue(false);
   acessoMock.mockResolvedValue({ status: 'liberado' } as any);
-  setDocMock.mockResolvedValue(undefined as any);
+  gravarMock.mockResolvedValue(undefined);
   vi.spyOn(console, 'error').mockImplementation(() => {});
   vi.spyOn(console, 'log').mockImplementation(() => {});
 });
@@ -97,16 +87,16 @@ afterEach(() => {
 
 describe('usePlanData — carga e salvamento', () => {
   it('carga negada não grava nada', async () => {
-    getDocMock.mockRejectedValue(negado());
+    lerMock.mockRejectedValue(negado());
     const { result } = await montar();
     act(() => result.current.updateCompanyProfile('name', 'Nova'));
     await avancar(3500);
     expect(result.current.estadoDaCarga).toBe('falhou');
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(gravarMock).not.toHaveBeenCalled();
   });
 
   it('tentar de novo carrega e libera a gravação', async () => {
-    getDocMock.mockRejectedValueOnce(negado()).mockResolvedValue(documento());
+    lerMock.mockRejectedValueOnce(negado()).mockResolvedValue(documento());
     const { result } = await montar();
     expect(result.current.estadoDaCarga).toBe('falhou');
     await act(() => result.current.tentarCarregarDeNovo());
@@ -114,50 +104,50 @@ describe('usePlanData — carga e salvamento', () => {
     expect(result.current.planData.companyProfile.name).toBe('Empresa Real');
     act(() => result.current.updateCompanyProfile('name', 'Nova'));
     await avancar(3500);
-    expect(setDocMock).toHaveBeenCalledTimes(1);
+    expect(gravarMock).toHaveBeenCalledTimes(1);
   });
 
   it('nova falha ao tentar de novo continua bloqueado e sem laço', async () => {
-    getDocMock.mockRejectedValue(negado());
+    lerMock.mockRejectedValue(negado());
     const { result } = await montar();
     await act(() => result.current.tentarCarregarDeNovo());
     await avancar(10000);
-    expect(getDocMock).toHaveBeenCalledTimes(2);
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(lerMock).toHaveBeenCalledTimes(2);
+    expect(gravarMock).not.toHaveBeenCalled();
     expect(result.current.estadoDaCarga).toBe('falhou');
   });
 
   it('conta nova carrega vazio e a primeira edição grava', async () => {
-    getDocMock.mockResolvedValue({ exists: () => false } as any);
+    lerMock.mockResolvedValue({ exists: () => false } as any);
     const { result } = await montar();
     expect(result.current.estadoDaCarga).toBe('carregado');
     act(() => result.current.updateCompanyProfile('name', 'Nova'));
     await avancar(3500);
-    expect(setDocMock).toHaveBeenCalledTimes(1);
+    expect(gravarMock).toHaveBeenCalledTimes(1);
   });
 
   it('carga ok sem edição não regrava', async () => {
-    getDocMock.mockResolvedValue(documento());
+    lerMock.mockResolvedValue(documento());
     const { result } = await montar();
     await avancar(10000);
     expect(result.current.estadoDaCarga).toBe('carregado');
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(gravarMock).not.toHaveBeenCalled();
     expect(result.current.saveStatus).not.toBe('unsaved');
   });
 
   it('salvar agora com carga falha mostra o motivo', async () => {
-    getDocMock.mockRejectedValue(negado());
+    lerMock.mockRejectedValue(negado());
     const { result } = await montar();
     await act(async () => {
       await expect(result.current.saveDataNow()).rejects.toThrow('O plano ainda não foi carregado');
     });
     expect(result.current.saveStatus).toBe('error');
     expect(result.current.motivoDoErroAoSalvar).toBe('O plano ainda não foi carregado');
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(gravarMock).not.toHaveBeenCalled();
   });
 
   it('fechar a aba com edição pendente pede confirmação', async () => {
-    getDocMock.mockResolvedValue(documento());
+    lerMock.mockResolvedValue(documento());
     const { result } = await montar();
     act(() => result.current.updateCompanyProfile('name', 'Nova'));
     await avancar(1000);
@@ -167,8 +157,8 @@ describe('usePlanData — carga e salvamento', () => {
   });
 
   it('fechar a aba com erro de gravação pede confirmação', async () => {
-    getDocMock.mockResolvedValue(documento());
-    setDocMock.mockRejectedValue(new Error('falha qualquer'));
+    lerMock.mockResolvedValue(documento());
+    gravarMock.mockRejectedValue(new Error('falha qualquer'));
     const { result } = await montar();
     act(() => result.current.updateCompanyProfile('name', 'Nova'));
     await avancar(3500);
@@ -180,12 +170,14 @@ describe('usePlanData — carga e salvamento', () => {
 
   it('liberado depois de pendente recarrega o plano', async () => {
     acessoMock.mockResolvedValueOnce({ status: 'pendente' } as any).mockResolvedValue({ status: 'liberado' } as any);
-    getDocMock.mockRejectedValueOnce(negado()).mockResolvedValue(documento());
+    listarMock.mockRejectedValueOnce(negado()).mockResolvedValue([2027]);
+    lerMock.mockResolvedValue(documento());
     const { result } = await montar();
     expect(result.current.subscriptionStatus).toBe('not_found');
     await act(() => result.current.checkSubscription());
-    // A listagem negada não chegou a escolher o ano: a liberação refaz a listagem (legado) e carrega 2026.
-    expect(getDocMock).toHaveBeenCalledTimes(3);
+    // A listagem negada não chegou a escolher o ano: a liberação refaz a listagem e carrega 2027.
+    expect(listarMock).toHaveBeenCalledTimes(2);
+    expect(lerMock).toHaveBeenCalledTimes(1);
     expect(result.current.estadoDaCarga).toBe('carregado');
     expect(result.current.planData.companyProfile.name).toBe('Empresa Real');
   });
@@ -210,7 +202,7 @@ describe('usePlanData — chave do Gemini', () => {
 
   it('B sem chave no plano remove a chave de A', async () => {
     localStorage.setItem(CHAVE, 'kA');
-    getDocMock.mockResolvedValue(documento());
+    lerMock.mockResolvedValue(documento());
     const { result } = await montar();
     expect(result.current.estadoDaCarga).toBe('carregado');
     expect(localStorage.getItem(CHAVE)).toBeNull();
@@ -218,14 +210,14 @@ describe('usePlanData — chave do Gemini', () => {
 
   it('B com chave kB grava kB', async () => {
     localStorage.setItem(CHAVE, 'kA');
-    getDocMock.mockResolvedValue(documento({ geminiApiKey: 'kB' }));
+    lerMock.mockResolvedValue(documento({ geminiApiKey: 'kB' }));
     await montar();
     expect(localStorage.getItem(CHAVE)).toBe('kB');
   });
 
   it('carga negada também remove a chave de A', async () => {
     localStorage.setItem(CHAVE, 'kA');
-    getDocMock.mockRejectedValue(negado());
+    lerMock.mockRejectedValue(negado());
     const { result } = await montar();
     expect(result.current.estadoDaCarga).toBe('falhou');
     expect(localStorage.getItem(CHAVE)).toBeNull();
@@ -244,7 +236,7 @@ describe('usePlanData — e-mail do admin', () => {
     });
 
   beforeEach(async () => {
-    getDocMock.mockResolvedValue(documento());
+    lerMock.mockResolvedValue(documento());
     sessaoCom(null);
     await authService.recarregarUsuario();
   });
@@ -297,10 +289,13 @@ describe('usePlanData — e-mail do admin', () => {
     await expect(authService.recarregarUsuario()).rejects.toThrow('sessão expirada');
   });
 
-  it('cliente grava emailVerificado no pedido', async () => {
+  // A linha de acesso nasce no banco, por gatilho; o cliente só lê. Sem linha, fica na fila.
+  it('cliente sem linha de acesso fica como pendente', async () => {
     ehAdminMock.mockResolvedValue(false);
-    await montar();
-    expect(acessoMock).toHaveBeenCalledWith(expect.anything(), 'u1', 'c@x.com', 'C', true);
+    acessoMock.mockResolvedValue(null);
+    const { result } = await montar();
+    expect(acessoMock).toHaveBeenCalledWith(expect.anything(), 'u1');
+    expect(result.current.subscriptionStatus).toBe('not_found');
   });
 });
 
@@ -329,13 +324,11 @@ const projecaoVazia = () => ({
   marketingFixo: {}, administrativo: {}, customCustosFixos: [], cmv: {}, comissoes: {}, fretes: {}, customCustosVariaveis: [],
 });
 
-function documentoCom(dados: Record<string, any>) {
-  return { exists: () => true, data: () => dados } as any;
-}
+const documentoCom = (dados: Record<string, any>) => dados as any;
 
 describe('usePlanData — cenários', () => {
   it('cenário em modo manual não é recalculado quando a inflação muda', async () => {
-    getDocMock.mockResolvedValue(documentoCom({
+    lerMock.mockResolvedValue(documentoCom({
       planData: {
         companyProfile: { name: 'Empresa', cnpj: '', industry: '', geminiApiKey: '' },
         financialSheet: baseDeExemplo(),
@@ -355,7 +348,7 @@ describe('usePlanData — cenários', () => {
   });
 
   it('cenário em modo manual não é recalculado quando a base de 2025 muda', async () => {
-    getDocMock.mockResolvedValue(documentoComOtimistaManual());
+    lerMock.mockResolvedValue(documentoComOtimistaManual());
     const { result } = await montar();
     const aluguelAntes = result.current.scenarios2026.Conservador.projection.aluguel.jan;
     act(() => result.current.updateSheetValue('aluguel', 'jan', '20000'));
@@ -366,7 +359,7 @@ describe('usePlanData — cenários', () => {
   });
 
   it('cenário em modo manual não é recalculado quando os impostos mudam', async () => {
-    getDocMock.mockResolvedValue(documentoComOtimistaManual());
+    lerMock.mockResolvedValue(documentoComOtimistaManual());
     const { result } = await montar();
     const impostoAntes = result.current.scenarios2026.Conservador.projection.impostosSobreFaturamento.jan;
     act(() => result.current.updateTaxes('simplesNacional', '10'));
@@ -414,7 +407,7 @@ function documentoDePlanoAntigo() {
 
 describe('usePlanData — DRE e plano antigo', () => {
   it('plano antigo aberto sem edição mostra os números novos e não grava', async () => {
-    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    lerMock.mockResolvedValue(documentoDePlanoAntigo());
     const { result } = await montar();
     await avancar(10000);
     const conservador = result.current.scenarios2026.Conservador.projection;
@@ -422,27 +415,27 @@ describe('usePlanData — DRE e plano antigo', () => {
     // Mercado não preenchido vale −1,5 no score já na carga: 10% − 1,5 = 8,5% → 108.500 × 6% = 6.510.
     expect(conservador.impostosSobreFaturamento.jan).toBeCloseTo(6510);
     expect(result.current.planData.financialPlan2026.dre.irpjCsll.jan).toBe(0);
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(gravarMock).not.toHaveBeenCalled();
 
     act(() => result.current.updateCompanyProfile('name', 'X'));
     await avancar(3500);
-    expect(setDocMock).toHaveBeenCalledTimes(1);
-    const gravado = setDocMock.mock.calls[0][1] as any;
+    expect(gravarMock).toHaveBeenCalledTimes(1);
+    const gravado = gravarMock.mock.calls[0][3] as any;
     expect(gravado.scenarios2026.Conservador.projection.aluguel.jan).toBeCloseTo(10450);
   });
 
   it('calcular a DRE já em dia (Liquidez, Indicadores) não muda estado nem grava', async () => {
-    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    lerMock.mockResolvedValue(documentoDePlanoAntigo());
     const { result } = await montar();
     const antes = result.current.planData;
     act(() => result.current.calculateFinancialPlan2026());
     await avancar(10000);
     expect(result.current.planData).toBe(antes);
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(gravarMock).not.toHaveBeenCalled();
   });
 
   it('trocar o cenário base faz a DRE refletir a projeção do novo cenário', async () => {
-    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    lerMock.mockResolvedValue(documentoDePlanoAntigo());
     const { result } = await montar();
     act(() => result.current.setBaseScenario('Otimista'));
     await act(async () => {});
@@ -453,7 +446,7 @@ describe('usePlanData — DRE e plano antigo', () => {
 
 describe('usePlanData — sensibilidade', () => {
   it('conta nova (Simples): a célula central tem EBIT 30 mil e lucro líquido 30 mil', async () => {
-    getDocMock.mockResolvedValue(documento());
+    lerMock.mockResolvedValue(documento());
     const { result } = await montar();
     const matriz = result.current.calculateSensitivityAnalysis(100000, 40000, 30000, 20);
     const centro = matriz[2][2];
@@ -505,24 +498,24 @@ function documentoComBonusDesatualizado() {
 
 describe('usePlanData — score e produtividade na abertura', () => {
   it('score desatualizado: abrir mostra o score novo (3) no cenário e não grava; a próxima edição grava', async () => {
-    getDocMock.mockResolvedValue(documentoComScoreDesatualizado());
+    lerMock.mockResolvedValue(documentoComScoreDesatualizado());
     const { result } = await montar();
     await avancar(10000);
     expect(result.current.planData.analysis.strategicScore.total).toBeCloseTo(3);
     expect(result.current.planData.analysis.strategicSummary).toBe('resumo salvo');
     // Crescimento 10 + score 3 + bônus 0.
     expect(result.current.scenarios2026.Conservador.projection.receitaBruta.jan).toBeCloseTo(113000);
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(gravarMock).not.toHaveBeenCalled();
 
     act(() => result.current.updateCompanyProfile('name', 'X'));
     await avancar(3500);
-    expect(setDocMock).toHaveBeenCalledTimes(1);
-    const gravado = setDocMock.mock.calls[0][1] as any;
+    expect(gravarMock).toHaveBeenCalledTimes(1);
+    const gravado = gravarMock.mock.calls[0][3] as any;
     expect(gravado.planData.analysis.strategicScore.total).toBeCloseTo(3);
   });
 
   it('bônus de produtividade desatualizado: abrir mostra o bônus novo (3) no cenário e não grava', async () => {
-    getDocMock.mockResolvedValue(documentoComBonusDesatualizado());
+    lerMock.mockResolvedValue(documentoComBonusDesatualizado());
     const { result } = await montar();
     await avancar(10000);
     const pessoas = result.current.planData.analysis.peopleAnalytics;
@@ -531,7 +524,7 @@ describe('usePlanData — score e produtividade na abertura', () => {
     expect(pessoas.projectedRevenue).toBeCloseTo(1236000);
     // Crescimento 10 + score −1,5 + bônus 3.
     expect(result.current.scenarios2026.Conservador.projection.receitaBruta.jan).toBeCloseTo(111500);
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(gravarMock).not.toHaveBeenCalled();
   });
 });
 
@@ -543,18 +536,17 @@ const semNaNNoPlano = (plano: any) => ['dre', 'dfc', 'bp'].forEach(parte =>
 
 describe('usePlanData — investimentos, empréstimos e contratações de 2026', () => {
   it('plano antigo sem investment2026 abre com o bloco vazio e não grava', async () => {
-    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    lerMock.mockResolvedValue(documentoDePlanoAntigo());
     const { result } = await montar();
     expect(result.current.planData.investment2026).toEqual(investimento2026Vazio());
     await avancar(5000);
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(gravarMock).not.toHaveBeenCalled();
   });
 
   it('bloco parcial é completado na carga', async () => {
-    const doc = documentoDePlanoAntigo();
-    const dados = doc.data();
+    const dados = documentoDePlanoAntigo();
     dados.planData.investment2026 = { emprestimos: [emprestimo100mil] };
-    getDocMock.mockResolvedValue(documentoCom(dados));
+    lerMock.mockResolvedValue(documentoCom(dados));
     const { result } = await montar();
     const bloco = result.current.planData.investment2026;
     expect(bloco.investimentos).toEqual([]);
@@ -563,24 +555,24 @@ describe('usePlanData — investimentos, empréstimos e contratações de 2026',
     expect(bloco.jurosDividaAtualPct).toBeNull();
     expect(result.current.planData.financialPlan2026.dre.despesasFinanceiras.fev).toBeCloseTo(2000, 2);
     await avancar(5000);
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(gravarMock).not.toHaveBeenCalled();
   });
 
   it('contratações salvas entram na folha na carga, sem gravar', async () => {
-    const dados = documentoDePlanoAntigo().data();
+    const dados = documentoDePlanoAntigo();
     dados.planData.hiringProjection = [
       { id: 'h1', department: 'Vendas', currentHeadcount: 0, newHires: 2, avgAnnualCost: 60000, mesEntrada: 'jul' },
     ];
-    getDocMock.mockResolvedValue(documentoCom(dados));
+    lerMock.mockResolvedValue(documentoCom(dados));
     const { result } = await montar();
     const folha = result.current.scenarios2026.Conservador.projection.folhaPagamento;
     expect(folha.jul! - folha.jun!).toBeCloseTo(10000);
     await avancar(5000);
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(gravarMock).not.toHaveBeenCalled();
   });
 
   it('adicionar empréstimo recalcula a DRE, os indicadores e grava', async () => {
-    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    lerMock.mockResolvedValue(documentoDePlanoAntigo());
     const { result } = await montar();
     const liquidezAntes = result.current.financialIndicators.ratios.liquidity.currentRatio;
     act(() => result.current.addItemInvestimento2026('emprestimos'));
@@ -598,11 +590,11 @@ describe('usePlanData — investimentos, empréstimos e contratações de 2026',
     expect(liquidezAntes).toBeGreaterThan(0);
     expect(result.current.financialIndicators.ratios.liquidity.currentRatio).toBeLessThan(liquidezAntes);
     await avancar(3500);
-    expect(setDocMock).toHaveBeenCalled();
+    expect(gravarMock).toHaveBeenCalled();
   });
 
   it('mudar contratações recalcula cenários percentuais e não o manual', async () => {
-    getDocMock.mockResolvedValue(documentoComOtimistaManual());
+    lerMock.mockResolvedValue(documentoComOtimistaManual());
     const { result } = await montar();
     const folhaAntes = result.current.scenarios2026.Conservador.projection.folhaPagamento.jul!;
     const otimistaAntes = result.current.scenarios2026.Otimista.projection;
@@ -621,7 +613,7 @@ describe('usePlanData — investimentos, empréstimos e contratações de 2026',
   });
 
   it('mesEntrada: novo item vem jan; valor vazio vira null', async () => {
-    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    lerMock.mockResolvedValue(documentoDePlanoAntigo());
     const { result } = await montar();
     act(() => result.current.addHiringProjectionItem());
     const item = result.current.planData.hiringProjection[0];
@@ -633,7 +625,7 @@ describe('usePlanData — investimentos, empréstimos e contratações de 2026',
   });
 
   it('campo de empréstimo apagado vira null e não gera NaN', async () => {
-    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    lerMock.mockResolvedValue(documentoDePlanoAntigo());
     const { result } = await montar();
     act(() => result.current.addItemInvestimento2026('emprestimos'));
     const novo = result.current.planData.investment2026.emprestimos[0];
@@ -655,7 +647,7 @@ describe('usePlanData — investimentos, empréstimos e contratações de 2026',
   });
 
   it('valor de empréstimo e valor/vida útil de investimento apagados viram null e não geram NaN', async () => {
-    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    lerMock.mockResolvedValue(documentoDePlanoAntigo());
     const { result } = await montar();
     act(() => {
       result.current.addItemInvestimento2026('emprestimos');
@@ -693,7 +685,7 @@ describe('usePlanData — investimentos, empréstimos e contratações de 2026',
   });
 
   it('juros da dívida atual e remoção de item', async () => {
-    getDocMock.mockResolvedValue(documentoDePlanoAntigo());
+    lerMock.mockResolvedValue(documentoDePlanoAntigo());
     const { result } = await montar();
     act(() => result.current.updateJurosDividaAtual('1.5'));
     expect(result.current.planData.investment2026.jurosDividaAtualPct).toBe(1.5);
@@ -706,24 +698,21 @@ describe('usePlanData — investimentos, empréstimos e contratações de 2026',
   });
 });
 
-const ausente = () => ({ exists: () => false, data: () => undefined }) as any;
 const perfil = (name: string, extra: Record<string, any> = {}) => ({
   ...extra,
   planData: { companyProfile: { name, cnpj: '', industry: '', geminiApiKey: '' }, ...(extra.planData ?? {}) },
 });
 
-// getDoc e getDocs respondem por caminho, como o Firestore: 'users/u1' é o legado (2026), 'users/u1/planos/{ano}' os outros.
-function bancoCom(docs: Record<string, any>) {
-  getDocMock.mockImplementation(async (ref: any) => (ref in docs ? documentoCom(docs[ref]) : ausente()));
-  getDocsMock.mockImplementation(async (ref: any) => ({
-    docs: Object.keys(docs).filter(c => c.startsWith(`${ref}/`)).map(c => ({ id: c.slice(ref.length + 1) })),
-  }) as any);
+// A tabela `planos` de faz de conta: uma linha por ano, lida e listada na hora da consulta.
+function bancoCom(docs: Record<number, any>) {
+  lerMock.mockImplementation(async (_c: unknown, _uid: string, ano: number) => docs[ano] ?? null);
+  listarMock.mockImplementation(async () => Object.keys(docs).map(Number).sort((a, b) => a - b));
 }
-const caminhosGravados = () => setDocMock.mock.calls.map(c => c[0]);
+const anosGravados = () => gravarMock.mock.calls.map(c => c[2]);
 
 describe('usePlanData — um plano por ano', () => {
   it('abre o ano mais recente da lista', async () => {
-    bancoCom({ 'users/u1': perfil('A'), 'users/u1/planos/2027': perfil('B') });
+    bancoCom({ 2026: perfil('A'), 2027: perfil('B') });
     const { result } = await montar();
     expect(result.current.estadoDaCarga).toBe('carregado');
     expect(result.current.anoPlano).toBe(2027);
@@ -732,24 +721,24 @@ describe('usePlanData — um plano por ano', () => {
     expect(result.current.anosDisponiveis).toEqual([2026, 2027]);
   });
 
-  it('em 2025, só com o legado abre 2026', async () => {
+  it('em 2025, só com o 2026 abre 2026', async () => {
     emNovembroDe2025();
-    bancoCom({ 'users/u1': perfil('A') });
+    bancoCom({ 2026: perfil('A') });
     const { result } = await montar();
     expect(result.current.anoPlano).toBe(2026);
     expect(result.current.anoBase).toBe(2025);
     expect(result.current.planData.companyProfile.name).toBe('A');
     expect(result.current.anosDisponiveis).toEqual([2026]);
-    expect(runTransactionMock).not.toHaveBeenCalled();
+    expect(criarMock).not.toHaveBeenCalled();
   });
 
-  it('em 10/11/2026, só com o legado cria 2027 a partir do 2026 e abre, sem gravar mais nada', async () => {
-    const docs: Record<string, any> = { 'users/u1': perfil('A') };
+  it('em 10/11/2026, só com o 2026 cria 2027 a partir do 2026 e abre, sem gravar mais nada', async () => {
+    const docs: Record<number, any> = { 2026: perfil('A') };
     bancoCom(docs);
-    const tx = transacaoSobre(docs);
+    const criados = criacaoSobre(docs);
     const { result } = await montar();
-    expect(tx.set).toHaveBeenCalledTimes(1);
-    expect(tx.set.mock.calls[0][0]).toBe('users/u1/planos/2027');
+    expect(criados).toHaveBeenCalledTimes(1);
+    expect(criados.mock.calls[0][0]).toBe(2027);
     expect(result.current.estadoDaCarga).toBe('carregado');
     expect(result.current.anoPlano).toBe(2027);
     expect(result.current.anoBase).toBe(2026);
@@ -757,26 +746,26 @@ describe('usePlanData — um plano por ano', () => {
     expect(result.current.anosDisponiveis).toEqual([2026, 2027]);
     expect(result.current.proximoAnoDisponivel).toBeNull();
     await avancar(10000);
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(gravarMock).not.toHaveBeenCalled();
   });
 
   it('em 02/01/2027, com 2026 e 2027 salvos, cria 2028 a partir do 2027', async () => {
     vi.setSystemTime(new Date(2027, 0, 2));
-    const docs: Record<string, any> = { 'users/u1': perfil('A'), 'users/u1/planos/2027': perfil('B') };
+    const docs: Record<number, any> = { 2026: perfil('A'), 2027: perfil('B') };
     bancoCom(docs);
-    const tx = transacaoSobre(docs);
+    const criados = criacaoSobre(docs);
     const { result } = await montar();
-    expect(tx.set.mock.calls.map(c => c[0])).toEqual(['users/u1/planos/2028']);
+    expect(criados.mock.calls.map(c => c[0])).toEqual([2028]);
     expect(result.current.anoPlano).toBe(2028);
     expect(result.current.planData.companyProfile.name).toBe('B');
     expect(result.current.anosDisponiveis).toEqual([2026, 2027, 2028]);
   });
 
   it('criação do ano seguinte negada abre o último salvo e continua oferecendo o ano seguinte', async () => {
-    const docs: Record<string, any> = { 'users/u1': perfil('A') };
+    const docs: Record<number, any> = { 2026: perfil('A') };
     bancoCom(docs);
-    transacaoSobre(docs);
-    runTransactionMock.mockRejectedValueOnce(negado());
+    criacaoSobre(docs);
+    criarMock.mockRejectedValueOnce(negado());
     const { result } = await montar();
     expect(result.current.estadoDaCarga).toBe('carregado');
     expect(result.current.anoPlano).toBe(2026);
@@ -784,20 +773,20 @@ describe('usePlanData — um plano por ano', () => {
     expect(result.current.anosDisponiveis).toEqual([2026]);
     expect(result.current.proximoAnoDisponivel).toBe(2027);
     await avancar(10000);
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(gravarMock).not.toHaveBeenCalled();
   });
 
   it('volta em 2028 só com o 2026 e a criação falha: oferece 2029, não 2027', async () => {
     vi.setSystemTime(new Date(2028, 2, 1));
-    const docs: Record<string, any> = { 'users/u1': perfil('A') };
+    const docs: Record<number, any> = { 2026: perfil('A') };
     bancoCom(docs);
-    const tx = transacaoSobre(docs);
-    runTransactionMock.mockRejectedValueOnce(negado());
+    const criados = criacaoSobre(docs);
+    criarMock.mockRejectedValueOnce(negado());
     const { result } = await montar();
     expect(result.current.anoPlano).toBe(2026);
     expect(result.current.proximoAnoDisponivel).toBe(2029);
     await act(async () => { await result.current.comecarProximoAno(); });
-    expect(tx.set.mock.calls.map(c => c[0])).toEqual(['users/u1/planos/2029']);
+    expect(criados.mock.calls.map(c => c[0])).toEqual([2029]);
     expect(result.current.anoPlano).toBe(2029);
   });
 
@@ -808,14 +797,14 @@ describe('usePlanData — um plano por ano', () => {
     expect(result.current.estadoDaCarga).toBe('carregado');
     expect(result.current.anosDisponiveis).toEqual([2027]);
     await avancar(10000);
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(gravarMock).not.toHaveBeenCalled();
     act(() => result.current.updateCompanyProfile('name', 'Nova'));
     await avancar(3500);
-    expect(caminhosGravados()).toEqual(['users/u1/planos/2027']);
+    expect(anosGravados()).toEqual([2027]);
   });
 
   it('carga monta do valor inicial, não do estado anterior', async () => {
-    bancoCom({ 'users/u1': perfil('A') });
+    bancoCom({ 2026: perfil('A') });
     const { result } = await montar();
     const r = result.current;
     expect(r.goals2026.inflacaoPrevista).toBe(4.5);
@@ -829,29 +818,29 @@ describe('usePlanData — um plano por ano', () => {
     expect(r.pricingItems).toEqual([]);
   });
 
-  it('"Apagar tudo" no 2027 não toca o legado', async () => {
-    bancoCom({ 'users/u1': perfil('A'), 'users/u1/planos/2027': perfil('B') });
+  it('"Apagar tudo" no 2027 não toca o 2026', async () => {
+    bancoCom({ 2026: perfil('A'), 2027: perfil('B') });
     const { result } = await montar();
     await act(() => result.current.resetAllData());
     await avancar(5000);
-    expect(setDocMock).toHaveBeenCalled();
-    expect(new Set(caminhosGravados())).toEqual(new Set(['users/u1/planos/2027']));
+    expect(gravarMock).toHaveBeenCalled();
+    expect(new Set(anosGravados())).toEqual(new Set([2027]));
   });
 
   it('carga negada e acesso liberado recarrega o mesmo ano', async () => {
     acessoMock.mockResolvedValueOnce({ status: 'pendente' } as any).mockResolvedValue({ status: 'liberado' } as any);
-    bancoCom({ 'users/u1': perfil('A'), 'users/u1/planos/2027': perfil('B') });
-    const respostaDoBanco = getDocMock.getMockImplementation()!;
+    bancoCom({ 2026: perfil('A'), 2027: perfil('B') });
+    const respostaDoBanco = lerMock.getMockImplementation()!;
     let liberado = false;
-    getDocMock.mockImplementation(async (ref: any) => {
-      if (ref === 'users/u1/planos/2027' && !liberado) throw negado();
-      return respostaDoBanco(ref);
+    lerMock.mockImplementation(async (c: unknown, uid: string, ano: number) => {
+      if (ano === 2027 && !liberado) throw negado();
+      return respostaDoBanco(c, uid, ano);
     });
     const { result } = await montar();
     expect(result.current.estadoDaCarga).toBe('falhou');
     liberado = true;
     await act(() => result.current.checkSubscription());
-    expect(getDocMock.mock.calls.filter(c => (c[0] as unknown) === 'users/u1/planos/2027')).toHaveLength(2);
+    expect(leiturasDe(2027)).toHaveLength(2);
     expect(result.current.estadoDaCarga).toBe('carregado');
     expect(result.current.anoPlano).toBe(2027);
     expect(result.current.planData.companyProfile.name).toBe('B');
@@ -859,13 +848,13 @@ describe('usePlanData — um plano por ano', () => {
 
   it('listagem negada e acesso liberado refaz a listagem', async () => {
     acessoMock.mockResolvedValueOnce({ status: 'pendente' } as any).mockResolvedValue({ status: 'liberado' } as any);
-    bancoCom({ 'users/u1': perfil('A'), 'users/u1/planos/2027': perfil('B') });
-    const listar = getDocsMock.getMockImplementation()!;
-    getDocsMock.mockRejectedValueOnce(negado()).mockImplementation(listar);
+    bancoCom({ 2026: perfil('A'), 2027: perfil('B') });
+    const listar = listarMock.getMockImplementation()!;
+    listarMock.mockRejectedValueOnce(negado()).mockImplementation(listar);
     const { result } = await montar();
     expect(result.current.estadoDaCarga).toBe('falhou');
     await act(() => result.current.checkSubscription());
-    expect(getDocsMock).toHaveBeenCalledTimes(2);
+    expect(listarMock).toHaveBeenCalledTimes(2);
     expect(result.current.estadoDaCarga).toBe('carregado');
     expect(result.current.anoPlano).toBe(2027);
   });
@@ -877,62 +866,64 @@ function adiado<T = void>() {
   return { promessa, resolver };
 }
 
-const ordemDoSetDoc = (caminho: string, n = 0) =>
-  setDocMock.mock.invocationCallOrder.filter((_, i) => (setDocMock.mock.calls[i][0] as unknown) === caminho)[n];
-// A última leitura do caminho: a da troca, não a da abertura.
-const ordemDoGetDoc = (caminho: string) =>
-  getDocMock.mock.invocationCallOrder.filter((_, i) => (getDocMock.mock.calls[i][0] as unknown) === caminho).slice(-1)[0];
-const getDocDe = (caminho: string) => getDocMock.mock.calls.filter(c => (c[0] as unknown) === caminho);
-const setDocDe = (caminho: string) => setDocMock.mock.calls.filter(c => (c[0] as unknown) === caminho);
+const ordemDaGravacao = (ano: number, n = 0) =>
+  gravarMock.mock.invocationCallOrder.filter((_, i) => gravarMock.mock.calls[i][2] === ano)[n];
+// A última leitura do ano: a da troca, não a da abertura.
+const ordemDaLeitura = (ano: number) =>
+  lerMock.mock.invocationCallOrder.filter((_, i) => lerMock.mock.calls[i][2] === ano).slice(-1)[0];
+const leiturasDe = (ano: number) => lerMock.mock.calls.filter(c => c[2] === ano);
+// O `dados` de cada gravação do ano, em ordem.
+const gravacoesDe = (ano: number) => gravarMock.mock.calls.filter(c => c[2] === ano).map(c => c[3] as any);
 
-// Transação de faz de conta sobre o mesmo banco do bancoCom: tx.set grava nele.
-function transacaoSobre(docs: Record<string, any>) {
-  const tx = {
-    get: vi.fn(async (ref: string) => (ref in docs ? documentoCom(docs[ref]) : ausente())),
-    set: vi.fn((ref: string, dados: any) => { docs[ref] = dados; }),
-  };
-  runTransactionMock.mockImplementation(async (_db: any, fn: any) => fn(tx));
-  return tx;
+// Criação de faz de conta sobre o mesmo banco do bancoCom: como o insert que ignora a linha existente,
+// só grava (e registra em `criados`) o ano que ainda não existe.
+function criacaoSobre(docs: Record<number, any>) {
+  const criados = vi.fn((ano: number, dados: any) => { docs[ano] = dados; });
+  criarMock.mockImplementation(async (_c: unknown, _uid: string, ano: number, anoOrigem: number, iniciais: any) => {
+    if (ano in docs) return;
+    criados(ano, montarPlanoDoAnoSeguinte(docs[anoOrigem] ?? {}, iniciais, ano - anoOrigem));
+  });
+  return criados;
 }
 
 describe('usePlanData — trocar de ano e começar o seguinte', () => {
-  it('trocar com edição pendente grava 2026 no legado e só então carrega 2027', async () => {
-    bancoCom({ 'users/u1': perfil('A'), 'users/u1/planos/2027': perfil('B') });
+  it('trocar com edição pendente grava o 2026 e só então carrega 2027', async () => {
+    bancoCom({ 2026: perfil('A'), 2027: perfil('B') });
     const { result } = await montar();
     await act(() => result.current.trocarAno(2026));
     act(() => result.current.updateCompanyProfile('name', 'A2'));
     let trocou: boolean | undefined;
     await act(async () => { trocou = await result.current.trocarAno(2027); });
     expect(trocou).toBe(true);
-    expect(ordemDoSetDoc('users/u1')).toBeLessThan(ordemDoGetDoc('users/u1/planos/2027')!);
-    expect((setDocDe('users/u1')[0][1] as any).planData.companyProfile.name).toBe('A2');
+    expect(ordemDaGravacao(2026)).toBeLessThan(ordemDaLeitura(2027)!);
+    expect(gravacoesDe(2026)[0].planData.companyProfile.name).toBe('A2');
     expect(result.current.anoPlano).toBe(2027);
     expect(result.current.planData.companyProfile.name).toBe('B');
     await avancar(10000);
-    expect(setDocDe('users/u1/planos/2027').filter(c => (c[1] as any).planData.companyProfile.name === 'A2')).toEqual([]);
+    expect(gravacoesDe(2027).filter(d => d.planData.companyProfile.name === 'A2')).toEqual([]);
   });
 
   it('trocar com gravação falhando continua no ano aberto', async () => {
     emNovembroDe2025();
-    bancoCom({ 'users/u1': perfil('A') });
+    bancoCom({ 2026: perfil('A') });
     const { result } = await montar();
-    setDocMock.mockRejectedValue(negado());
+    gravarMock.mockRejectedValue(negado());
     act(() => result.current.updateCompanyProfile('name', 'A2'));
     let trocou: boolean | undefined;
     await act(async () => { trocou = await result.current.trocarAno(2027); });
     expect(trocou).toBe(false);
     expect(result.current.anoPlano).toBe(2026);
     expect(result.current.planData.companyProfile.name).toBe('A2');
-    expect(getDocDe('users/u1/planos/2027')).toEqual([]);
+    expect(leiturasDe(2027)).toEqual([]);
     expect(result.current.motivoDoErroAoSalvar).toContain('acesso');
   });
 
   it('troca espera a gravação em andamento', async () => {
     emNovembroDe2025();
-    bancoCom({ 'users/u1': perfil('A') });
+    bancoCom({ 2026: perfil('A') });
     const { result } = await montar();
     const primeira = adiado();
-    setDocMock.mockImplementationOnce(() => primeira.promessa as any);
+    gravarMock.mockImplementationOnce(() => primeira.promessa as any);
     act(() => result.current.updateCompanyProfile('name', 'A2'));
     await avancar(3500);
     expect(result.current.saveStatus).toBe('saving');
@@ -940,18 +931,18 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
     let troca!: Promise<boolean>;
     act(() => { troca = result.current.trocarAno(2027); });
     await act(async () => {});
-    expect(getDocDe('users/u1/planos/2027')).toEqual([]);
+    expect(leiturasDe(2027)).toEqual([]);
     await act(async () => { primeira.resolver(); await troca; });
-    const gravacoes = setDocDe('users/u1');
+    const gravacoes = gravacoesDe(2026);
     expect(gravacoes).toHaveLength(2);
-    expect((gravacoes[1][1] as any).planData.companyProfile.name).toBe('A3');
-    expect(ordemDoSetDoc('users/u1', 1)).toBeLessThan(ordemDoGetDoc('users/u1/planos/2027')!);
+    expect(gravacoes[1].planData.companyProfile.name).toBe('A3');
+    expect(ordemDaGravacao(2026, 1)).toBeLessThan(ordemDaLeitura(2027)!);
     expect(result.current.anoPlano).toBe(2027);
   });
 
   it('ano sem documento começa dos valores iniciais em todos os blocos e a primeira gravação não leva nada do 2026', async () => {
     emNovembroDe2025();
-    bancoCom({ 'users/u1': perfil('A', {
+    bancoCom({ 2026: perfil('A', {
       goals2026: { inflacaoPrevista: 9 },
       taxes: { iss: 5 },
       scenarios2026: { Otimista: { growthPercentage: 37 } },
@@ -974,12 +965,12 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
     expect(result.current.tracking2026).toEqual({});
     expect(result.current.pricingItems).toEqual([]);
     await avancar(10000);
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(gravarMock).not.toHaveBeenCalled();
     act(() => result.current.updateCompanyProfile('name', 'B'));
     await avancar(10000);
-    const gravacoes = setDocDe('users/u1/planos/2027');
+    const gravacoes = gravacoesDe(2027);
     expect(gravacoes.length).toBeGreaterThan(0);
-    const gravado = gravacoes.slice(-1)[0][1] as any;
+    const gravado = gravacoes.slice(-1)[0];
     expect(gravado.planData.companyProfile.name).toBe('B');
     expect(gravado.goals2026.inflacaoPrevista).toBe(4.5);
     expect(gravado.taxes.iss).toBe(0);
@@ -987,17 +978,17 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
     expect(gravado.tracking2026).toEqual({});
     expect(gravado.pricingItems).toEqual([]);
     expect(JSON.stringify(gravado)).not.toMatch(/Produto de 2026|receitaRealizada/);
-    expect(setDocDe('users/u1')).toEqual([]);
+    expect(gravacoesDe(2026)).toEqual([]);
   });
 
   it('troca rápida: só a última carga entra', async () => {
-    bancoCom({ 'users/u1': perfil('A'), 'users/u1/planos/2027': perfil('B') });
+    bancoCom({ 2026: perfil('A'), 2027: perfil('B') });
     const { result } = await montar();
-    const respostaDoBanco = getDocMock.getMockImplementation()!;
+    const respostaDoBanco = lerMock.getMockImplementation()!;
     const de2027 = adiado();
-    getDocMock.mockImplementation(async (ref: any) => {
-      if (ref === 'users/u1/planos/2027') await de2027.promessa;
-      return respostaDoBanco(ref);
+    lerMock.mockImplementation(async (c: unknown, uid: string, ano: number) => {
+      if (ano === 2027) await de2027.promessa;
+      return respostaDoBanco(c, uid, ano);
     });
     let primeira!: Promise<boolean>;
     await act(async () => {
@@ -1012,18 +1003,18 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
   });
 
   it('começar 2027 depois da criação automática falhar cria a cópia e abre', async () => {
-    const docs: Record<string, any> = { 'users/u1': perfil('A') };
+    const docs: Record<number, any> = { 2026: perfil('A') };
     bancoCom(docs);
-    const tx = transacaoSobre(docs);
-    runTransactionMock.mockRejectedValueOnce(negado());
+    const criados = criacaoSobre(docs);
+    criarMock.mockRejectedValueOnce(negado());
     const { result } = await montar();
     expect(result.current.anoPlano).toBe(2026);
     let comecou: boolean | undefined;
     await act(async () => { comecou = await result.current.comecarProximoAno(); });
     expect(comecou).toBe(true);
-    expect(tx.set).toHaveBeenCalledTimes(1);
-    expect(tx.set.mock.calls[0][0]).toBe('users/u1/planos/2027');
-    expect(tx.set.mock.calls[0][1].planData.companyProfile.name).toBe('A');
+    expect(criados).toHaveBeenCalledTimes(1);
+    expect(criados.mock.calls[0][0]).toBe(2027);
+    expect(criados.mock.calls[0][1].planData.companyProfile.name).toBe('A');
     expect(result.current.anoPlano).toBe(2027);
     expect(result.current.planData.companyProfile.name).toBe('A');
     expect(result.current.anosDisponiveis).toEqual([2026, 2027]);
@@ -1031,39 +1022,40 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
   });
 
   it('começar 2027 quando outra aba já criou abre o existente', async () => {
-    const docs: Record<string, any> = { 'users/u1': perfil('A') };
+    const docs: Record<number, any> = { 2026: perfil('A') };
     bancoCom(docs);
-    const tx = transacaoSobre(docs);
-    runTransactionMock.mockRejectedValueOnce(negado());
+    const criados = criacaoSobre(docs);
+    criarMock.mockRejectedValueOnce(negado());
     const { result } = await montar();
-    docs['users/u1/planos/2027'] = perfil('B');
+    docs[2027] = perfil('B');
     await act(async () => { await result.current.comecarProximoAno(); });
-    expect(tx.set).not.toHaveBeenCalled();
+    expect(criados).not.toHaveBeenCalled();
     expect(result.current.anoPlano).toBe(2027);
     expect(result.current.planData.companyProfile.name).toBe('B');
   });
 
-  it('começar duas vezes seguidas roda uma transação', async () => {
-    const docs: Record<string, any> = { 'users/u1': perfil('A') };
+  it('começar duas vezes seguidas cria uma vez só', async () => {
+    const docs: Record<number, any> = { 2026: perfil('A') };
     bancoCom(docs);
-    transacaoSobre(docs);
-    runTransactionMock.mockRejectedValueOnce(negado());
+    criacaoSobre(docs);
+    criarMock.mockRejectedValueOnce(negado());
     const { result } = await montar();
     await act(async () => {
       await Promise.all([result.current.comecarProximoAno(), result.current.comecarProximoAno()]);
     });
     // Uma da abertura (negada) e uma só do botão.
-    expect(runTransactionMock).toHaveBeenCalledTimes(2);
+    expect(criarMock).toHaveBeenCalledTimes(2);
     expect(result.current.anoPlano).toBe(2027);
   });
 
   it('trocar para 2026 enquanto 2027 é criado: a criação termina, 2027 entra na lista e o 2026 continua aberto', async () => {
-    const docs: Record<string, any> = { 'users/u1': perfil('A') };
+    const docs: Record<number, any> = { 2026: perfil('A') };
     bancoCom(docs);
-    const tx = transacaoSobre(docs);
+    const criados = criacaoSobre(docs);
     const transacao = adiado();
-    runTransactionMock.mockImplementation(async (_db: any, fn: any) => { await transacao.promessa; return fn(tx); });
-    runTransactionMock.mockRejectedValueOnce(negado());
+    const criar = criarMock.getMockImplementation()!;
+    criarMock.mockImplementation(async (...args: any[]) => { await transacao.promessa; return criar(...args); });
+    criarMock.mockRejectedValueOnce(negado());
     const { result } = await montar();
     let criacao!: Promise<boolean>;
     act(() => { criacao = result.current.comecarProximoAno(); });
@@ -1071,7 +1063,7 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
     expect(result.current.criandoAno).toBe(true);
     await act(() => result.current.trocarAno(2026));
     await act(async () => { transacao.resolver(); await criacao; });
-    expect(tx.set.mock.calls[0][0]).toBe('users/u1/planos/2027');
+    expect(criados.mock.calls[0][0]).toBe(2027);
     expect(result.current.anoPlano).toBe(2026);
     expect(result.current.planData.companyProfile.name).toBe('A');
     expect(result.current.anosDisponiveis).toEqual([2026, 2027]);
@@ -1079,10 +1071,10 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
   });
 
   it('proximoAnoDisponivel em 10/11/2026: [2026] dá 2027; depois de começar 2027, nenhum', async () => {
-    const docs: Record<string, any> = { 'users/u1': perfil('A') };
+    const docs: Record<number, any> = { 2026: perfil('A') };
     bancoCom(docs);
-    transacaoSobre(docs);
-    runTransactionMock.mockRejectedValueOnce(negado());
+    criacaoSobre(docs);
+    criarMock.mockRejectedValueOnce(negado());
     const { result } = await montar();
     expect(result.current.proximoAnoDisponivel).toBe(2027);
     await act(async () => { await result.current.comecarProximoAno(); });
@@ -1090,16 +1082,24 @@ describe('usePlanData — trocar de ano e começar o seguinte', () => {
   });
 });
 
+// Sem servidor configurado, o plano mora no navegador (uma chave por ano).
+async function importarSemServidor() {
+  vi.doMock('../services/supabase', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../services/supabase')>()),
+    semServidor: true,
+  }));
+  vi.resetModules();
+  return import('./usePlanData');
+}
+
 describe('usePlanData — modo offline, uma chave por ano', () => {
   afterEach(() => {
-    vi.unstubAllEnvs();
+    vi.doUnmock('../services/supabase');
     vi.resetModules();
   });
 
   it('abre 2027 e grava só na chave de 2027', async () => {
-    vi.stubEnv('VITE_FIREBASE_API_KEY', 'COLE_SUA_API_KEY_AQUI');
-    vi.resetModules();
-    const offline = await import('./usePlanData');
+    const offline = await importarSemServidor();
     const legado = JSON.stringify(perfil('A'));
     localStorage.setItem('plan_data_u1', legado);
     localStorage.setItem('plan_data_u1_2027', JSON.stringify(perfil('B')));
@@ -1114,20 +1114,18 @@ describe('usePlanData — modo offline, uma chave por ano', () => {
     await avancar(3500);
     expect(JSON.parse(localStorage.getItem('plan_data_u1_2027')!).planData.companyProfile.name).toBe('B2');
     expect(localStorage.getItem('plan_data_u1')).toBe(legado);
-    expect(getDocMock).not.toHaveBeenCalled();
+    expect(lerMock).not.toHaveBeenCalled();
   });
 });
 
 describe('usePlanData — modo offline, ano seguinte', () => {
   afterEach(() => {
-    vi.unstubAllEnvs();
+    vi.doUnmock('../services/supabase');
     vi.resetModules();
   });
 
   it('só com o legado local cria a chave de 2027 a partir dele e abre', async () => {
-    vi.stubEnv('VITE_FIREBASE_API_KEY', 'COLE_SUA_API_KEY_AQUI');
-    vi.resetModules();
-    const offline = await import('./usePlanData');
+    const offline = await importarSemServidor();
     const legado = JSON.stringify(perfil('A'));
     localStorage.setItem('plan_data_u1', legado);
     const envolver = ({ children }: { children: React.ReactNode }) => (
@@ -1151,26 +1149,26 @@ describe('usePlanData — CBS no plano 2027', () => {
   });
 
   it('plano 2027 abre com a CBS no cenário e não grava', async () => {
-    bancoCom({ 'users/u1/planos/2027': doc() });
+    bancoCom({ 2027: doc() });
     const { result } = await montar();
     expect(result.current.anoPlano).toBe(2027);
     expect(result.current.scenarios2026.Conservador.projection.impostosSobreFaturamento.jan).toBeCloseTo(12781.3);
     await avancar(10000);
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(gravarMock).not.toHaveBeenCalled();
   });
 
   it('o mesmo plano em 2026 continua com PIS e COFINS', async () => {
     emNovembroDe2025();
-    bancoCom({ 'users/u1': doc() });
+    bancoCom({ 2026: doc() });
     const { result } = await montar();
     expect(result.current.anoPlano).toBe(2026);
     expect(result.current.scenarios2026.Conservador.projection.impostosSobreFaturamento.jan).toBeCloseTo(9385.25);
     await avancar(10000);
-    expect(setDocMock).not.toHaveBeenCalled();
+    expect(gravarMock).not.toHaveBeenCalled();
   });
 
   it('CBS digitada no 2027 recalcula o cenário', async () => {
-    bancoCom({ 'users/u1/planos/2027': doc() });
+    bancoCom({ 2027: doc() });
     const { result } = await montar();
     act(() => result.current.updateTaxes('cbsEfetiva', '8'));
     await act(async () => {});
@@ -1178,7 +1176,7 @@ describe('usePlanData — CBS no plano 2027', () => {
   });
 
   it('sensibilidade no 2027 reconstrói a receita bruta com a CBS', async () => {
-    bancoCom({ 'users/u1/planos/2027': doc() });
+    bancoCom({ 2027: doc() });
     const { result } = await montar();
     // 30.000 − 7,68% × 100.000 ÷ (1 − 11,78%)
     expect(result.current.calculateSensitivityAnalysis(100000, 40000, 30000, 20)[2][2].netProfit).toBeCloseTo(21294.49);
@@ -1186,7 +1184,7 @@ describe('usePlanData — CBS no plano 2027', () => {
 
   it('sensibilidade no mesmo documento em 2026 usa PIS e COFINS', async () => {
     emNovembroDe2025();
-    bancoCom({ 'users/u1': doc() });
+    bancoCom({ 2026: doc() });
     const { result } = await montar();
     // 30.000 − 7,68% × 100.000 ÷ (1 − 8,65%)
     expect(result.current.calculateSensitivityAnalysis(100000, 40000, 30000, 20)[2][2].netProfit).toBeCloseTo(21592.775);

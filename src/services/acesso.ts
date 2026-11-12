@@ -12,28 +12,17 @@
  *
  * Duas escolhas que sustentam isso:
  *
- * 1. Quem manda é a REGRA DO BANCO, não esta tela. O código aqui pode ser
- *    burlado por qualquer um com o navegador aberto — ele serve para a pessoa
- *    entender o que está acontecendo. Quem de fato barra é o `firestore.rules`,
- *    que só deixa ler e escrever `users/{uid}` quando o acesso está liberado.
+ * 1. Quem manda é o RLS do banco (supabase/migrations), não esta tela. O código
+ *    aqui pode ser burlado por qualquer um com o navegador aberto — ele serve
+ *    para a pessoa entender o que está acontecendo. Quem de fato barra são as
+ *    políticas de `planos`, que só deixam ler e gravar com o acesso liberado.
  *
- * 2. O usuário cria o próprio pedido, mas só pode criá-lo como `pendente`.
- *    Mudar o status é privilégio de administrador — também garantido na regra,
- *    não aqui.
+ * 2. A linha de acesso nasce no banco, por gatilho, sempre como `pendente`.
+ *    Mudar o status é privilégio de administrador, pela função
+ *    `definir_status_de_acesso` — também garantido no banco, não aqui.
  */
 
-import {
-  Firestore,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  collection,
-  getDocs,
-  query,
-  orderBy,
-  serverTimestamp,
-} from 'firebase/firestore';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type StatusAcesso = 'pendente' | 'liberado' | 'bloqueado';
 
@@ -45,91 +34,59 @@ export interface Acesso {
   criadoEm?: unknown;
   liberadoEm?: unknown;
   liberadoPor?: string | null;
-  observacao?: string;
   /** Ausente nos pedidos criados antes deste campo existir. */
   emailVerificado?: boolean;
 }
 
-export const COLECAO_ACESSOS = 'acessos';
-export const COLECAO_ADMINS = 'admins';
+type LinhaDeAcesso = {
+  user_id: string;
+  email: string | null;
+  nome: string | null;
+  status: string | null;
+  criado_em: string | null;
+  liberado_em: string | null;
+  liberado_por: string | null;
+  email_verificado: boolean | null;
+};
 
-/**
- * Administrador é quem tem um documento em `admins` com o e-mail como id.
- * Fica pelo e-mail e não pelo uid de propósito: assim dá para cadastrar alguém
- * pelo console do Firebase antes mesmo dessa pessoa ter conta.
- */
-export async function ehAdministrador(db: Firestore, email: string | null): Promise<boolean> {
-  if (!email) return false;
-  try {
-    const snap = await getDoc(doc(db, COLECAO_ADMINS, email.toLowerCase().trim()));
-    return snap.exists();
-  } catch {
-    // sem permissão de leitura = não é admin
-    return false;
-  }
-}
+const COLUNAS = 'user_id, email, nome, status, criado_em, liberado_em, liberado_por, email_verificado';
 
-/**
- * Busca o acesso de quem acabou de entrar. Se for a primeira vez, cria o
- * pedido como pendente — é o que coloca a pessoa na fila do administrador.
- */
-export async function obterOuCriarAcesso(
-  db: Firestore,
-  uid: string,
-  email: string | null,
-  nome: string | null,
-  emailVerificado: boolean
-): Promise<Acesso> {
-  const ref = doc(db, COLECAO_ACESSOS, uid);
-  const snap = await getDoc(ref);
-
-  if (snap.exists()) {
-    const d = snap.data();
-    return {
-      uid,
-      email: d.email || email || '',
-      nome: d.nome || nome || '',
-      status: (d.status as StatusAcesso) || 'pendente',
-      criadoEm: d.criadoEm,
-      liberadoEm: d.liberadoEm,
-      liberadoPor: d.liberadoPor ?? null,
-      observacao: d.observacao,
-      emailVerificado: d.emailVerificado,
-    };
-  }
-
-  const novo = {
-    email: (email || '').toLowerCase().trim(),
-    nome: nome || '',
-    status: 'pendente' as const,
-    // A regra confere este valor contra o token: o admin vê quem provou ser dono do e-mail.
-    emailVerificado,
-    criadoEm: serverTimestamp(),
-    liberadoEm: null,
-    liberadoPor: null,
+function paraAcesso(l: LinhaDeAcesso): Acesso {
+  return {
+    uid: l.user_id,
+    email: l.email || '',
+    nome: l.nome || '',
+    status: (l.status as StatusAcesso) || 'pendente',
+    criadoEm: l.criado_em,
+    liberadoEm: l.liberado_em,
+    liberadoPor: l.liberado_por ?? null,
+    emailVerificado: l.email_verificado ?? undefined,
   };
-  await setDoc(ref, novo);
-  return { uid, ...novo, criadoEm: undefined };
 }
 
-/** Lista a fila inteira. Só administrador consegue — a regra do banco barra o resto. */
-export async function listarAcessos(db: Firestore): Promise<Acesso[]> {
-  const q = query(collection(db, COLECAO_ACESSOS), orderBy('criadoEm', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => {
-    const v = d.data();
-    return {
-      uid: d.id,
-      email: v.email || '',
-      nome: v.nome || '',
-      status: (v.status as StatusAcesso) || 'pendente',
-      criadoEm: v.criadoEm,
-      liberadoEm: v.liberadoEm,
-      liberadoPor: v.liberadoPor ?? null,
-      observacao: v.observacao,
-      emailVerificado: v.emailVerificado,
-    };
-  });
+/**
+ * Administrador é quem tem o e-mail (confirmado) na tabela `admins`; quem
+ * responde é o próprio banco, pela mesma função que as políticas usam.
+ */
+export async function ehAdministrador(cliente: SupabaseClient): Promise<boolean> {
+  const { data, error } = await cliente.rpc('sou_admin');
+  // Na dúvida, não é admin: o banco recusaria o painel de qualquer jeito.
+  if (error) return false;
+  return data === true;
+}
+
+/** O acesso de quem entrou; null se a linha ainda não existe (o gatilho não rodou ou falhou). */
+export async function obterAcesso(cliente: SupabaseClient, uid: string): Promise<Acesso | null> {
+  const { data, error } = await cliente.from('acessos').select(COLUNAS).eq('user_id', uid).maybeSingle();
+  if (error) throw error;
+  return data ? paraAcesso(data as LinhaDeAcesso) : null;
+}
+
+/** Lista a fila inteira. Só administrador vê todos — o RLS devolve ao resto só a própria linha. */
+export async function listarAcessos(cliente: SupabaseClient): Promise<Acesso[]> {
+  const { data, error } = await cliente.from('acessos').select(COLUNAS).order('criado_em', { ascending: false });
+  if (error) throw error;
+  return (data as LinhaDeAcesso[]).map(paraAcesso);
 }
 
 /** Rótulo da coluna "E-mail verificado"; '—' é pedido antigo, sem o campo. */
@@ -138,26 +95,20 @@ export function rotuloEmailVerificado(v: boolean | undefined): 'Sim' | 'Não' | 
   return v ? 'Sim' : 'Não';
 }
 
-/** Libera, bloqueia ou devolve alguém para a fila. */
-export async function definirStatus(
-  db: Firestore,
-  uid: string,
-  status: StatusAcesso,
-  emailDoAdmin: string
-): Promise<void> {
-  await updateDoc(doc(db, COLECAO_ACESSOS, uid), {
-    status,
-    liberadoEm: status === 'liberado' ? serverTimestamp() : null,
-    liberadoPor: emailDoAdmin,
-  });
+/** Libera, bloqueia ou devolve alguém para a fila. Quem e quando, o banco registra. */
+export async function definirStatus(cliente: SupabaseClient, uid: string, status: StatusAcesso): Promise<void> {
+  const { error } = await cliente.rpc('definir_status_de_acesso', { alvo: uid, novo_status: status });
+  if (error) throw error;
 }
 
-/** Data legível a partir do carimbo do Firestore. */
+/** Data legível a partir do texto ISO do banco (ou do carimbo antigo do Firestore). */
 export function quando(valor: unknown): string {
   if (!valor) return '—';
   const v = valor as { toDate?: () => Date; seconds?: number };
-  const d = typeof v.toDate === 'function' ? v.toDate() : v.seconds ? new Date(v.seconds * 1000) : null;
-  if (!d) return '—';
+  const d = typeof valor === 'string' ? new Date(valor)
+    : typeof v.toDate === 'function' ? v.toDate()
+      : v.seconds ? new Date(v.seconds * 1000) : null;
+  if (!d || Number.isNaN(d.getTime())) return '—';
   return (
     d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }) +
     ' ' +

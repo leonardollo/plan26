@@ -695,7 +695,7 @@ export interface PlanContextType {
     estadoDaCarga: EstadoDaCarga;
     /** Lê o plano do banco outra vez (tela "Não consegui abrir seu plano"). */
     tentarCarregarDeNovo: () => Promise<void>;
-    /** Verdadeiro quando o e-mail está na coleção `admins` do Firestore. */
+    /** Verdadeiro quando o e-mail (confirmado) está na tabela `admins` do banco. */
     souAdmin: boolean;
     /** Onde esta pessoa está na fila de liberação. */
     statusAcesso: import('./services/acesso').StatusAcesso | null;

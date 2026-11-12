@@ -116,7 +116,7 @@ const Settings: React.FC = () => {
                 </div>
 
                 <div className="bg-green-50 p-4 rounded-lg border border-green-200 text-sm text-green-800">
-                    <p><strong>A chave e salva no seu perfil (Firebase).</strong> Você pode acessar de qualquer dispositivo sem precisar configurar novamente.</p>
+                    <p><strong>A chave é salva no seu plano, no servidor.</strong> Você pode acessar de qualquer dispositivo sem precisar configurar novamente.</p>
                 </div>
 
                 <div>

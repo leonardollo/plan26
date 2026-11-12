@@ -1,7 +1,7 @@
-import { collection, doc, getDoc, getDocs, runTransaction, type Firestore } from 'firebase/firestore';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Goals2026, PlanData, PricingItem, Scenarios2026, TaxesData, Tracking2026 } from '../types';
 
-// O documento antigo, users/{uid}, é o plano 2026 (sem migração): os outros anos ficam em users/{uid}/planos/{ano}.
+// No modo local (sem servidor), o plano 2026 mora na chave antiga, sem o ano: as chaves salvas no navegador não mudam.
 export const ANO_DO_PLANO_LEGADO = 2026;
 
 export type AnosDoPlano = { anoPlano: number; anoBase: number };
@@ -19,10 +19,6 @@ export type DadosDoPlano = {
 
 const PREFIXO_LOCAL = 'plan_data_';
 const ID_DE_ANO = /^\d{4}$/;
-
-export function caminhoDoPlano(uid: string, ano: number): string[] {
-    return ano === ANO_DO_PLANO_LEGADO ? ['users', uid] : ['users', uid, 'planos', String(ano)];
-}
 
 export function chaveLocalDoPlano(uid: string, ano: number): string {
     return ano === ANO_DO_PLANO_LEGADO ? `${PREFIXO_LOCAL}${uid}` : `${PREFIXO_LOCAL}${uid}_${ano}`;
@@ -56,14 +52,25 @@ export function proximoAnoDoPlano(anosSalvos: number[], hoje: Date): number | nu
 
 const ordenados = (anos: number[]) => [...new Set(anos)].sort((a, b) => a - b);
 
-export async function listarPlanos(db: Firestore, uid: string): Promise<number[]> {
-    const [legado, planos] = await Promise.all([
-        getDoc(doc(db, ...(caminhoDoPlano(uid, ANO_DO_PLANO_LEGADO) as [string, ...string[]]))),
-        getDocs(collection(db, 'users', uid, 'planos')),
-    ]);
-    const anos = planos.docs.map(d => d.id).filter(id => ID_DE_ANO.test(id)).map(Number);
-    if (legado.exists()) anos.push(ANO_DO_PLANO_LEGADO);
-    return ordenados(anos);
+// Cada função lança o erro do banco: uma leitura ou gravação recusada pelo RLS não pode passar calada.
+export async function listarPlanos(cliente: SupabaseClient, uid: string): Promise<number[]> {
+    const { data, error } = await cliente.from('planos').select('ano').eq('user_id', uid);
+    if (error) throw error;
+    return ordenados((data ?? []).map(l => Number(l.ano)));
+}
+
+export async function carregarPlano(
+    cliente: SupabaseClient, uid: string, ano: number,
+): Promise<Partial<DadosDoPlano> | null> {
+    const { data, error } = await cliente.from('planos').select('dados').eq('user_id', uid).eq('ano', ano).maybeSingle();
+    if (error) throw error;
+    return (data?.dados as Partial<DadosDoPlano> | undefined) ?? null;
+}
+
+// O documento inteiro é trocado: `dados` só leva os seis blocos do plano, todos presentes a cada gravação.
+export async function salvarPlano(cliente: SupabaseClient, uid: string, ano: number, dados: DadosDoPlano): Promise<void> {
+    const { error } = await cliente.from('planos').upsert({ user_id: uid, ano, dados }, { onConflict: 'user_id,ano' });
+    if (error) throw error;
 }
 
 export function listarPlanosLocais(storage: Storage, uid: string): number[] {
@@ -122,17 +129,14 @@ export function montarPlanoDoAnoSeguinte(
     };
 }
 
-// Transação: se outra aba já criou o ano, nada é sobrescrito. A origem vem do banco, não da tela.
+// Se outra aba já criou o ano, nada é sobrescrito (insert que ignora a linha existente). A origem vem do banco, não da tela.
 export async function criarPlanoSeNaoExistir(
-    db: Firestore, uid: string, ano: number, anoOrigem: number, iniciais: DadosDoPlano,
+    cliente: SupabaseClient, uid: string, ano: number, anoOrigem: number, iniciais: DadosDoPlano,
 ): Promise<void> {
-    const destino = doc(db, ...(caminhoDoPlano(uid, ano) as [string, ...string[]]));
-    const origem = doc(db, ...(caminhoDoPlano(uid, anoOrigem) as [string, ...string[]]));
-    await runTransaction(db, async tx => {
-        const atual = await tx.get(destino);
-        if (atual.exists()) return;
-        const lida = await tx.get(origem);
-        const dados = (lida.exists() ? lida.data() : {}) as Partial<DadosDoPlano>;
-        tx.set(destino, montarPlanoDoAnoSeguinte(dados, iniciais, ano - anoOrigem));
-    });
+    const origem = (await carregarPlano(cliente, uid, anoOrigem)) ?? {};
+    const dados = montarPlanoDoAnoSeguinte(origem, iniciais, ano - anoOrigem);
+    const { error } = await cliente
+        .from('planos')
+        .upsert({ user_id: uid, ano, dados }, { onConflict: 'user_id,ano', ignoreDuplicates: true });
+    if (error) throw error;
 }

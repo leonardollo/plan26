@@ -1,12 +1,10 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { initializeApp, getApps, getApp } from 'firebase/app';
 import { PatchPlano } from '../services/dpeImport';
 import {
-    Acesso, StatusAcesso, ehAdministrador, obterOuCriarAcesso,
+    Acesso, StatusAcesso, ehAdministrador, obterAcesso,
     listarAcessos as listarAcessosNoBanco, definirStatus,
 } from '../services/acesso';
-import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import * as api from '../services/geminiService';
 import {
@@ -29,34 +27,16 @@ import { nopat, paybackCacMeses } from '../utils/calculos/indicadores';
 import { resumoDoCenario } from '../utils/calculos/resumo';
 import { bonusDeProdutividade, scoreEstrategico } from '../utils/calculos/analise';
 import {
-    aberturaDoPlano, anoDoPlanoAtual, anosDoPlano, caminhoDoPlano, chaveLocalDoPlano, criarPlanoSeNaoExistir, listarPlanos,
+    aberturaDoPlano, anoDoPlanoAtual, anosDoPlano, carregarPlano as lerPlanoDoBanco, chaveLocalDoPlano, criarPlanoSeNaoExistir, listarPlanos,
+    salvarPlano,
     listarPlanosLocais, montarPlanoDoAnoSeguinte, proximoAnoDoPlano, type DadosDoPlano,
 } from '../services/planos';
-import { supabase, usuarioDoSupabase, type UsuarioDoApp } from '../services/supabase';
+import { semServidor, supabase, usuarioDoSupabase, type UsuarioDoApp } from '../services/supabase';
 
-// Os dados ainda moram no Firestore até a troca dos planos e acessos; o login já é do Supabase.
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyB5fB2J-D431lc4m3NrTDDVEpTtvd_U_1A",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "plan-ea4cc.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "plan-ea4cc",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "plan-ea4cc.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1007485589925",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1007485589925:web:9514ab68c669cf5a52b04c"
-};
-const isConfigValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "COLE_SUA_API_KEY_AQUI";
-const isOfflineMode = !isConfigValid;
+// Sem servidor configurado, o app roda no "modo local": login fictício e plano só neste navegador.
+const isOfflineMode = semServidor;
 
-let app: any;
-let db: any;
-
-if (!isOfflineMode) {
-    try {
-        app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-        db = getFirestore(app);
-    } catch (e) {
-        console.error("Erro ao conectar no Firebase. Verifique suas chaves.", e);
-    }
-} else {
+if (isOfflineMode) {
     console.log("ℹ️ Modo Local Ativado: sem servidor, o plano fica só neste navegador.");
 }
 
@@ -340,10 +320,12 @@ const recalcularPlanoLido = (data: any, baseScenario: ScenarioName, anoPlano: nu
 // "Erro" sozinho não ajuda ninguém. Quando o banco recusa por permissão, o problema é de acesso e não de
 // rede — e a pessoa precisa saber disso para não ficar tentando de novo à toa.
 const traduzirErroDeGravacao = (error: unknown): string => {
-    const bruto = error instanceof Error ? error.message : String(error);
-    return /permission|insufficient/i.test(bruto)
+    // O erro do Supabase nem sempre é um Error: vem como objeto com `message` e `code`.
+    const e = error as { message?: unknown; code?: unknown } | null;
+    const bruto = typeof e?.message === 'string' ? e.message : String(error);
+    return e?.code === '42501' || /permission|insufficient|row-level security/i.test(bruto)
         ? 'O banco recusou a gravação: seu acesso não está liberado. Fale com a Gestão de Impacto.'
-        : /offline|network|unavailable/i.test(bruto)
+        : /offline|network|unavailable|failed to fetch|load failed/i.test(bruto)
             ? 'Sem conexão com o banco. O que você escreveu não se perdeu; assim que voltar, salvo de novo.'
             : bruto;
 };
@@ -420,9 +402,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         setSaveStatus('saving');
         try {
             // O caminho vem do ano dos dados desta renderização, nunca do ano escolhido no seletor.
-            if (!isOfflineMode && db) {
-                const docRef = doc(db, ...(caminhoDoPlano(user.uid, anoCarregado) as [string, ...string[]]));
-                const escrita = setDoc(docRef, { planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems }, { merge: true });
+            if (!isOfflineMode) {
+                const escrita = salvarPlano(supabase, user.uid, anoCarregado, { planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems });
                 gravacaoEmAndamento.current = escrita.catch(() => {});
                 await escrita;
             } else {
@@ -457,9 +438,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         localStorage.removeItem('google_gemini_api_key');
         try {
             let data: any = null;
-            if (!isOfflineMode && db) {
-                const docSnap = await getDoc(doc(db, ...(caminhoDoPlano(user.uid, ano) as [string, ...string[]])));
-                if (docSnap.exists()) data = docSnap.data();
+            if (!isOfflineMode) {
+                data = await lerPlanoDoBanco(supabase, user.uid, ano);
             } else {
                 const stored = localStorage.getItem(chaveLocalDoPlano(user.uid, ano));
                 if (stored) data = JSON.parse(stored);
@@ -516,8 +496,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             planData: initialPlanData, goals2026: initialGoals, scenarios2026: initialScenarios,
             tracking2026: {}, taxes: initialTaxes, pricingItems: [],
         };
-        if (!isOfflineMode && db) {
-            await criarPlanoSeNaoExistir(db, user.uid, ano, anoOrigem, iniciais);
+        if (!isOfflineMode) {
+            await criarPlanoSeNaoExistir(supabase, user.uid, ano, anoOrigem, iniciais);
         } else if (!listarPlanosLocais(localStorage, user.uid).includes(ano)) {
             const origem = localStorage.getItem(chaveLocalDoPlano(user.uid, anoOrigem));
             const novo = montarPlanoDoAnoSeguinte(origem ? JSON.parse(origem) : {}, iniciais, ano - anoOrigem);
@@ -535,8 +515,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         setEstadoDaCarga('carregando');
         localStorage.removeItem('google_gemini_api_key');
         try {
-            const lista = !isOfflineMode && db
-                ? await listarPlanos(db, user.uid)
+            const lista = !isOfflineMode
+                ? await listarPlanos(supabase, user.uid)
                 : listarPlanosLocais(localStorage, user.uid);
             if (carga !== cargaAtual.current) return;
             definirAnosSalvos(lista);
@@ -649,7 +629,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
      * pendente e não alcança dado nenhum até um administrador liberar.
      *
      * Esta função é para a pessoa entender o que está acontecendo. Quem de fato
-     * barra é a regra do Firestore — o código do navegador não protege nada.
+     * barra é o RLS do banco — o código do navegador não protege nada.
      */
     const aplicarStatusDeAcesso = async (novo: SubscriptionStatus) => {
         const anterior = subscriptionStatusRef.current;
@@ -662,7 +642,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     };
 
     const checkSubscription = async () => {
-        if (isOfflineMode || !db) {
+        if (isOfflineMode) {
             // sem banco não há fila; o modo local é para desenvolver
             setSouAdmin(true);
             setStatusAcesso('liberado');
@@ -672,7 +652,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         try {
             // Depois de "Já verifiquei", usuarioAtual vem da sessão renovada; o user do App pode estar defasado.
             const verificado = usuarioAtual ? usuarioAtual.emailVerified : user.emailVerified;
-            const admin = await ehAdministrador(db, user.email);
+            const admin = await ehAdministrador(supabase);
 
             if (admin && !verificado) {
                 // A regra só reconhece admin com e-mail verificado; sem isto o app abriria um painel que o banco recusa.
@@ -689,11 +669,12 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                 return;
             }
 
-            const acesso = await obterOuCriarAcesso(db, user.uid, user.email, user.name, verificado);
-            setStatusAcesso(acesso.status);
+            // Sem linha (o gatilho ainda não rodou ou falhou) é pendente, como no erro: nunca liberado.
+            const status = (await obterAcesso(supabase, user.uid))?.status ?? 'pendente';
+            setStatusAcesso(status);
             await aplicarStatusDeAcesso(
-                acesso.status === 'liberado' ? 'active'
-                    : acesso.status === 'bloqueado' ? 'inactive'
+                status === 'liberado' ? 'active'
+                    : status === 'bloqueado' ? 'inactive'
                         : 'not_found'
             );
         } catch (e) {
@@ -706,13 +687,13 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     };
 
     const listarAcessosDoBanco = async (): Promise<Acesso[]> => {
-        if (!db) return [];
-        return listarAcessosNoBanco(db);
+        if (isOfflineMode) return [];
+        return listarAcessosNoBanco(supabase);
     };
 
     const mudarStatusDeAcesso = async (uid: string, status: StatusAcesso): Promise<void> => {
-        if (!db) return;
-        await definirStatus(db, uid, status, user.email || '');
+        if (isOfflineMode) return;
+        await definirStatus(supabase, uid, status);
     };
 
     useEffect(() => {
@@ -1797,9 +1778,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             localStorage.removeItem('google_gemini_api_key');
             try {
                 // Apaga só o ano aberto: os outros anos do cliente ficam intactos.
-                if (!isOfflineMode && db && anoCarregado !== null) {
-                    const docRef = doc(db, ...(caminhoDoPlano(user.uid, anoCarregado) as [string, ...string[]]));
-                    await setDoc(docRef, {
+                if (!isOfflineMode && anoCarregado !== null) {
+                    await salvarPlano(supabase, user.uid, anoCarregado, {
                         planData: initialPlanData,
                         goals2026: initialGoals,
                         scenarios2026: initialScenarios,
@@ -1813,7 +1793,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                     });
                 }
             } catch (error) {
-                console.error('Erro ao limpar dados no Firebase:', error);
+                console.error('Erro ao limpar os dados no banco:', error);
             }
         },
         checkSubscription,

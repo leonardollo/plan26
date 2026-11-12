@@ -1,20 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('firebase/firestore', () => ({
-  doc: vi.fn((_db: unknown, ...p: string[]) => p.join('/')),
-  collection: vi.fn((_db: unknown, ...p: string[]) => p.join('/')),
-  getDoc: vi.fn(),
-  getDocs: vi.fn(),
-  runTransaction: vi.fn(),
-}));
-
-import { getDoc, getDocs, runTransaction } from 'firebase/firestore';
 import {
   ANO_DO_PLANO_LEGADO,
   aberturaDoPlano,
   anoDoPlanoAtual,
   anosDoPlano,
-  caminhoDoPlano,
   chaveLocalDoPlano,
   criarPlanoSeNaoExistir,
   listarPlanos,
@@ -24,13 +14,18 @@ import {
   type DadosDoPlano,
 } from './planos';
 
-const getDocMock = vi.mocked(getDoc);
-const getDocsMock = vi.mocked(getDocs);
-const runTransactionMock = vi.mocked(runTransaction);
-const db = {} as any;
+// Cliente do Supabase de mentira: a leitura devolve a origem; o upsert é o que se confere.
+function clienteFalso(origem: unknown, erroAoGravar: unknown = null) {
+  const upsert = vi.fn(async () => ({ error: erroAoGravar }));
+  const consulta: any = {
+    select: () => consulta,
+    eq: () => consulta,
+    maybeSingle: async () => ({ data: origem === undefined ? null : { dados: origem }, error: null }),
+    upsert,
+  };
+  return { cliente: { from: vi.fn(() => consulta) } as any, upsert };
+}
 
-const existe = (data: unknown = {}) => ({ exists: () => true, data: () => data }) as any;
-const ausente = () => ({ exists: () => false, data: () => undefined }) as any;
 
 function iniciais(): DadosDoPlano {
   return {
@@ -109,17 +104,9 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-describe('caminho e chave de cada ano', () => {
-  it('o ano legado usa o documento do usuário', () => {
-    expect(ANO_DO_PLANO_LEGADO).toBe(2026);
-    expect(caminhoDoPlano('u1', 2026)).toEqual(['users', 'u1']);
-  });
-
-  it('outro ano usa a subcoleção planos', () => {
-    expect(caminhoDoPlano('u1', 2027)).toEqual(['users', 'u1', 'planos', '2027']);
-  });
-
+describe('chave local de cada ano', () => {
   it('chave local do legado e de outro ano', () => {
+    expect(ANO_DO_PLANO_LEGADO).toBe(2026);
     expect(chaveLocalDoPlano('u1', 2026)).toBe('plan_data_u1');
     expect(chaveLocalDoPlano('u1', 2027)).toBe('plan_data_u1_2027');
   });
@@ -170,44 +157,6 @@ describe('proximoAnoDoPlano', () => {
     [[2030], new Date(2026, 10, 10), null],
   ])('com %j em %s oferece %s', (anos, hoje, esperado) => {
     expect(proximoAnoDoPlano(anos as number[], hoje)).toBe(esperado);
-  });
-});
-
-describe('listarPlanos', () => {
-  function responder(legado: boolean, ids: string[]) {
-    getDocMock.mockImplementation(async (ref: any) => {
-      expect(ref).toBe('users/u1');
-      return legado ? existe() : ausente();
-    });
-    getDocsMock.mockImplementation(async (ref: any) => {
-      expect(ref).toBe('users/u1/planos');
-      return { docs: ids.map(id => ({ id })) } as any;
-    });
-  }
-
-  it('legado sem planos devolve só o legado', async () => {
-    responder(true, []);
-    expect(await listarPlanos(db, 'u1')).toEqual([2026]);
-  });
-
-  it('legado com 2027 devolve os dois em ordem', async () => {
-    responder(true, ['2027']);
-    expect(await listarPlanos(db, 'u1')).toEqual([2026, 2027]);
-  });
-
-  it('sem legado e sem planos devolve vazio', async () => {
-    responder(false, []);
-    expect(await listarPlanos(db, 'u1')).toEqual([]);
-  });
-
-  it('ignora IDs que não são ano', async () => {
-    responder(false, ['2027', 'abc']);
-    expect(await listarPlanos(db, 'u1')).toEqual([2027]);
-  });
-
-  it('não repete o legado quando planos traz 2026', async () => {
-    responder(true, ['2026']);
-    expect(await listarPlanos(db, 'u1')).toEqual([2026]);
   });
 });
 
@@ -283,42 +232,36 @@ describe('montarPlanoDoAnoSeguinte', () => {
 });
 
 describe('criarPlanoSeNaoExistir', () => {
-  function transacao(destinoExiste: boolean, origem: unknown) {
-    const tx = {
-      get: vi.fn(async (ref: string) => {
-        if (ref === 'users/u1/planos/2027') return destinoExiste ? existe({}) : ausente();
-        if (ref === 'users/u1') return existe(origem);
-        throw new Error(`caminho inesperado ${ref}`);
-      }),
-      set: vi.fn(),
-    };
-    runTransactionMock.mockImplementation(async (_db: any, fn: any) => fn(tx));
-    return tx;
-  }
+  const CONFLITO = { onConflict: 'user_id,ano', ignoreDuplicates: true };
 
-  it('cria o ano seguinte a partir da origem lida no banco', async () => {
+  it('cria o ano seguinte a partir da origem lida no banco, sem sobrescrever o que já existir', async () => {
     const origem = origemCheia();
-    const tx = transacao(false, origem);
-    await criarPlanoSeNaoExistir(db, 'u1', 2027, 2026, iniciais());
-    expect(tx.set).toHaveBeenCalledTimes(1);
-    expect(tx.set).toHaveBeenCalledWith('users/u1/planos/2027', montarPlanoDoAnoSeguinte(origem, iniciais(), 1));
+    const { cliente, upsert } = clienteFalso(origem);
+    await criarPlanoSeNaoExistir(cliente, 'u1', 2027, 2026, iniciais());
+    expect(upsert).toHaveBeenCalledTimes(1);
+    expect(upsert).toHaveBeenCalledWith(
+      { user_id: 'u1', ano: 2027, dados: montarPlanoDoAnoSeguinte(origem, iniciais(), 1) },
+      CONFLITO,
+    );
   });
 
   it('cria 2029 a partir do 2026 sem levar o imposto do ano base dele', async () => {
-    const tx = {
-      get: vi.fn(async (ref: string) => (ref === 'users/u1' ? existe(origemCheia()) : ausente())),
-      set: vi.fn(),
-    };
-    runTransactionMock.mockImplementation(async (_db: any, fn: any) => fn(tx));
-    await criarPlanoSeNaoExistir(db, 'u1', 2029, 2026, iniciais());
-    const [caminho, gravado] = tx.set.mock.calls[0];
-    expect(caminho).toBe('users/u1/planos/2029');
-    expect(gravado.taxes.totalImpostos2024).toBe(iniciais().taxes.totalImpostos2024);
+    const { cliente, upsert } = clienteFalso(origemCheia());
+    await criarPlanoSeNaoExistir(cliente, 'u1', 2029, 2026, iniciais());
+    const [linha] = upsert.mock.calls[0] as any[];
+    expect(linha.ano).toBe(2029);
+    expect(linha.dados.taxes.totalImpostos2024).toBe(iniciais().taxes.totalImpostos2024);
   });
 
-  it('não sobrescreve um ano que outra aba já criou', async () => {
-    const tx = transacao(true, origemCheia());
-    await criarPlanoSeNaoExistir(db, 'u1', 2027, 2026, iniciais());
-    expect(tx.set).not.toHaveBeenCalled();
+  it('sem origem salva, cria com os valores iniciais', async () => {
+    const { cliente, upsert } = clienteFalso(undefined);
+    await criarPlanoSeNaoExistir(cliente, 'u1', 2027, 2026, iniciais());
+    const [linha] = upsert.mock.calls[0] as any[];
+    expect(linha.dados).toEqual(montarPlanoDoAnoSeguinte({}, iniciais(), 1));
+  });
+
+  it('gravação recusada pelo banco lança', async () => {
+    const { cliente } = clienteFalso(origemCheia(), { code: '42501', message: 'row-level security' });
+    await expect(criarPlanoSeNaoExistir(cliente, 'u1', 2027, 2026, iniciais())).rejects.toMatchObject({ code: '42501' });
   });
 });

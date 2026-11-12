@@ -6,7 +6,7 @@ import { Acesso, StatusAcesso, quando, rotuloEmailVerificado } from '../services
  * Gestão de Acessos — a tela do administrador.
  *
  * Mostra quem pediu acesso e libera com um clique. Só aparece no menu para
- * quem é administrador, mas o que de fato protege é a regra do Firestore:
+ * quem é administrador, mas o que de fato protege é o RLS do Supabase:
  * mesmo que alguém force esta tela, o banco recusa a escrita.
  */
 
@@ -32,7 +32,7 @@ const GestaoDeAcessos: React.FC = () => {
     } catch (e) {
       setErro(
         e instanceof Error && /permission/i.test(e.message)
-          ? 'O banco recusou a leitura. Confira se seu e-mail está na coleção "admins" e se as regras do Firestore foram publicadas.'
+          ? 'O banco recusou a leitura. Confira se seu e-mail está na tabela "admins" do Supabase e se já foi confirmado.'
           : e instanceof Error
             ? e.message
             : 'Não consegui carregar a lista.'
@@ -187,8 +187,8 @@ const GestaoDeAcessos: React.FC = () => {
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <h3 className="font-semibold text-brand-dark text-sm mb-2">Para colocar outro administrador</h3>
         <p className="text-sm text-gray-600 leading-relaxed">
-          No console do Firebase, crie um documento na coleção <span className="font-mono">admins</span> usando
-          o <strong>e-mail da pessoa como ID do documento</strong> (em minúsculas). O conteúdo pode ficar vazio.
+          No painel do Supabase, acrescente uma linha na tabela <span className="font-mono">admins</span> com
+          o <strong>e-mail da pessoa</strong> (em minúsculas). Ela precisa ter confirmado o e-mail para entrar como administradora.
         </p>
         <p className="text-xs text-gray-500 mt-2">
           É de propósito que isso não se faça por aqui: se o app pudesse criar administradores, quem

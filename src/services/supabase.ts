@@ -29,6 +29,9 @@ const config = configDoSupabase(import.meta.env as unknown as Ambiente);
 
 export const supabase: SupabaseClient = createClient(config.url, config.chave);
 
+// Com os padrões do PLAN26 nunca é verdade (como já era com o Firebase); preserva o modo local do app, sem servidor.
+export const semServidor = !config.url || !config.chave;
+
 // O mesmo mínimo do Auth (local em supabase/config.toml; no PLAN26, no painel).
 export const SENHA_MINIMA = 6;
 
