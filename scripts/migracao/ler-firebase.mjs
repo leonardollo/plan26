@@ -7,13 +7,16 @@ import { getFirestore } from 'firebase-admin/firestore';
 // Fixo de propósito: uma credencial de outro projeto falha em vez de ler o banco errado.
 const PROJETO_FIREBASE = 'plan-ea4cc';
 
-/** Devolve a Entrada da Tarefa 5 (ver transformar.mjs). */
-export async function lerFirebase() {
+let app;
+export function appDoFirebase() {
   if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) throw new Error('GOOGLE_APPLICATION_CREDENTIALS não definida.');
-  const app = initializeApp({ credential: applicationDefault(), projectId: PROJETO_FIREBASE }, 'migracao-leitura');
-  const auth = getAuth(app);
-  const db = getFirestore(app);
+  app ??= initializeApp({ credential: applicationDefault(), projectId: PROJETO_FIREBASE }, 'migracao');
+  return app;
+}
 
+/** Todos os usuários do Firebase Auth (listUsers paginado). */
+export async function lerUsuariosDoAuth() {
+  const auth = getAuth(appDoFirebase());
   const usuariosAuth = [];
   let pageToken;
   do {
@@ -28,6 +31,13 @@ export async function lerFirebase() {
     }
     pageToken = pagina.pageToken;
   } while (pageToken);
+  return usuariosAuth;
+}
+
+/** Devolve a Entrada da Tarefa 5 (ver transformar.mjs). */
+export async function lerFirebase() {
+  const usuariosAuth = await lerUsuariosDoAuth();
+  const db = getFirestore(appDoFirebase());
 
   const admins = (await db.collection('admins').get()).docs.map((d) => d.id);
 

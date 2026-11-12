@@ -30,6 +30,9 @@ pnpm-debug.log*
 .vercel
 .env*
 
+# Cópia das regras do Firestore no ar, feita na virada (scripts/regras-do-firebase.mjs salvar)
+firestore.no-ar.rules
+
 # Starter Pack v2
 .env*
 !.env.example

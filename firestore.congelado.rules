@@ -1,0 +1,74 @@
+rules_version = '2';
+
+// ============================================================
+//  PLAN — regras do Firestore CONGELADAS para a virada ao Supabase
+//
+//  As leituras são as mesmas do firestore.rules; toda escrita é negada.
+//  Assim, enquanto a importação roda, ninguém muda um plano no Firebase
+//  que já foi copiado, e quem ainda estiver com o app antigo aberto vê os
+//  dados mas não perde trabalho sem saber (o app mostra o erro de salvar).
+//
+//  Publicado por `scripts/regras-do-firebase.mjs congelar` (passo humano,
+//  docs/VIRADA-SUPABASE.md); desfeito com `restaurar`.
+//  scripts/regras.test.mjs confere que nenhuma escrita ficou aberta e que as
+//  leituras batem com o firestore.rules.
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function souAdmin() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/admins/$(request.auth.token.email.lower()));
+    }
+
+    function meuAcessoEsta(status) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/acessos/$(request.auth.uid))
+        && get(/databases/$(database)/documents/acessos/$(request.auth.uid)).data.status == status;
+    }
+
+    match /admins/{email} {
+      allow get: if request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email.lower() == email;
+      allow write: if false;
+    }
+
+    match /acessos/{uid} {
+      allow get: if request.auth != null && (request.auth.uid == uid || souAdmin());
+      allow list: if souAdmin();
+      allow write: if false;
+    }
+
+    function podeUsarOEspaco() {
+      return meuAcessoEsta('liberado') || souAdmin();
+    }
+
+    match /users/{uid} {
+      allow read: if request.auth != null
+        && request.auth.uid == uid
+        && podeUsarOEspaco();
+      allow write: if false;
+
+      match /planos/{ano} {
+        allow read: if request.auth != null
+          && request.auth.uid == uid
+          && podeUsarOEspaco();
+        allow write: if false;
+      }
+
+      match /{documento=**} {
+        allow read: if request.auth != null
+          && request.auth.uid == uid
+          && podeUsarOEspaco();
+      }
+    }
+
+    match /{documento=**} {
+      allow read, write: if false;
+    }
+  }
+}
