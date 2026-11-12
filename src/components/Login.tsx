@@ -1,6 +1,29 @@
 
 import React, { useState } from 'react';
 import { authService } from '../hooks/usePlanData';
+import { SENHA_MINIMA } from '../services/supabase';
+
+// Traduz os erros do Supabase Auth; o código vem em `code` (versões novas) ou só na mensagem (antigas).
+export function mensagemDeErroDeLogin(error: { code?: string; message?: string } | null | undefined): string {
+  const codigo = error?.code ?? '';
+  const texto = (error?.message ?? '').toLowerCase();
+  if (codigo === 'invalid_credentials' || texto.includes('invalid login credentials')) {
+    return 'Usuário não encontrado ou senha incorreta. Se é seu primeiro acesso, clique em "Cadastre-se" abaixo.';
+  }
+  if (codigo === 'email_not_confirmed' || texto.includes('email not confirmed')) {
+    return 'Confirme seu e-mail antes de entrar.';
+  }
+  if (codigo === 'user_already_exists' || codigo === 'email_exists' || texto.includes('already registered')) {
+    return 'Este e-mail já está cadastrado. Tente fazer login.';
+  }
+  if (codigo === 'weak_password') {
+    return `A senha precisa de pelo menos ${SENHA_MINIMA} caracteres.`;
+  }
+  if (codigo === 'over_email_send_rate_limit' || codigo === 'over_request_rate_limit') {
+    return 'Muitas tentativas seguidas. Espere alguns minutos e tente de novo.';
+  }
+  return error?.message || 'Ocorreu um erro. Verifique suas credenciais.';
+}
 
 const Login: React.FC = () => {
   const [name, setName] = useState('');
@@ -10,6 +33,8 @@ const Login: React.FC = () => {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  // E-mail que acabou de se cadastrar: o Supabase só abre a sessão depois da confirmação.
+  const [aConfirmar, setAConfirmar] = useState<string | null>(null);
   
   const handleAuthAction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,22 +45,32 @@ const Login: React.FC = () => {
     try {
         if (isSignUp) {
             if (name.trim() === '') {
-                throw new Error("O nome e obrigatorio para o cadastro.");
+                throw new Error("O nome é obrigatório para o cadastro.");
             }
             await authService.signup(email, password, name);
-            setMessage("Conta criada com sucesso! Você sera redirecionado.");
+            setAConfirmar(email);
+            setMessage(`Enviamos um link de confirmação para ${email}. Abra o e-mail para entrar.`);
+            setIsLoading(false);
         } else {
             await authService.login(email, password);
         }
     } catch (error: any) {
         console.error(error);
-        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-             setError('Usuario nao encontrado ou senha incorreta. Se e seu primeiro acesso, clique em "Cadastre-se" abaixo.');
-        } else if (error.code === 'auth/email-already-in-use') {
-             setError('Este email ja esta cadastrado. Tente fazer login.');
-        } else {
-             setError(error.message || 'Ocorreu um erro. Verifique suas credenciais.');
-        }
+        setError(mensagemDeErroDeLogin(error));
+        setIsLoading(false);
+    }
+  };
+
+  const handleReenviar = async () => {
+    if (!aConfirmar) return;
+    setIsLoading(true);
+    setError('');
+    try {
+        await authService.enviarVerificacaoDeEmail(aConfirmar);
+        setMessage(`Enviamos um novo link de confirmação para ${aConfirmar}. Abra o e-mail para entrar.`);
+    } catch (error: any) {
+        setError(mensagemDeErroDeLogin(error));
+    } finally {
         setIsLoading(false);
     }
   };
@@ -62,9 +97,9 @@ const Login: React.FC = () => {
     setMessage('');
     try {
         await authService.resetPassword(email);
-        setMessage("E-mail de recuperacao enviado! Verifique sua caixa de entrada.");
+        setMessage("E-mail de recuperação enviado! Verifique sua caixa de entrada.");
     } catch (error: any) {
-        setError(error.message || "Falha ao enviar e-mail de recuperacao.");
+        setError(error?.message ? mensagemDeErroDeLogin(error) : "Falha ao enviar e-mail de recuperação.");
     } finally {
         setIsLoading(false);
     }
@@ -177,8 +212,9 @@ const Login: React.FC = () => {
               <label className="block text-sm font-medium text-gray-300 mb-1.5">Senha</label>
               <input
                 type="password"
-                autoComplete="current-password"
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
                 required
+                minLength={isSignUp ? SENHA_MINIMA : undefined}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange text-sm"
@@ -202,6 +238,11 @@ const Login: React.FC = () => {
             {message && (
                 <div className="p-3 bg-green-900/30 border border-green-800 rounded-xl">
                     <p className="text-sm text-green-400 text-center">{message}</p>
+                    {aConfirmar && (
+                      <button type="button" onClick={handleReenviar} disabled={isLoading} className="mt-2 w-full text-sm text-brand-orange hover:text-orange-400 font-semibold disabled:opacity-50">
+                        Reenviar e-mail
+                      </button>
+                    )}
                 </div>
             )}
 
@@ -215,8 +256,8 @@ const Login: React.FC = () => {
           </form>
 
           <p className="text-center mt-6 text-sm text-gray-500">
-            {isSignUp ? 'Ja tem uma conta?' : 'Nao tem uma conta?'}{' '}
-            <button type="button" onClick={() => { setIsSignUp(!isSignUp); setError(''); setMessage(''); }} className="text-brand-orange hover:text-orange-400 font-semibold">
+            {isSignUp ? 'Já tem uma conta?' : 'Não tem uma conta?'}{' '}
+            <button type="button" onClick={() => { setIsSignUp(!isSignUp); setError(''); setMessage(''); setAConfirmar(null); }} className="text-brand-orange hover:text-orange-400 font-semibold">
               {isSignUp ? 'Fazer login' : 'Cadastre-se'}
             </button>
           </p>

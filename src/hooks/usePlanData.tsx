@@ -1,7 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail, updateProfile, sendEmailVerification } from 'firebase/auth';
 import { PatchPlano } from '../services/dpeImport';
 import {
     Acesso, StatusAcesso, ehAdministrador, obterOuCriarAcesso,
@@ -33,13 +32,10 @@ import {
     aberturaDoPlano, anoDoPlanoAtual, anosDoPlano, caminhoDoPlano, chaveLocalDoPlano, criarPlanoSeNaoExistir, listarPlanos,
     listarPlanosLocais, montarPlanoDoAnoSeguinte, proximoAnoDoPlano, type DadosDoPlano,
 } from '../services/planos';
-import { CONFIG_DOS_EMULADORES, conectarAosEmuladores, usarEmuladores } from '../services/emuladores';
+import { supabase, usuarioDoSupabase, type UsuarioDoApp } from '../services/supabase';
 
-// `import.meta.env.DEV` é false no build: o ambiente local nunca entra em produção.
-const comEmuladores = import.meta.env.DEV && usarEmuladores(import.meta.env.DEV, import.meta.env.MODE);
-
-// Firebase configuration - loaded from environment variables
-const firebaseConfig = comEmuladores ? CONFIG_DOS_EMULADORES : {
+// Os dados ainda moram no Firestore até a troca dos planos e acessos; o login já é do Supabase.
+const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyB5fB2J-D431lc4m3NrTDDVEpTtvd_U_1A",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "plan-ea4cc.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "plan-ea4cc",
@@ -51,29 +47,33 @@ const isConfigValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "COLE_S
 const isOfflineMode = !isConfigValid;
 
 let app: any;
-let auth: any;
 let db: any;
 
 if (!isOfflineMode) {
     try {
         app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-        auth = getAuth(app);
         db = getFirestore(app);
-        if (comEmuladores) {
-            conectarAosEmuladores(auth, db);
-            console.log("🧪 Emuladores locais do Firebase (projeto demo-plan): login e banco fictícios.");
-        }
-        console.log("✅ Firebase Conectado!");
     } catch (e) {
         console.error("Erro ao conectar no Firebase. Verifique suas chaves.", e);
     }
 } else {
-    console.log("ℹ️ Modo Local Ativado: Preencha o `firebaseConfig` no topo do arquivo `hooks/usePlanData.tsx` para salvar na nuvem.");
+    console.log("ℹ️ Modo Local Ativado: sem servidor, o plano fica só neste navegador.");
 }
+
+// O cliente do Supabase devolve { error } em vez de lançar; sem isto uma senha errada passaria calada.
+function semErro<T extends { error: unknown }>(r: T): T {
+    if (r.error) throw r.error;
+    return r;
+}
+
+// O último usuário que o Supabase entregou: emailAtual() é síncrona e a tela de verificação a usa direto.
+let usuarioAtual: UsuarioDoApp | null = null;
+
+export type EventoDeEntrada = { recuperandoSenha: boolean };
 
 export const authService = {
     login: async (email: string, password: string) => {
-        if (!isOfflineMode && auth) return signInWithEmailAndPassword(auth, email, password);
+        if (!isOfflineMode) return semErro(await supabase.auth.signInWithPassword({ email, password })).data;
         const storedUserJSON = localStorage.getItem('local_user');
         if (storedUserJSON) {
             const user = JSON.parse(storedUserJSON);
@@ -88,12 +88,13 @@ export const authService = {
         return { user: demoUser };
     },
     signup: async (email: string, password: string, name: string) => {
-        if (!isOfflineMode && auth) {
-            const result = await createUserWithEmailAndPassword(auth, email, password);
-            if (result.user) {
-                await updateProfile(result.user, { displayName: name });
-            }
-            return result;
+        if (!isOfflineMode) {
+            return semErro(await supabase.auth.signUp({
+                email,
+                password,
+                // O link de confirmação volta para este mesmo endereço (produção, prévia ou local).
+                options: { data: { name }, emailRedirectTo: window.location.origin },
+            })).data;
         }
         const user = { uid: 'local-user-' + Date.now(), email, displayName: name };
         localStorage.setItem('local_user', JSON.stringify(user));
@@ -103,32 +104,53 @@ export const authService = {
     logout: async () => {
         // O próximo usuário deste navegador não pode herdar a chave de quem saiu.
         localStorage.removeItem('google_gemini_api_key');
-        if (!isOfflineMode && auth) return signOut(auth);
+        if (!isOfflineMode) {
+            semErro(await supabase.auth.signOut());
+            return;
+        }
         localStorage.removeItem('local_session_active');
     },
     loginWithGoogle: async () => {
-        if (!isOfflineMode && auth) {
-            const provider = new GoogleAuthProvider();
-            return signInWithPopup(auth, provider);
+        if (!isOfflineMode) {
+            // Redirecionamento, não popup: o navegador sai daqui e volta com a sessão na URL.
+            return semErro(await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: { redirectTo: window.location.origin },
+            })).data;
         }
-        throw new Error("Login com Google indisponível no Modo Local. Configure o Firebase no código.");
+        throw new Error("Login com Google indisponível no Modo Local.");
     },
     resetPassword: async (email: string) => {
-        if (!isOfflineMode && auth) return sendPasswordResetEmail(auth, email);
-        alert(`[MODO LOCAL] Simulação: Um link de redefinição foi enviado para ${email}`);
+        if (!isOfflineMode) {
+            semErro(await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin }));
+            return;
+        }
+        alert(`[MODO LOCAL] Simulação: um link de redefinição foi enviado para ${email}`);
     },
-    emailAtual: (): string | null => auth?.currentUser?.email ?? null,
-    enviarVerificacaoDeEmail: async (): Promise<void> => {
-        if (!isOfflineMode && auth?.currentUser) await sendEmailVerification(auth.currentUser);
+    definirSenha: async (senha: string): Promise<void> => {
+        if (isOfflineMode) return;
+        semErro(await supabase.auth.updateUser({ password: senha }));
+    },
+    emailAtual: (): string | null => usuarioAtual?.email ?? null,
+    enviarVerificacaoDeEmail: async (email?: string): Promise<void> => {
+        const destino = email ?? usuarioAtual?.email;
+        if (isOfflineMode || !destino) return;
+        semErro(await supabase.auth.resend({ type: 'signup', email: destino }));
     },
     recarregarUsuario: async (): Promise<void> => {
-        if (isOfflineMode || !auth?.currentUser) return;
-        await auth.currentUser.reload();
-        // Token novo: sem ele a regra do banco ainda veria email_verified falso.
-        await auth.currentUser.getIdToken(true);
+        if (isOfflineMode) return;
+        // Sessão nova: o token passa a trazer o e-mail confirmado, que é o que o banco confere.
+        const { data } = semErro(await supabase.auth.refreshSession());
+        usuarioAtual = usuarioDoSupabase(data.session?.user ?? data.user);
     },
-    subscribe: (callback: (user: any) => void) => {
-        if (!isOfflineMode && auth) return onAuthStateChanged(auth, callback);
+    subscribe: (callback: (user: UsuarioDoApp | null, evento?: EventoDeEntrada) => void) => {
+        if (!isOfflineMode) {
+            const { data } = supabase.auth.onAuthStateChange((evento, session) => {
+                usuarioAtual = usuarioDoSupabase(session?.user);
+                callback(usuarioAtual, { recuperandoSenha: evento === 'PASSWORD_RECOVERY' });
+            });
+            return () => data.subscription.unsubscribe();
+        }
         const isActive = localStorage.getItem('local_session_active') === 'true';
         const storedUserJSON = localStorage.getItem('local_user');
         if (isActive && storedUserJSON) {
@@ -648,8 +670,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             return;
         }
         try {
-            // reload() não dispara onAuthStateChanged: o user do App fica com o valor antigo.
-            const verificado = auth?.currentUser ? auth.currentUser.emailVerified : user.emailVerified;
+            // Depois de "Já verifiquei", usuarioAtual vem da sessão renovada; o user do App pode estar defasado.
+            const verificado = usuarioAtual ? usuarioAtual.emailVerified : user.emailVerified;
             const admin = await ehAdministrador(db, user.email);
 
             if (admin && !verificado) {

@@ -2,25 +2,17 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 
-const { authFalso } = vi.hoisted(() => ({ authFalso: { currentUser: null as any } }));
+const { authFalso } = vi.hoisted(() => ({
+  authFalso: { signOut: vi.fn(), refreshSession: vi.fn(), onAuthStateChange: vi.fn() },
+}));
+
+// O cliente do Supabase é trocado por este falso; usuarioDoSupabase continua o de verdade.
+vi.mock('@supabase/supabase-js', () => ({ createClient: vi.fn(() => ({ auth: authFalso })) }));
 
 vi.mock('firebase/app', () => ({
   initializeApp: vi.fn(() => ({})),
   getApps: vi.fn(() => []),
   getApp: vi.fn(() => ({})),
-}));
-
-vi.mock('firebase/auth', () => ({
-  getAuth: vi.fn(() => authFalso),
-  signInWithEmailAndPassword: vi.fn(),
-  createUserWithEmailAndPassword: vi.fn(),
-  signOut: vi.fn(),
-  onAuthStateChanged: vi.fn(),
-  GoogleAuthProvider: vi.fn(),
-  signInWithPopup: vi.fn(),
-  sendPasswordResetEmail: vi.fn(),
-  updateProfile: vi.fn(),
-  sendEmailVerification: vi.fn(),
 }));
 
 vi.mock('firebase/firestore', () => ({
@@ -48,7 +40,6 @@ vi.mock('../services/geminiService');
 
 import { getDoc, getDocs, runTransaction, setDoc } from 'firebase/firestore';
 import { ehAdministrador, obterOuCriarAcesso } from '../services/acesso';
-import { signOut } from 'firebase/auth';
 import { PlanProvider, authService, usePlan } from './usePlanData';
 import { MONTHS } from '../types';
 import { investimento2026Vazio } from '../utils/calculos/investimentos';
@@ -93,7 +84,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   getDocsMock.mockResolvedValue({ docs: [] } as any);
   localStorage.clear();
-  authFalso.currentUser = null;
   ehAdminMock.mockResolvedValue(false);
   acessoMock.mockResolvedValue({ status: 'liberado' } as any);
   setDocMock.mockResolvedValue(undefined as any);
@@ -206,14 +196,14 @@ describe('usePlanData — chave do Gemini', () => {
 
   it('logout apaga a chave', async () => {
     localStorage.setItem(CHAVE, 'kA');
-    vi.mocked(signOut).mockResolvedValue(undefined);
+    authFalso.signOut.mockResolvedValue({ error: null });
     await authService.logout();
     expect(localStorage.getItem(CHAVE)).toBeNull();
   });
 
   it('logout apaga a chave mesmo se signOut falhar', async () => {
     localStorage.setItem(CHAVE, 'kA');
-    vi.mocked(signOut).mockRejectedValue(new Error('rede'));
+    authFalso.signOut.mockResolvedValue({ error: new Error('rede') });
     await authService.logout().catch(() => {});
     expect(localStorage.getItem(CHAVE)).toBeNull();
   });
@@ -243,13 +233,26 @@ describe('usePlanData — chave do Gemini', () => {
 });
 
 describe('usePlanData — e-mail do admin', () => {
-  beforeEach(() => {
+  // A sessão que o Supabase devolve ao renovar; é ela que diz se o e-mail já foi confirmado.
+  const sessaoCom = (confirmado: boolean | null) =>
+    authFalso.refreshSession.mockResolvedValue({
+      data: confirmado === null ? { session: null, user: null } : {
+        session: { user: { id: 'u1', email: 'c@x.com', email_confirmed_at: confirmado ? '2026-11-12T10:00:00Z' : null } },
+        user: null,
+      },
+      error: null,
+    });
+
+  beforeEach(async () => {
     getDocMock.mockResolvedValue(documento());
+    sessaoCom(null);
+    await authService.recarregarUsuario();
   });
 
   it('admin sem e-mail verificado vai para a verificação', async () => {
     ehAdminMock.mockResolvedValue(true);
-    authFalso.currentUser = { emailVerified: false };
+    sessaoCom(false);
+    await authService.recarregarUsuario();
     const { result } = await montar();
     expect(result.current.subscriptionStatus).toBe('verificar_email');
     expect(result.current.souAdmin).toBe(false);
@@ -258,7 +261,8 @@ describe('usePlanData — e-mail do admin', () => {
 
   it('admin verificado entra direto', async () => {
     ehAdminMock.mockResolvedValue(true);
-    authFalso.currentUser = { emailVerified: true };
+    sessaoCom(true);
+    await authService.recarregarUsuario();
     const { result } = await montar();
     expect(result.current.subscriptionStatus).toBe('active');
     expect(result.current.souAdmin).toBe(true);
@@ -266,20 +270,31 @@ describe('usePlanData — e-mail do admin', () => {
 
   it('Já verifiquei sem ter verificado continua na verificação', async () => {
     ehAdminMock.mockResolvedValue(true);
-    authFalso.currentUser = { emailVerified: false };
+    sessaoCom(false);
+    await authService.recarregarUsuario();
     const { result } = await montar();
     await act(() => result.current.checkSubscription());
     expect(result.current.subscriptionStatus).toBe('verificar_email');
   });
 
-  it('recarregarUsuario recarrega o usuário e só depois força um token novo', async () => {
-    const reload = vi.fn().mockResolvedValue(undefined);
-    const getIdToken = vi.fn().mockResolvedValue('token');
-    authFalso.currentUser = { emailVerified: false, reload, getIdToken };
+  it('Já verifiquei depois de confirmar: a sessão renovada libera o admin', async () => {
+    ehAdminMock.mockResolvedValue(true);
+    sessaoCom(false);
     await authService.recarregarUsuario();
-    expect(reload).toHaveBeenCalledTimes(1);
-    expect(getIdToken).toHaveBeenCalledWith(true);
-    expect(reload.mock.invocationCallOrder[0]).toBeLessThan(getIdToken.mock.invocationCallOrder[0]);
+    const { result } = await montar();
+    expect(result.current.subscriptionStatus).toBe('verificar_email');
+    sessaoCom(true);
+    await act(async () => {
+      await authService.recarregarUsuario();
+      await result.current.checkSubscription();
+    });
+    expect(authFalso.refreshSession).toHaveBeenCalled();
+    expect(result.current.subscriptionStatus).toBe('active');
+  });
+
+  it('recarregarUsuario lança o erro do Supabase', async () => {
+    authFalso.refreshSession.mockResolvedValue({ data: { session: null, user: null }, error: new Error('sessão expirada') });
+    await expect(authService.recarregarUsuario()).rejects.toThrow('sessão expirada');
   });
 
   it('cliente grava emailVerificado no pedido', async () => {

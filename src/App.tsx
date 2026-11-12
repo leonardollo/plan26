@@ -18,6 +18,7 @@ import PlanSummary from './components/PlanSummary';
 import PricingCalculator from './components/PricingCalculator';
 import ReportGenerator from './components/ReportGenerator';
 import Login from './components/Login';
+import DefinirSenha from './components/DefinirSenha';
 import MarketingFunnel from './components/MarketingFunnel';
 import DreComparison from './components/DreComparison';
 import LiquidityDashboard from './components/LiquidityDashboard';
@@ -34,6 +35,7 @@ import SubscriptionExpiredPage from './components/SubscriptionExpiredPage';
 import ErroAoAbrirPlano from './components/ErroAoAbrirPlano';
 import VerificarEmailAdmin from './components/VerificarEmailAdmin';
 import { telaDoApp } from './utils/telaDoApp';
+import { telaDeEntrada } from './services/supabase';
 
 const LoadingScreen: React.FC<{ message?: string }> = ({ message = 'Carregando...' }) => (
     <div className="flex h-screen w-full items-center justify-center bg-brand-dark">
@@ -145,19 +147,23 @@ const MainLayout: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLo
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [recuperandoSenha, setRecuperandoSenha] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = authService.subscribe((firebaseUser: any) => {
-      if (firebaseUser) {
+    const unsubscribe = authService.subscribe((usuario, evento) => {
+      if (usuario) {
         setUser({
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          name: firebaseUser.displayName,
-          emailVerified: !!firebaseUser.emailVerified,
+          uid: usuario.uid,
+          email: usuario.email,
+          name: usuario.displayName,
+          emailVerified: !!usuario.emailVerified,
         });
       } else {
         setUser(null);
+        setRecuperandoSenha(false);
       }
+      // Os eventos seguintes (renovar o token, salvar a senha) não desligam a tela: só gravar a senha desliga.
+      if (evento?.recuperandoSenha) setRecuperandoSenha(true);
       setIsLoading(false);
     });
 
@@ -178,8 +184,14 @@ const App: React.FC = () => {
     return <LoadingScreen />;
   }
 
-  if (!user) {
+  const tela = telaDeEntrada({ recuperandoSenha, temUsuario: !!user });
+
+  if (tela === 'login' || !user) {
     return <Login />;
+  }
+
+  if (tela === 'definir_senha') {
+    return <DefinirSenha email={user.email} onConcluido={() => setRecuperandoSenha(false)} />;
   }
 
   return (
