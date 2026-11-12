@@ -3,6 +3,55 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
+## 2026-11-12 — Migração do Firebase para o Supabase (código e roteiro; a virada ainda não aconteceu)
+
+- **O quê:** plano `docs/superpowers/plans/2026-11-12-migracao-supabase.md` (spec
+  `…/specs/2026-11-12-migracao-supabase-design.md`), 8 tarefas, tudo contra o Supabase local.
+  - **Banco** (`supabase/migrations/20261112000000_plan.sql`): `admins`, `acessos` (com `email_verificado`, que a spec
+    não tinha, para a Gestão de Acessos), `planos(user_id, ano, dados jsonb)` com teto de 1 MiB (o limite do
+    Firestore); `sou_admin()`, `posso_usar_o_espaco()` e `definir_status_de_acesso()` em `security definer` com
+    `search_path` fixo; gatilhos em `auth.users`; RLS igual às regras de hoje (admin só no próprio espaço; anos de 2026
+    ao ano UTC + 1; sem delete).
+  - **App:** `src/services/supabase.ts` (cliente, adaptador do usuário, `telaDeEntrada`); `authService` com os mesmos
+    nomes; Google por redirecionamento; tela "Defina sua senha"; confirmação de e-mail com "Reenviar". `planos.ts` e
+    `acesso.ts` sobre o Supabase. Sai o SDK `firebase` e os emuladores. `ANO_DO_PLANO_LEGADO` fica só para as chaves
+    do modo offline.
+  - **Local e CI:** CLI do Supabase como devDependency (`supabase` 3.1.0; o do Homebrew estava com a assinatura
+    inválida e não reinstala no macOS 27). `npm run test:db` no lugar de `test:rules`; CI com `npx supabase start`;
+    app local com `db:local` → `db:local:semear` → `dev:local` (modo `banco-local`).
+  - **Migração:** `scripts/migracao/` (transformação pura, leitura do Firebase, gravação com trava contra sobrescrever
+    plano editado, conferência), `scripts/migrar-firebase-para-supabase.mjs` (simula por padrão; produção só com
+    `--confirmo=<ref>`), `scripts/enviar-criar-senha.mjs`, `scripts/regras-do-firebase.mjs` (salvar, congelar,
+    restaurar) e `firestore.congelado.rules`.
+  - **Roteiro:** `docs/VIRADA-SUPABASE.md`, com os passos humanos marcados.
+- **Por quê:** o usuário vai deixar o Firebase e a conta antiga da Vercel ("migre tudo para o supabase").
+- **Verificação** em `34f7669` (código igual a `de85007`):
+  - `npm run typecheck`: sem erros;
+  - `npm test`: 38 arquivos, 338/338;
+  - `npm run test:db`: 4 arquivos, 28/28 (inclui um migrado que recebe o e-mail no Mailpit, define a senha e lê o plano);
+  - `npm run build`: ok, em 1.86s;
+  - `npm audit --audit-level=high`: passa, com 13 moderadas (do `firebase-tools`).
+- **Navegador** (subagente, `agent-browser`, 390 px e desktop): login, cadastro com confirmação, liberação pelo admin,
+  salvar e recarregar, "esqueci a senha". Achou um bug na senha repetida, corrigido com teste.
+- **Revisão:** Codex, Estrutural + Sensível.
+  - **Plano:** P1 a volta atrás prometia "sem perda" depois de o app novo já aceitar gravações, corrigido (`de85007` e,
+    na re-revisão, `34f7669`: o limite passou a ser antes do deploy de produção; a spec foi ajustada em `48e8538`). P2
+    reenvio da confirmação sem `emailRedirectTo`, corrigido com teste. P2 conferência contava acessos pelo Firebase, e
+    não pelas linhas reais, corrigido com teste.
+  - **Segurança:** P2 `dados` sem limite de tamanho, corrigido com check constraint e teste. P2 e-mails no terminal da
+    importação, **rejeitado**: a spec decidiu que o relatório fica só no terminal do usuário, e o script não roda no CI.
+  - **Re-revisão** (`de85007`, as duas lentes): o mesmo P1 com o limite no passo 6, corrigido em `34f7669` sem nova
+    rodada.
+- **Em aberto:**
+  - a importação repetida devolve o status de acesso do Firebase; hoje só o roteiro impede rodar depois do deploy.
+    Recomendado antes da virada: uma trava no script que não sobrescreva acesso mudado no app novo;
+  - Google ligando à conta migrada só se testa na prévia (passo 1.6 do roteiro);
+  - `.claude/settings.json` e `.codex/rules/project.rules` ainda liberam `test:rules`; trocar por `test:db` (humano);
+  - a virada inteira (PLAN26, painel, Vercel, DNS, importação, e-mails, congelar regras) espera o "sim" do usuário;
+  - na verificação no navegador, o subagente fechou com `agent-browser close --all` uma sessão de outro projeto.
+- **Commits:** `bf9d895`, `d867e51`, `af45f89`, `a217ccd`, `903ecf1`, `96d9b4f`, `21c4135`, `c5556a6`, `889c937`,
+  `3b7865d`, `de85007`, `48e8538`, `34f7669`.
+
 ## 2026-11-11 — Layout no celular
 
 - **O quê:**
