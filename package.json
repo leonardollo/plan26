@@ -13,10 +13,12 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-plan \"vitest run --config vitest.rules.config.ts\""
+    "db:local": "supabase start",
+    "test:db": "supabase db reset --local && vitest run --config vitest.db.config.ts"
   },
   "dependencies": {
     "@google/genai": "^1.44.0",
+    "@supabase/supabase-js": "^2.119.0",
     "clsx": "^2.1.1",
     "firebase": "^12.10.0",
     "react": "^19.2.4",
@@ -26,7 +28,6 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
-    "@firebase/rules-unit-testing": "^5.0.2",
     "@tailwindcss/vite": "^4.2.1",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
@@ -36,6 +37,7 @@
     "@vitejs/plugin-react": "^5.1.4",
     "firebase-tools": "^15.35.0",
     "jsdom": "^31.0.0",
+    "supabase": "^3.1.0",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",

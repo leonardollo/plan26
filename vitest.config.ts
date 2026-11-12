@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'jsdom',
-    // Os testes de regras rodam no emulador, pelo vitest.rules.config.ts.
+    // Os testes de banco rodam no Supabase local, pelo vitest.db.config.ts (npm run test:db).
     include: ['src/**/*.test.{ts,tsx}'],
   },
 });
