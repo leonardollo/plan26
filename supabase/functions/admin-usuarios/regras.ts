@@ -36,9 +36,10 @@ export function validarReenviar(corpo: unknown): { alvo: string } | { erro: stri
 }
 
 const ORIGENS_FIXAS = new Set([URL_DO_APP, 'http://localhost:5173']);
-// why: aceita hífens no meio para as prévias por branch (plan-git-<branch>-<time>.vercel.app), ancorada e só https.
-// O CORS não é a barreira (o token do admin é); ele só deixa a tela ler a resposta.
-const PREVIA_VERCEL = /^https:\/\/plan-[a-z0-9-]+-gestao-de-impactos-projects\.vercel\.app$/;
+// why: só a URL de deploy com hash (sem hífen). Com hífen, "plan-abc-x-gestao-de-impactos-projects" pode ser o
+// projeto "plan" de outro time de slug "x-gestao-de-impactos-projects"; as prévias de branch (plan-git-<branch>-<time>)
+// têm a mesma ambiguidade, então ficam de fora de propósito. Testar uma prévia de branch: use a URL de deploy dela.
+const PREVIA_VERCEL = /^https:\/\/plan-[a-z0-9]+-gestao-de-impactos-projects\.vercel\.app$/;
 
 export function origemPermitida(origem: string | null): boolean {
   if (!origem) return false;

@@ -64,7 +64,7 @@ describe('origens do CORS', () => {
     for (const o of [
       'https://planejamento.gestaoimpacto.com',
       'https://plan-abc123-gestao-de-impactos-projects.vercel.app',
-      'https://plan-git-feat-area-admin-gestao-de-impactos-projects.vercel.app',
+      'https://plan-ab12cd34e-gestao-de-impactos-projects.vercel.app',
       'http://localhost:5173',
     ]) {
       expect(origemPermitida(o), o).toBe(true);
@@ -74,6 +74,10 @@ describe('origens do CORS', () => {
   it('recusa o resto', () => {
     for (const o of [
       'https://plan-x.vercel.app.evil.com',
+      // Outro time com slug "x-gestao-de-impactos-projects" (o caso do ataque) e prévia de branch, ambígua do mesmo jeito.
+      'https://plan-abc-x-gestao-de-impactos-projects.vercel.app',
+      'https://plan-git-feat-x-gestao-de-impactos-projects.vercel.app',
+      'https://plan-git-feat-area-admin-gestao-de-impactos-projects.vercel.app',
       'https://plan-abc123-gestao-de-impactos-projects.vercel.app.evil.com',
       'http://plan-abc123-gestao-de-impactos-projects.vercel.app',
       'https://plan-abc123-outro-time.vercel.app',
