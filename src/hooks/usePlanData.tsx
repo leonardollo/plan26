@@ -2,8 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { PatchPlano } from '../services/dpeImport';
 import {
-    Acesso, StatusAcesso, ehAdministrador, obterAcesso,
-    listarAcessos as listarAcessosNoBanco, definirStatus,
+    StatusAcesso, ehAdministrador, obterAcesso,
 } from '../services/acesso';
 import { v4 as uuidv4 } from 'uuid';
 import * as api from '../services/geminiService';
@@ -721,16 +720,6 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User, pla
             setStatusAcesso('pendente');
             setSubscriptionStatus('not_found');
         }
-    };
-
-    const listarAcessosDoBanco = async (): Promise<Acesso[]> => {
-        if (isOfflineMode) return [];
-        return listarAcessosNoBanco(supabase);
-    };
-
-    const mudarStatusDeAcesso = async (uid: string, status: StatusAcesso): Promise<void> => {
-        if (isOfflineMode) return;
-        await definirStatus(supabase, uid, status);
     };
 
     useEffect(() => {
@@ -1746,7 +1735,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User, pla
         // O admin não começa ano novo no plano de um cliente.
         proximoAnoDisponivel: modoCliente ? null : proximoAnoDoPlano(anosSalvosState, new Date()),
         planoDeCliente: planoDeCliente ?? null, atualizadoEmNoBanco,
-        souAdmin, statusAcesso, listarAcessosDoBanco, mudarStatusDeAcesso, motivoDoErroAoSalvar,
+        souAdmin, statusAcesso, motivoDoErroAoSalvar,
         estadoDaCarga, tentarCarregarDeNovo,
         aplicarImportacaoDpe,
         planData, goals2026, scenarios2026, tracking2026, taxes, baseScenario, summary2025, subscriptionStatus,

@@ -6,7 +6,7 @@ export const MONTH_LABELS: { [key in Month]: string } = {
     jul: 'Julho', ago: 'Agosto', set: 'Setembro', out: 'Outubro', nov: 'Novembro', dez: 'Dezembro'
 };
 
-export type View = 'dashboard' | 'settings' | 'gestao-acessos' | 'import-dpe' | 'data-collection' | 'strategic-analysis' | 'goal-setting' | 'okrs-kpis' | 'commercial-planning' | 'marketing-funnel' | 'action-plan' | 'scenario-planning' | 'financial-planning' | 'plan-summary' | 'monthly-tracking' | 'dre-comparison' | 'taxes' | 'pricing-calculator' | 'report-generator' | 'liquidity-dashboard' | 'financial-ratios' | 'sensitivity-analysis' | 'help-guide';
+export type View = 'dashboard' | 'settings' | 'administracao' | 'import-dpe' | 'data-collection' | 'strategic-analysis' | 'goal-setting' | 'okrs-kpis' | 'commercial-planning' | 'marketing-funnel' | 'action-plan' | 'scenario-planning' | 'financial-planning' | 'plan-summary' | 'monthly-tracking' | 'dre-comparison' | 'taxes' | 'pricing-calculator' | 'report-generator' | 'liquidity-dashboard' | 'financial-ratios' | 'sensitivity-analysis' | 'help-guide';
 
 // 'verificar_email': admin cujo e-mail ainda não foi verificado; a regra do banco não o reconhece como admin.
 export type SubscriptionStatus = 'loading' | 'active' | 'inactive' | 'expired' | 'not_found' | 'verificar_email';
@@ -710,8 +710,6 @@ export interface PlanContextType {
     souAdmin: boolean;
     /** Onde esta pessoa está na fila de liberação. */
     statusAcesso: import('./services/acesso').StatusAcesso | null;
-    listarAcessosDoBanco: () => Promise<import('./services/acesso').Acesso[]>;
-    mudarStatusDeAcesso: (uid: string, status: import('./services/acesso').StatusAcesso) => Promise<void>;
     /** Traz para o PLAN o que o cliente respondeu no diagnóstico (DPE-GI). */
     aplicarImportacaoDpe: (patch: import('./services/dpeImport').PatchPlano, metas: Partial<Goals2026>) => void;
     planData: PlanData;

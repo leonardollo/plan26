@@ -232,7 +232,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, user, on
         <NavButton id="settings" label="Configurações" icon={icons.settings} currentView={currentView} onClick={() => irPara('settings')} />
 
         {souAdmin && (
-          <NavButton id="gestao-acessos" label="Gestão de Acessos" icon={icons.people} currentView={currentView} onClick={() => irPara('gestao-acessos')} />
+          <NavButton id="administracao" label="Administração" icon={icons.people} currentView={currentView} onClick={() => irPara('administracao')} />
         )}
 
         <SectionTitle title="Diagnóstico" />
