@@ -37,8 +37,8 @@ code, identifiers and commit messages follow the project's conventions.
   sending the "create your password" e-mails · DNS · freezing or restoring the Firebase rules
 - **Deploy:** Vercel, project `plan` in team `gestao-de-impactos-projects`, `https://planejamento.gestaoimpacto.com`
   (human-only). Schema changes are migrations in `supabase/migrations/`, applied to PLAN26 by a human
-  (`supabase db push`). The old app (Leonardo's Vercel, `app-orcamento-gi.vercel.app`) runs on Firebase until the switch;
-  its domain `plan2026.gestaoimpacto.com` was renamed to `planejamento` in the DNS on 2026-11-12.
+  (`supabase db push`). Until the switch, `planejamento.gestaoimpacto.com` serves the old Firebase app from project
+  `plan-firebase` (same team, Leonardo's commit `f0c2a74`); the domain moves to `plan` at the switch.
 - **Notes:** read by range, never whole: `src/hooks/usePlanData.tsx`,
   `src/components/CommercialPlanning.tsx`, `src/services/geminiService.ts`. The PLAN26 publishable key
   fallback in `src/services/supabase.ts` and the DPE anon key are public client keys, not secrets;
