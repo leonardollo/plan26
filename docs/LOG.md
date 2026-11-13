@@ -20,6 +20,12 @@ automaticamente: sessões novas leem as últimas entradas e o plano em andamento
   - `npm run test:db`: 8 arquivos, 79/79 (com `supabase functions serve admin-usuarios` local);
   - `npm audit --audit-level=high`: ok (13 moderadas, as de antes).
   - Em `f823596`: `vitest related` de `regras.ts`, 40/40; o teste novo foi visto falhando antes.
+  - Como usuário (agent-browser, login falso local, com a função servida localmente):
+    - desktop 1280 px: adicionar cliente com `" Nova.Cliente@Exemplo.com "` grava `nova.cliente@exemplo.com`, liberado,
+      com a mensagem de e-mail enviado;
+    - abrir o plano de um cliente removido mostra a faixa e "Voltar"; depois de voltar, o `localStorage` tem só o
+      token de login;
+    - celular 390 px: Registro legível; Remover pede confirmação, e Reativar devolve o cliente aos Liberados.
 - **Revisão:** Codex, Estrutural + Sensível.
   - Revisão contra o plano: 5 achados P2, todos corrigidos em `c9a23bc`:
     - o limite de envios;
@@ -40,7 +46,6 @@ automaticamente: sessões novas leem as últimas entradas e o plano em andamento
     (`plan-*-gestao-de-impactos-projects.vercel.app/**`). Um link de senha poderia apontar para a prévia de outro time.
     A correção é trocar por URLs exatas ou tirar o curinga, com `supabase config push`. É passo humano e precisa de
     entrega própria.
-  - Verificar como usuário, no celular (390 px) e no desktop, com o login falso local.
   - **Passos humanos, nesta ordem:**
     1. merge em `main`;
     2. `supabase db push` (2 migrações: `20261113000000_area_admin`, `20261113010000_area_admin_limites`);
