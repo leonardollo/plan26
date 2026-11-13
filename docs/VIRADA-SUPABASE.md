@@ -13,7 +13,7 @@ O usuário coloca, e o agente nunca lê:
 
 | Variável | De onde vem |
 |---|---|
-| `GOOGLE_APPLICATION_CREDENTIALS` | caminho do JSON de uma conta de serviço do Firebase `plan-ea4cc` (Console do Firebase → Configurações do projeto → Contas de serviço → Gerar nova chave privada). Revogada no fim (seção 7). |
+| `GOOGLE_APPLICATION_CREDENTIALS` | caminho do JSON de uma conta de serviço do Firebase `plan-ea4cc` (Console do Firebase → Configurações do projeto → Contas de serviço → Gerar nova chave privada). Revogada no fim (seção 5). |
 | `SUPABASE_URL` | `https://aixjmxfkaziqlxnpudkk.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | painel do PLAN26 → Project Settings → API Keys → `service_role` (ou a secret key). Nunca com `VITE_`. |
 
@@ -23,8 +23,10 @@ O usuário coloca, e o agente nunca lê:
 
 ```
 npx supabase link --project-ref aixjmxfkaziqlxnpudkk
-npx supabase db push
+npx supabase db push --remote
 ```
+
+Sem `--remote` o CLI 3 aplica no banco local. Ele pede confirmação; rodado por agente, exige `--yes`.
 
 Conferir: no painel, Table Editor mostra `admins`, `acessos` e `planos` com RLS ligado (cadeado), e
 Database → Functions mostra `sou_admin`, `posso_usar_o_espaco` e `definir_status_de_acesso`.
@@ -81,7 +83,11 @@ Agente (sem efeito para clientes):
 vercel link --scope gestao-de-impactos-projects
 ```
 
-Criar o projeto `plan` (framework Vite, build `npm run build`, saída `dist`). Variáveis, em Production e Preview:
+Criar o projeto `plan` (framework Vite, instalação `npm ci`, build `npm run build`, saída `dist`, Node 24.x). A
+instalação é `npm ci` porque o `pnpm-lock.yaml` velho faria a Vercel usar o pnpm. Antes do primeiro deploy, a proteção do
+projeto vai para **todos os endereços** (`ssoProtection.deploymentType = "all"`): o primeiro deploy de um projeto novo vira
+produção mesmo sem `--prod`, e a proteção padrão deixa aberto o endereço `plan-*.vercel.app` de produção, ligado ao PLAN26.
+Variáveis, em Production e Preview:
 
 ```
 vercel env add VITE_SUPABASE_URL production
@@ -93,7 +99,13 @@ vercel env add VITE_SUPABASE_ANON_KEY preview
 Valores: `https://aixjmxfkaziqlxnpudkk.supabase.co` e a chave pública `sb_publishable_dBg8bB4xBbSK6TzcFKCSIA_a9KjnmEZ`
 (as duas públicas). **[humano]** `VITE_API_KEY` (Gemini), nos dois ambientes.
 
-Prévia: `vercel deploy` (sem `--prod`) → anotar a URL `https://plan-…-gestao-de-impactos-projects.vercel.app`.
+Prévia: `vercel deploy --target preview`, de uma cópia limpa do `main` (`git worktree add --detach <pasta> origin/main`,
+para não subir `.env.local` nem arquivos fora do git) → anotar a URL `https://plan-…-gestao-de-impactos-projects.vercel.app`.
+Abrir exige login na Vercel com uma conta do time.
+
+Feito em 2026-11-13: projeto criado, variáveis públicas definidas, proteção em todos os endereços. O primeiro deploy
+(`caec7f1`) saiu como produção e ficou uns 3 minutos aberto em `plan-*.vercel.app` antes da proteção; o PLAN26 seguiu sem
+nenhum usuário. Falta `VITE_API_KEY`.
 
 ### 1.4 Admins no PLAN26 [humano]
 
@@ -156,7 +168,7 @@ Texto sugerido:
 | 3 | Importação simulada contra o Firebase congelado | [humano] | `node --env-file=.env.local scripts/migrar-firebase-para-supabase.mjs` | zero impedimentos; contagens iguais às do ensaio (1.5) |
 | 4 | Importação final no PLAN26 | [humano] | `node --env-file=.env.local scripts/migrar-firebase-para-supabase.mjs --aplicar --confirmo=aixjmxfkaziqlxnpudkk` | "Gravando em aixjmxfkaziqlxnpudkk.supabase.co"; conferência com esperado = achado em todas as linhas e "Diferenças (0)"; sai com código 0 |
 | 5 | Deploy de produção do projeto `plan` | [humano] | `vercel deploy --prod` | a URL de produção abre a tela de login |
-| 6 | Domínios no projeto novo | [humano] | Vercel → `plan` → Settings → Domains: adicionar `plan.gestaoimpacto.com`; no DNS (`hanoon6070`), CNAME `plan` → `cname.vercel-dns.com`. Adicionar `plan2026.gestaoimpacto.com`, criar o TXT de verificação que a Vercel mostrar e marcar o redirecionamento **308** para `plan.gestaoimpacto.com` | os dois domínios "Valid Configuration"; `plan2026.gestaoimpacto.com` redireciona |
+| 6 | Domínios no projeto novo | [humano] | Vercel → `plan` → Settings → Deployment Protection: voltar a proteção para **Standard** (todos exceto domínios próprios), senão os clientes caem no login da Vercel. Depois, Settings → Domains: adicionar `plan.gestaoimpacto.com`; no DNS (`hanoon6070`), CNAME `plan` → `cname.vercel-dns.com`. Adicionar `plan2026.gestaoimpacto.com`, criar o TXT de verificação que a Vercel mostrar e marcar o redirecionamento **308** para `plan.gestaoimpacto.com` | os dois domínios "Valid Configuration"; `plan.gestaoimpacto.com`, numa janela anônima, abre a tela de login do PLAN (não a da Vercel); `plan2026.gestaoimpacto.com` redireciona |
 | 7 | E-mails "crie sua senha": contar (só lê, mas lê a produção) | [humano] | `node --env-file=.env.local scripts/enviar-criar-senha.mjs` | "sem conta no Supabase" = 0 |
 | 8 | E-mails "crie sua senha": enviar | [humano] | `node --env-file=.env.local scripts/enviar-criar-senha.mjs --enviar --confirmo=aixjmxfkaziqlxnpudkk` | "Falharam: 0"; leva uns 2 min (lotes de 10, 30 s entre eles) |
 | 9 | Teste final | [humano] | entrar com o admin, com um cliente de senha (pelo e-mail recebido) e com um cliente Google | cada um vê os próprios planos de cada ano e o status de acesso que tinha |
