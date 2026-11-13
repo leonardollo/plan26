@@ -3,6 +3,54 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
+## 2026-11-13 — Área de administração (substitui a Gestão de Acessos)
+
+- **O quê:** plano `docs/superpowers/plans/2026-11-13-area-admin.md` (spec `…/specs/2026-11-13-area-admin-design.md`),
+  7 tarefas, feitas por um subagente implementador.
+  - **Banco:** status `removido`; Registro imutável `registro_admin`; promover e rebaixar admin; o admin lê e edita o
+    plano de qualquer cliente por funções `security definer`. As políticas RLS de `planos` não mudaram.
+  - **Edge Function `admin-usuarios`:** cria cliente liberado e manda o "Defina sua senha"; reenvia o e-mail.
+  - **Tela:** "Administração", com as abas Clientes, Administradores e Registro. O admin abre o plano do cliente com
+    uma faixa no topo e sem cache local. O cliente removido vê "Sua conta foi desativada".
+- **Por quê:** a usuária pediu para gerenciar tudo sem desenvolvedor. A regra do commit `4399e2c` (o admin só vê o
+  próprio espaço) foi substituída por decisão dela; **o Leonardo precisa ser avisado**.
+- **Verificação**, com `c9a23bc` como base:
+  - `npm run build`: ok (typecheck incluso);
+  - `npm test`: 49 arquivos, 443/443;
+  - `npm run test:db`: 8 arquivos, 79/79 (com `supabase functions serve admin-usuarios` local);
+  - `npm audit --audit-level=high`: ok (13 moderadas, as de antes).
+  - Em `f823596`: `vitest related` de `regras.ts`, 40/40; o teste novo foi visto falhando antes.
+- **Revisão:** Codex, Estrutural + Sensível.
+  - Revisão contra o plano: 5 achados P2, todos corrigidos em `c9a23bc`:
+    - o limite de envios;
+    - um e-mail que está em `admins` mas não tem conta responde "já existe (administrador)";
+    - advisory lock no agrupamento de "alterou plano" (o teste concorrente já passava antes, porque a trava do upsert
+      serializava; o lock fica como defesa explícita);
+    - hífens nas prévias;
+    - CORS nas respostas de erro.
+  - Revisão de segurança: 1 achado P2, o limite de envios. Foi corrigido junto com o mesmo item da revisão do plano,
+    com a tabela `envios_de_senha`: 20 envios por hora por admin e 3 reenvios por hora por destinatário, reservados
+    antes de chamar o Auth, com resposta 429 e `Retry-After`.
+  - Re-revisão de segurança de `c9a23bc`: 1 achado P2. O curinga com hífen aceitava o projeto "plan" de outro time
+    da Vercel (`plan-abc-x-gestao-…`). Corrigido em `f823596`: a regra aceita só a URL de deploy com hash, e as prévias
+    de branch ficam de fora de propósito.
+  - Nenhum achado rejeitado.
+- **Em aberto:**
+  - **Segurança (produção):** o Auth do PLAN26 tem a mesma ambiguidade na lista de redirecionamento
+    (`plan-*-gestao-de-impactos-projects.vercel.app/**`). Um link de senha poderia apontar para a prévia de outro time.
+    A correção é trocar por URLs exatas ou tirar o curinga, com `supabase config push`. É passo humano e precisa de
+    entrega própria.
+  - Verificar como usuário, no celular (390 px) e no desktop, com o login falso local.
+  - **Passos humanos, nesta ordem:**
+    1. merge em `main`;
+    2. `supabase db push` (2 migrações: `20261113000000_area_admin`, `20261113010000_area_admin_limites`);
+    3. `supabase functions deploy admin-usuarios`;
+    4. deploy na Vercel;
+    5. teste do login Google em conta criada pelo admin;
+    6. avisar o Leonardo.
+- **Commits:** `f5a8b40`, `063a3fb`, `feb587a`, `16f2bbe`, `505e76c`, `cbe09c2`, `5dff45f`, `be6c66a`, `4b03997`, `c9a23bc`,
+  `f823596`.
+
 ## 2026-11-13 — Migração: NaN e Infinito do plano entram como vazio
 
 - **O quê:** `paraJson` (`scripts/migracao/transformar.mjs`) recebe a lista opcional `naoFinitos`; com ela, NaN e
