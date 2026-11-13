@@ -37,6 +37,8 @@ export interface Acesso {
   liberadoPor?: string | null;
   /** Ausente nos pedidos criados antes deste campo existir. */
   emailVerificado?: boolean;
+  /** Fim do acesso pago (ISO); null é sem prazo (clientes antigos e quem o admin liberou sem prazo). */
+  acessoAte?: string | null;
 }
 
 type LinhaDeAcesso = {
@@ -48,9 +50,10 @@ type LinhaDeAcesso = {
   liberado_em: string | null;
   liberado_por: string | null;
   email_verificado: boolean | null;
+  acesso_ate: string | null;
 };
 
-const COLUNAS = 'user_id, email, nome, status, criado_em, liberado_em, liberado_por, email_verificado';
+const COLUNAS = 'user_id, email, nome, status, criado_em, liberado_em, liberado_por, email_verificado, acesso_ate';
 
 function paraAcesso(l: LinhaDeAcesso): Acesso {
   return {
@@ -62,6 +65,7 @@ function paraAcesso(l: LinhaDeAcesso): Acesso {
     liberadoEm: l.liberado_em,
     liberadoPor: l.liberado_por ?? null,
     emailVerificado: l.email_verificado ?? undefined,
+    acessoAte: l.acesso_ate ?? null,
   };
 }
 

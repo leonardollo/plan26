@@ -21,12 +21,17 @@ describe('obterAcesso', () => {
   it('converte a linha do banco', async () => {
     const linha = {
       user_id: 'u', email: 'a@x.com', nome: null, status: 'liberado', criado_em: '2026-11-12T10:00:00Z',
-      liberado_em: null, liberado_por: null, email_verificado: false,
+      liberado_em: null, liberado_por: null, email_verificado: false, acesso_ate: '2027-11-13T10:00:00Z',
     };
     expect(await obterAcesso(cliente({ data: linha, error: null }), 'u')).toEqual({
       uid: 'u', email: 'a@x.com', nome: '', status: 'liberado', criadoEm: '2026-11-12T10:00:00Z',
-      liberadoEm: null, liberadoPor: null, emailVerificado: false,
+      liberadoEm: null, liberadoPor: null, emailVerificado: false, acessoAte: '2027-11-13T10:00:00Z',
     });
+  });
+
+  it('linha sem acesso_ate → acessoAte null (sem prazo)', async () => {
+    const linha = { user_id: 'u', email: 'a@x.com', nome: 'A', status: 'liberado', criado_em: null };
+    expect((await obterAcesso(cliente({ data: linha, error: null }), 'u'))?.acessoAte).toBeNull();
   });
 
   it('sem linha devolve null; erro do banco lança', async () => {

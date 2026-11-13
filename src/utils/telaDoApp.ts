@@ -21,10 +21,14 @@ export function telaDoApp(status: SubscriptionStatus, carga: EstadoDaCarga): Tel
     }
 }
 
-/** O que o status de acesso de quem não é admin dá ao app. Removido é tratado como bloqueado: não entra. */
-export function situacaoDoAcesso(status: StatusAcesso): SubscriptionStatus {
+/**
+ * O que o status de acesso de quem não é admin dá ao app. Removido é tratado como bloqueado: não entra.
+ * Liberado com prazo vencido (prazo <= agora, como no banco) expira; sem prazo, não vence nunca.
+ */
+export function situacaoDoAcesso(status: StatusAcesso, acessoAte?: string | null, agora: Date = new Date()): SubscriptionStatus {
     switch (status) {
-        case 'liberado': return 'active';
+        case 'liberado':
+            return acessoAte && new Date(acessoAte).getTime() <= agora.getTime() ? 'expired' : 'active';
         case 'bloqueado':
         case 'removido': return 'inactive';
         case 'pendente': return 'not_found';
