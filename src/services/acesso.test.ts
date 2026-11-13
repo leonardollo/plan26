@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ehAdministrador, obterAcesso, quando, rotuloEmailVerificado } from './acesso';
+import {
+  ehAdministrador, listarAdmins, listarRegistro, obterAcesso, promoverAdmin, quando, rebaixarAdmin, rotuloEmailVerificado,
+} from './acesso';
 
 // O banco de verdade está em tests/db/acesso.test.ts; aqui só o que o cliente faz com a resposta.
 describe('ehAdministrador', () => {
@@ -51,5 +53,63 @@ describe('rotuloEmailVerificado', () => {
     expect(rotuloEmailVerificado(true)).toBe('Sim');
     expect(rotuloEmailVerificado(false)).toBe('Não');
     expect(rotuloEmailVerificado(undefined)).toBe('—');
+  });
+});
+
+describe('administradores e Registro', () => {
+  it('listarAdmins converte as linhas', async () => {
+    const cliente = {
+      rpc: vi.fn(async () => ({ data: [{ email: 'a@gi.com', user_id: 'u1', nome: 'Ana' }, { email: 'b@gi.com', user_id: null, nome: null }], error: null })),
+    } as any;
+    expect(await listarAdmins(cliente)).toEqual([
+      { email: 'a@gi.com', uid: 'u1', nome: 'Ana' },
+      { email: 'b@gi.com', uid: null, nome: null },
+    ]);
+    expect(cliente.rpc).toHaveBeenCalledWith('listar_admins');
+  });
+
+  it('promoverAdmin e rebaixarAdmin chamam a RPC com o e-mail e lançam o erro do banco', async () => {
+    const ok = { rpc: vi.fn(async () => ({ data: null, error: null })) } as any;
+    await promoverAdmin(ok, 'a@gi.com');
+    expect(ok.rpc).toHaveBeenCalledWith('promover_admin', { email: 'a@gi.com' });
+    await rebaixarAdmin(ok, 'a@gi.com');
+    expect(ok.rpc).toHaveBeenCalledWith('rebaixar_admin', { email: 'a@gi.com' });
+    const recusa = { rpc: vi.fn(async () => ({ data: null, error: { code: '42501', message: 'o último administrador não é rebaixado' } })) } as any;
+    await expect(rebaixarAdmin(recusa, 'a@gi.com')).rejects.toMatchObject({ code: '42501' });
+  });
+
+  function clienteDoRegistro(linhas: unknown[]) {
+    const chamadas: Array<[string, ...unknown[]]> = [];
+    const consulta: any = {
+      select: (...a: unknown[]) => (chamadas.push(['select', ...a]), consulta),
+      order: (...a: unknown[]) => (chamadas.push(['order', ...a]), consulta),
+      limit: (...a: unknown[]) => (chamadas.push(['limit', ...a]), consulta),
+      eq: (...a: unknown[]) => (chamadas.push(['eq', ...a]), consulta),
+      then: (r: (v: unknown) => unknown) => r({ data: linhas, error: null }),
+    };
+    return { cliente: { from: vi.fn(() => consulta) } as any, chamadas };
+  }
+
+  const linha = {
+    id: 7, quando: '2026-11-13T12:00:00Z', admin_email: 'a@gi.com', acao: 'liberou', alvo: 'u2', alvo_email: 'c@x.com',
+    detalhe: { de: 'pendente', para: 'liberado' },
+  };
+
+  it('listarRegistro sem alvo: mais novas primeiro, limite 200, datas convertidas', async () => {
+    const { cliente, chamadas } = clienteDoRegistro([linha]);
+    expect(await listarRegistro(cliente)).toEqual([
+      { id: 7, quando: new Date('2026-11-13T12:00:00Z'), adminEmail: 'a@gi.com', acao: 'liberou', alvo: 'u2', alvoEmail: 'c@x.com', detalhe: { de: 'pendente', para: 'liberado' } },
+    ]);
+    expect(cliente.from).toHaveBeenCalledWith('registro_admin');
+    expect(chamadas).toContainEqual(['order', 'quando', { ascending: false }]);
+    expect(chamadas).toContainEqual(['limit', 200]);
+    expect(chamadas.some((c) => c[0] === 'eq')).toBe(false);
+  });
+
+  it('listarRegistro com alvo filtra por ele', async () => {
+    const { cliente, chamadas } = clienteDoRegistro([{ ...linha, detalhe: null }]);
+    const [acao] = await listarRegistro(cliente, 'u2');
+    expect(acao.detalhe).toEqual({});
+    expect(chamadas).toContainEqual(['eq', 'alvo', 'u2']);
   });
 });

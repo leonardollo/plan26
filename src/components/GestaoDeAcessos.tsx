@@ -14,6 +14,7 @@ const ROTULO: Record<StatusAcesso, { texto: string; classe: string }> = {
   pendente: { texto: 'Esperando você', classe: 'bg-amber-100 text-amber-800' },
   liberado: { texto: 'Liberado', classe: 'bg-green-100 text-green-800' },
   bloqueado: { texto: 'Bloqueado', classe: 'bg-red-100 text-red-800' },
+  removido: { texto: 'Removido', classe: 'bg-gray-100 text-gray-600' },
 };
 
 const GestaoDeAcessos: React.FC = () => {
