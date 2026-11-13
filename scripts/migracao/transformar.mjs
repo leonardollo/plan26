@@ -16,20 +16,24 @@ function ehObjetoSimples(v) {
   return proto === Object.prototype || proto === null;
 }
 
-/** Converte para JSON puro; Timestamp (toDate) e Date viram texto ISO; o resto registra impedimento com o caminho. */
-export function paraJson(valor, caminho, impedimentos) {
+/**
+ * Converte para JSON puro; Timestamp (toDate) e Date viram texto ISO; o resto registra impedimento com o caminho.
+ * Com `naoFinitos`, NaN e ±Infinito viram null e o caminho entra nessa lista em vez de impedir.
+ */
+export function paraJson(valor, caminho, impedimentos, naoFinitos = null) {
   if (valor === null || typeof valor === 'string' || typeof valor === 'boolean') return valor;
   if (typeof valor === 'number') {
     if (Number.isFinite(valor)) return valor;
-    impedimentos.push(`${caminho}: número que não cabe em JSON (${valor})`);
+    if (naoFinitos) naoFinitos.push(caminho);
+    else impedimentos.push(`${caminho}: número que não cabe em JSON (${valor})`);
     return null;
   }
   if (valor instanceof Date) return valor.toISOString();
   if (valor && typeof valor === 'object' && typeof valor.toDate === 'function') return valor.toDate().toISOString();
-  if (Array.isArray(valor)) return valor.map((v, i) => paraJson(v, `${caminho}[${i}]`, impedimentos));
+  if (Array.isArray(valor)) return valor.map((v, i) => paraJson(v, `${caminho}[${i}]`, impedimentos, naoFinitos));
   if (ehObjetoSimples(valor)) {
     const saida = {};
-    for (const [k, v] of Object.entries(valor)) saida[k] = paraJson(v, `${caminho}.${k}`, impedimentos);
+    for (const [k, v] of Object.entries(valor)) saida[k] = paraJson(v, `${caminho}.${k}`, impedimentos, naoFinitos);
     return saida;
   }
   const tipo = valor === undefined ? 'undefined' : (valor?.constructor?.name ?? typeof valor);
@@ -100,9 +104,16 @@ export function transformar(entrada) {
       return;
     }
     const dados = {};
+    // NaN/Infinito no plano viram vazio: o DRE/DFC/Balanço é recalculado ao abrir (usePlanData) e o app lê
+    // valor vazio de OKR como zero, então o cliente vê o mesmo que vê hoje no Firebase.
+    const naoFinitos = [];
     for (const [campo, valor] of Object.entries(campos)) {
-      if (BLOCOS_DO_PLANO.includes(campo)) dados[campo] = paraJson(valor, `${caminho}.${campo}`, impedimentos);
+      if (BLOCOS_DO_PLANO.includes(campo)) dados[campo] = paraJson(valor, `${caminho}.${campo}`, impedimentos, naoFinitos);
       else avisos.push(`${caminho}: campo '${campo}' fora do plano; não importado`);
+    }
+    if (naoFinitos.length) {
+      const exemplos = naoFinitos.slice(0, 3).join(', ');
+      avisos.push(`${caminho}: ${naoFinitos.length} números inválidos (NaN/Infinito) importados como vazios, ex.: ${exemplos}`);
     }
     if (Object.keys(dados).length === 0) return;
     const chave = `${email}|${ano}`;

@@ -181,6 +181,16 @@ describe('transformar', () => {
     const m = transformar(entrada({ documentosDeUsuario: [{ uid: 'u1', campos: {}, subcolecoes: [] }] }));
     expect(m.planos).toEqual([]);
   });
+
+  it('NaN e Infinito no plano viram vazio (null), com um aviso por plano e sem impedimento', () => {
+    const campos = { goals2026: { okrs: [{ currentValue: Number.NaN }] }, planData: { bp: { caixa: Infinity, ok: 3 } } };
+    const m = transformar(entrada({ documentosDeUsuario: [{ uid: 'u1', campos, subcolecoes: [] }] }));
+    expect(m.impedimentos).toEqual([]);
+    expect(m.planos[0].dados).toEqual({ goals2026: { okrs: [{ currentValue: null }] }, planData: { bp: { caixa: null, ok: 3 } } });
+    expect(m.avisos).toHaveLength(1);
+    expect(m.avisos[0]).toContain('2 números inválidos');
+    expect(m.avisos[0]).toContain('users/u1.goals2026.okrs[0].currentValue');
+  });
 });
 
 describe('paraJson', () => {
@@ -194,5 +204,18 @@ describe('paraJson', () => {
     paraJson({ n: Number.NaN, u: undefined, b: 1n }, 'raiz', impedimentos);
     expect(impedimentos).toHaveLength(3);
     expect(impedimentos[0]).toContain('raiz.n');
+  });
+
+  it('com a lista de não finitos, NaN e Infinito viram null e entram nela; undefined e BigInt seguem impedimento', () => {
+    const impedimentos = [];
+    const naoFinitos = [];
+    expect(paraJson({ n: Number.NaN, i: [-Infinity], u: undefined, b: 1n }, 'raiz', impedimentos, naoFinitos)).toEqual({
+      n: null,
+      i: [null],
+      u: null,
+      b: null,
+    });
+    expect(naoFinitos).toEqual(['raiz.n', 'raiz.i[0]']);
+    expect(impedimentos).toHaveLength(2);
   });
 });
