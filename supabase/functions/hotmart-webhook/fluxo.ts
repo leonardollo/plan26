@@ -15,7 +15,7 @@ export interface DependenciasDoWebhook {
   criarConta(email: string): Promise<{ id: string } | { jaExiste: true }>;
   /** auth.admin.getUserById → last_sign_in_at == null. */
   nuncaEntrou(userId: string): Promise<boolean>;
-  /** Manda o "Defina sua senha"; false se não saiu. */
+  /** Manda o "Defina sua senha"; false ou erro lançado se não saiu (o fluxo loga só o código do erro). */
   enviarEmailDeSenha(email: string): Promise<boolean>;
   /** registro_admin, acao 'e-mail de senha não saiu'. */
   registrarFalhaDeEmail(userId: string, email: string, transacao: string): Promise<void>;
@@ -123,7 +123,8 @@ export async function atenderWebhook(p: PedidoDoWebhook, d: DependenciasDoWebhoo
       let saiu = false;
       try {
         saiu = await d.enviarEmailDeSenha(email);
-      } catch {
+      } catch (erro) {
+        logFalha('email_de_senha', evento, transacao, erro);
         saiu = false;
       }
       if (!saiu) {

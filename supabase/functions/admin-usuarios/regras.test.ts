@@ -22,6 +22,13 @@ describe('normalizarEmail', () => {
       expect(normalizarEmail(bruto), String(bruto)).toBeNull();
     }
   });
+
+  it('teto de 254 caracteres (RFC 5321): 254 passa, 255 não', () => {
+    const com254 = 'a'.repeat(248) + '@x.com';
+    expect(com254).toHaveLength(254);
+    expect(normalizarEmail(com254)).toBe(com254);
+    expect(normalizarEmail('a' + com254)).toBeNull();
+  });
 });
 
 describe('validarCriar', () => {

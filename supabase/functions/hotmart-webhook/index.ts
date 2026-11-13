@@ -40,8 +40,9 @@ function dependencias(): DependenciasDoWebhook {
     async enviarEmailDeSenha(email) {
       // why: o endereço de volta é fixo; nada do aviso decide para onde o link leva.
       const { error } = await servico.auth.resetPasswordForEmail(email, { redirectTo: URL_DO_APP });
-      if (error) console.error('hotmart-webhook: e-mail de senha', error.message);
-      return !error;
+      // why: quem loga é o fluxo, só com o código; a mensagem do Auth pode trazer o e-mail do comprador.
+      if (error) throw error;
+      return true;
     },
     async registrarFalhaDeEmail(userId, email, transacao) {
       const { error } = await servico.rpc('registrar_acao_admin', {

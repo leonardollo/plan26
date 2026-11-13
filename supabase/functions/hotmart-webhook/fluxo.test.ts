@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { TAMANHO_MAXIMO_DO_CORPO } from './aviso';
 import { atenderWebhook, type DependenciasDoWebhook, type PedidoDoWebhook, type ResultadoDoBanco } from './fluxo';
@@ -236,6 +238,17 @@ describe('atenderWebhook: estorna', () => {
   });
 });
 
+describe('atenderWebhook: e-mail longo', () => {
+  it('e-mail de 90 kB no aviso não chega a aplicar nem a criarConta', async () => {
+    const d = deps();
+    const c = corpo('PURCHASE_APPROVED', 'APPROVED', 900001, 'a'.repeat(90_000) + '@x.com');
+    expect(c.length).toBeLessThan(TAMANHO_MAXIMO_DO_CORPO);
+    const r = await atenderWebhook(pedido({ corpo: c }), d);
+    expect(r.status).toBe(200);
+    nadaChamado(d);
+  });
+});
+
 describe('atenderWebhook: logs', () => {
   // why: mensagem do Postgres ou do Auth pode trazer o e-mail do comprador; o log só leva evento, transação e resultado.
   const MSG = 'duplicate key (email)=(ana@x.com) já existe';
@@ -280,6 +293,20 @@ describe('atenderWebhook: logs', () => {
         }),
       ),
     );
+  });
+
+  it('e-mail de senha que falha → log com etapa e código, sem o e-mail nem a mensagem', async () => {
+    const texto = await logsDe(
+      deps({ enviarEmailDeSenha: vi.fn(async () => Promise.reject(erroComEmail({ code: 'over_email_send_rate_limit' }))) }),
+    );
+    semDadosDoComprador(texto);
+    expect(texto).toContain('falha email_de_senha PURCHASE_APPROVED HP1 over_email_send_rate_limit');
+  });
+
+  it('index.ts não loga nada por conta própria: os logs ficam no fluxo, que só leva códigos', () => {
+    // why: achado recorrente de revisão; um console.* no index.ts com error.message escaparia do teste acima.
+    const fonte = readFileSync(join(__dirname, 'index.ts'), 'utf8');
+    expect(fonte).not.toMatch(/console\.\w+\(/);
   });
 
   it('o log de falha leva um código curto (code ou name), não a mensagem', async () => {
