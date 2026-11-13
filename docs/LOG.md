@@ -3,6 +3,27 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
+## 2026-11-13 — Migração: NaN e Infinito do plano entram como vazio
+
+- **O quê:** `paraJson` (`scripts/migracao/transformar.mjs`) recebe a lista opcional `naoFinitos`; com ela, NaN e
+  ±Infinito viram `null` em vez de impedimento. `transformar` a usa só nos blocos do plano e registra um aviso por
+  plano com a contagem e até 3 caminhos. undefined, BigInt e objetos desconhecidos continuam impedindo.
+- **Por quê:** o ensaio de leitura do Firestore de produção achou 244 `NaN` em 5 planos (balanço e `currentValue` de
+  OKRs), e a migração não gravava nada. O DRE/DFC/Balanço é recalculado ao abrir (`usePlanData`) e o app lê OKR vazio
+  como zero, então o cliente vê o mesmo que vê hoje.
+- **Decisão no ensaio:** a subcoleção antiga `users/{uid}/planData/main` (19 usuários, versão do app de nov/2025 que o
+  app atual não lê) não é importada; o Firebase não é apagado, então dá para importar depois se alguém sentir falta.
+- **Verificação** em `d68d2bb`:
+  - teste novo visto falhando antes da correção (2 falhas), depois 26/26 nos afetados;
+  - `npm test`: 38 arquivos, 340/340; `npm run test:db`: 4 arquivos, 31/31; `npm run build`: ok (typecheck incluso);
+  - ensaio real (Firestore de produção só leitura → Supabase local): simulação com 0 impedimentos e 38 avisos;
+    `--aplicar` gravou 57 usuários e 45 planos, conferência 57/57/45/1 e "Diferenças (0)"; repetido, reaproveitou os 57.
+- **Revisão:** Codex, Normal + Sensível (`scripts/migracao/**`). Base: sem achados. Segurança: sem achados (não rodou
+  a suíte no sandbox dele; rodou aqui, acima).
+- **Em aberto:** SMTP próprio no PLAN26 antes de congelar o Firebase e trocar o domínio (o SMTP padrão do Supabase só
+  envia para membros da organização).
+- **Commits:** `d68d2bb`.
+
 ## 2026-11-12 — Migração do Firebase para o Supabase (código e roteiro; a virada ainda não aconteceu)
 
 - **O quê:** plano `docs/superpowers/plans/2026-11-12-migracao-supabase.md` (spec
