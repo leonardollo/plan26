@@ -91,7 +91,7 @@ const MainLayout: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLo
     // realmente barra é o RLS do Supabase, que recusa ler e gravar na tabela
     // `planos` enquanto o acesso não estiver liberado.
     case 'aguardando':
-        return <AguardandoLiberacao onLogout={onLogout} bloqueado={statusAcesso === 'bloqueado'} />;
+        return <AguardandoLiberacao onLogout={onLogout} bloqueado={statusAcesso === 'bloqueado'} removido={statusAcesso === 'removido'} />;
 
     case 'expirado':
         return <SubscriptionExpiredPage status="expired" onLogout={onLogout} />;

@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as api from '../services/geminiService';
 import {
     PlanData, Goals2026, Scenarios2026, Tracking2026, TaxesData, Summary2025,
-    PlanContextType, User, ScenarioName, Month, MONTHS,
+    PlanContextType, PlanoDeCliente, User, ScenarioName, Month, MONTHS,
     CommercialData2025, PeopleData2025, MarketingData2025, InvestmentData2025,
     SubscriptionStatus, CompanyProfile, FinancialSheetData, OkrsAndKpis, CommercialPlanning2026,
     FinancialPlan2026, ProductPortfolioItem, MarketCompetitionData, SWOTData, BlueOceanData, BowmanClockProduct,
@@ -27,11 +27,12 @@ import { nopat, paybackCacMeses } from '../utils/calculos/indicadores';
 import { resumoDoCenario } from '../utils/calculos/resumo';
 import { bonusDeProdutividade, scoreEstrategico } from '../utils/calculos/analise';
 import {
-    aberturaDoPlano, anoDoPlanoAtual, anosDoPlano, carregarPlano as lerPlanoDoBanco, chaveLocalDoPlano, criarPlanoSeNaoExistir, listarPlanos,
-    salvarPlano,
+    aberturaDoPlano, anoDoPlanoAtual, anosDoPlano, chaveLocalDoPlano, criarPlanoSeNaoExistir,
     listarPlanosLocais, montarPlanoDoAnoSeguinte, proximoAnoDoPlano, type DadosDoPlano,
 } from '../services/planos';
 import { semServidor, supabase, usuarioDoSupabase, type UsuarioDoApp } from '../services/supabase';
+import { repositorioDoCliente, repositorioProprio } from '../services/repositorioDoPlano';
+import { situacaoDoAcesso } from '../utils/telaDoApp';
 
 // Sem servidor configurado, o app roda no "modo local": login fictício e plano só neste navegador.
 const isOfflineMode = semServidor;
@@ -341,7 +342,19 @@ export const usePlan = () => {
     return context;
 };
 
-export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> = ({ children, user }) => {
+/**
+ * `planoDeCliente`: o admin abriu o plano deste cliente pela Administração. Lê e grava pelas funções de admin
+ * do banco, não confere o acesso do admin, não cria ano e não toca no localStorage do admin.
+ */
+export const PlanProvider: React.FC<{ children: React.ReactNode, user: User, planoDeCliente?: PlanoDeCliente }> = ({ children, user, planoDeCliente }) => {
+    const modoCliente = !!planoDeCliente;
+    // Escolhido uma vez por pessoa/cliente: o resto do provider não sabe de quem é o plano que lê e grava.
+    const repositorio = useMemo(
+        () => planoDeCliente ? repositorioDoCliente(supabase, planoDeCliente.uid) : repositorioProprio(supabase, user.uid),
+        [user.uid, planoDeCliente?.uid],
+    );
+    // Sem servidor só existe o plano próprio no navegador; o plano de um cliente sempre vem do banco.
+    const usarBanco = modoCliente || !isOfflineMode;
     const [planData, setPlanData] = useState<PlanData>(initialPlanData);
     const [goals2026, setGoals2026] = useState<Goals2026>(initialGoals);
     const [scenarios2026, setScenarios2026] = useState<Scenarios2026>(initialScenarios);
@@ -349,7 +362,9 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     const [pricingItems, setPricingItems] = useState<PricingItem[]>([]);
     const [taxes, setTaxes] = useState<TaxesData>(initialTaxes);
     const [baseScenario, setBaseScenario] = useState<ScenarioName>('Conservador');
-    const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>('loading');
+    // O acesso do admin não é conferido no plano de um cliente: quem abre já passou pela Administração.
+    const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>(modoCliente ? 'active' : 'loading');
+    const [atualizadoEmNoBanco, setAtualizadoEmNoBanco] = useState<Date | null>(null);
     const [souAdmin, setSouAdmin] = useState(false);
     const [motivoDoErroAoSalvar, setMotivoDoErroAoSalvar] = useState('');
     const [statusAcesso, setStatusAcesso] = useState<StatusAcesso | null>(null);
@@ -359,7 +374,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     // Espelhos em ref: saveToFirebase, checkSubscription e o beforeunload precisam do valor atual, não o da closure.
     const estadoDaCargaRef = useRef<EstadoDaCarga>('carregando');
     const saveStatusRef = useRef<SaveStatus>('idle');
-    const subscriptionStatusRef = useRef<SubscriptionStatus>('loading');
+    const subscriptionStatusRef = useRef<SubscriptionStatus>(modoCliente ? 'active' : 'loading');
     // Marca o commit em que o plano lido entra no estado; os efeitos abaixo o ignoram.
     const acabouDeCarregar = useRef(false);
     // Ano cujos dados estão na tela: entra no estado no mesmo commit dos dados, e é para ele que a gravação vai.
@@ -403,10 +418,11 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         setSaveStatus('saving');
         try {
             // O caminho vem do ano dos dados desta renderização, nunca do ano escolhido no seletor.
-            if (!isOfflineMode) {
-                const escrita = salvarPlano(supabase, user.uid, anoCarregado, { planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems });
-                gravacaoEmAndamento.current = escrita.catch(() => {});
-                await escrita;
+            if (usarBanco) {
+                const escrita = repositorio.salvar(anoCarregado, { planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems });
+                gravacaoEmAndamento.current = escrita.then(() => {}, () => {});
+                const gravadoEm = await escrita;
+                if (gravadoEm) setAtualizadoEmNoBanco(gravadoEm);
             } else {
                 localStorage.setItem(chaveLocalDoPlano(user.uid, anoCarregado), JSON.stringify({ planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems }));
             }
@@ -424,7 +440,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             setSaveStatus('error');
             return Promise.reject(error);
         }
-    }, [planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems, user.uid, anoCarregado]);
+    }, [planData, goals2026, scenarios2026, tracking2026, taxes, pricingItems, user.uid, anoCarregado, repositorio, usarBanco]);
     // A gravação antes de sair usa os dados da última renderização, não os da closure de quem chamou.
     const gravarRef = useRef(saveToFirebase);
     gravarRef.current = saveToFirebase;
@@ -435,18 +451,22 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         anoPedidoRef.current = ano;
         setAnoPedido(ano);
         setEstadoDaCarga('carregando');
-        // O navegador só guarda a chave de quem acabou de entrar.
-        localStorage.removeItem('google_gemini_api_key');
+        // O navegador só guarda a chave de quem acabou de entrar (no plano de um cliente, a do admin fica como está).
+        if (!modoCliente) localStorage.removeItem('google_gemini_api_key');
         try {
             let data: any = null;
-            if (!isOfflineMode) {
-                data = await lerPlanoDoBanco(supabase, user.uid, ano);
+            let atualizadoEm: Date | null = null;
+            if (usarBanco) {
+                const lidoDoBanco = await repositorio.carregar(ano);
+                data = lidoDoBanco?.dados ?? null;
+                atualizadoEm = lidoDoBanco?.atualizadoEm ?? null;
             } else {
                 const stored = localStorage.getItem(chaveLocalDoPlano(user.uid, ano));
                 if (stored) data = JSON.parse(stored);
             }
             // Uma carga mais nova (troca de ano) já foi pedida: este resultado é de outro ano.
             if (carga !== cargaAtual.current) return;
+            setAtualizadoEmNoBanco(atualizadoEm);
             const lido = data ?? {};
             const p = lido.planData ?? {};
             // Recalcula na própria carga, também sem plano salvo: o commit da carga não é gravado, então abrir não salva.
@@ -473,8 +493,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                 financialPlan2026: recalculado.financialPlan2026
             });
             setScenarios2026({ ...initialScenarios, ...lido.scenarios2026, ...recalculado.recalculados });
-            // Só depois da leitura: a chave gravada é a do plano de quem entrou.
-            if (p.companyProfile?.geminiApiKey) {
+            // Só depois da leitura: a chave gravada é a do plano de quem entrou, nunca a de um cliente.
+            if (!modoCliente && p.companyProfile?.geminiApiKey) {
                 localStorage.setItem('google_gemini_api_key', p.companyProfile.geminiApiKey);
             }
             setGoals2026({ ...initialGoals, ...lido.goals2026 });
@@ -514,13 +534,19 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         anoPedidoRef.current = null;
         setAnoPedido(null);
         setEstadoDaCarga('carregando');
-        localStorage.removeItem('google_gemini_api_key');
+        if (!modoCliente) localStorage.removeItem('google_gemini_api_key');
         try {
-            const lista = !isOfflineMode
-                ? await listarPlanos(supabase, user.uid)
+            const lista = usarBanco
+                ? await repositorio.anos()
                 : listarPlanosLocais(localStorage, user.uid);
             if (carga !== cargaAtual.current) return;
             definirAnosSalvos(lista);
+            if (modoCliente) {
+                // O admin não cria ano no plano do cliente: abre o ano do plano atual se existir, senão o maior salvo.
+                const atual = anoDoPlanoAtual(new Date());
+                await carregarPlano(lista.includes(atual) || lista.length === 0 ? atual : Math.max(...lista));
+                return;
+            }
             const { abrir, copiarDe } = aberturaDoPlano(lista, new Date());
             if (copiarDe !== null) {
                 try {
@@ -561,7 +587,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     };
 
     const comecarProximoAno = async (): Promise<boolean> => {
-        if (!user.uid || criandoAnoRef.current) return false;
+        if (!user.uid || criandoAnoRef.current || modoCliente) return false;
         criandoAnoRef.current = true;
         setCriandoAno(true);
         // Uma troca de ano pedida durante a criação vence: ao terminar, o ano novo só entra na lista.
@@ -594,7 +620,19 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
         if (!user.uid) return;
         abrirPlano();
         checkSubscription();
-    }, [user.uid]);
+    }, [user.uid, planoDeCliente?.uid]);
+
+    // Fechar o plano de um cliente (voltar à Administração) desmonta o provider: o que estava pendente vai junto.
+    // Só no modo cliente: no plano próprio, sair continua avisado pelo beforeunload, como antes.
+    useEffect(() => {
+        if (!modoCliente) return;
+        return () => {
+            const status = saveStatusRef.current;
+            if (status === 'unsaved' || status === 'saving' || status === 'error') {
+                gravarRef.current(true).catch(() => {});
+            }
+        };
+    }, [modoCliente]);
 
     useEffect(() => {
         if (!user.uid || estadoDaCarga !== 'carregado') return;
@@ -643,6 +681,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     };
 
     const checkSubscription = async () => {
+        // No plano de um cliente o acesso já é 'active' desde o início; o do admin não entra aqui.
+        if (modoCliente) return;
         if (isOfflineMode) {
             // sem banco não há fila; o modo local é para desenvolver
             setSouAdmin(true);
@@ -673,11 +713,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
             // Sem linha (o gatilho ainda não rodou ou falhou) é pendente, como no erro: nunca liberado.
             const status = (await obterAcesso(supabase, user.uid))?.status ?? 'pendente';
             setStatusAcesso(status);
-            await aplicarStatusDeAcesso(
-                status === 'liberado' ? 'active'
-                    : status === 'bloqueado' ? 'inactive'
-                        : 'not_found'
-            );
+            await aplicarStatusDeAcesso(situacaoDoAcesso(status));
         } catch (e) {
             // Não liberar por causa de erro: falha de rede não pode virar
             // porta aberta. Melhor a pessoa ver a tela de espera e tentar de novo.
@@ -1707,7 +1743,9 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
     const value: PlanContextType = {
         anoPlano, anoBase, anosDisponiveis,
         trocarAno, comecarProximoAno, criandoAno,
-        proximoAnoDisponivel: proximoAnoDoPlano(anosSalvosState, new Date()),
+        // O admin não começa ano novo no plano de um cliente.
+        proximoAnoDisponivel: modoCliente ? null : proximoAnoDoPlano(anosSalvosState, new Date()),
+        planoDeCliente: planoDeCliente ?? null, atualizadoEmNoBanco,
         souAdmin, statusAcesso, listarAcessosDoBanco, mudarStatusDeAcesso, motivoDoErroAoSalvar,
         estadoDaCarga, tentarCarregarDeNovo,
         aplicarImportacaoDpe,
@@ -1776,11 +1814,11 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                 iss: 0, icms: 0, pis: 0, cofins: 0, irpj: 0, csll: 0, inssPatronal: 0, fgts: 0, ratTerceiros: 0,
                 totalEncargosFolha: 0, totalImpostos2024: 0, totalImpostos2025: 0, cbsEfetiva: null
             });
-            localStorage.removeItem('google_gemini_api_key');
+            if (!modoCliente) localStorage.removeItem('google_gemini_api_key');
             try {
                 // Apaga só o ano aberto: os outros anos do cliente ficam intactos.
-                if (!isOfflineMode && anoCarregado !== null) {
-                    await salvarPlano(supabase, user.uid, anoCarregado, {
+                if (usarBanco && anoCarregado !== null) {
+                    const gravadoEm = await repositorio.salvar(anoCarregado, {
                         planData: initialPlanData,
                         goals2026: initialGoals,
                         scenarios2026: initialScenarios,
@@ -1792,6 +1830,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User }> =
                         },
                         pricingItems: []
                     });
+                    if (gravadoEm) setAtualizadoEmNoBanco(gravadoEm);
                 }
             } catch (error) {
                 console.error('Erro ao limpar os dados no banco:', error);

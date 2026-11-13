@@ -1,4 +1,5 @@
 import type { EstadoDaCarga, SubscriptionStatus } from '../types';
+import type { StatusAcesso } from '../services/acesso';
 
 export type TelaDoApp = 'conferindo' | 'aguardando' | 'expirado' | 'verificar_email' | 'abrindo_plano' | 'erro_ao_abrir' | 'app';
 
@@ -17,5 +18,15 @@ export function telaDoApp(status: SubscriptionStatus, carga: EstadoDaCarga): Tel
         case 'active':
             if (carga === 'carregado') return 'app';
             return carga === 'falhou' ? 'erro_ao_abrir' : 'abrindo_plano';
+    }
+}
+
+/** O que o status de acesso de quem não é admin dá ao app. Removido é tratado como bloqueado: não entra. */
+export function situacaoDoAcesso(status: StatusAcesso): SubscriptionStatus {
+    switch (status) {
+        case 'liberado': return 'active';
+        case 'bloqueado':
+        case 'removido': return 'inactive';
+        case 'pendente': return 'not_found';
     }
 }

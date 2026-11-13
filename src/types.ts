@@ -674,7 +674,18 @@ export interface SensitivityScenario {
 
 export type SensitivityMatrix = SensitivityScenario[][];
 
+/** O cliente cujo plano o admin abriu pela Administração. */
+export interface PlanoDeCliente {
+    uid: string;
+    email: string;
+    nome: string | null;
+}
+
 export interface PlanContextType {
+    /** Com o plano de um cliente aberto pelo admin; null no plano próprio. */
+    planoDeCliente: PlanoDeCliente | null;
+    /** Quando o banco gravou o plano aberto pela última vez; null quando a origem não informa (plano próprio). */
+    atualizadoEmNoBanco: Date | null;
     /** Ano do plano aberto (os campos *2026 guardam este ano). */
     anoPlano: number;
     /** anoPlano − 1: o ano dos números de partida (campos *2025). */

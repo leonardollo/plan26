@@ -8,9 +8,10 @@ import { usePlan } from '../hooks/usePlanData';
  * Gestão de Impacto liberar. Não promete prazo que a GI não controla, e não
  * insinua que houve erro — porque não houve.
  */
-const AguardandoLiberacao: React.FC<{ onLogout: () => void; bloqueado?: boolean }> = ({
+const AguardandoLiberacao: React.FC<{ onLogout: () => void; bloqueado?: boolean; removido?: boolean }> = ({
   onLogout,
   bloqueado = false,
+  removido = false,
 }) => {
   const { checkSubscription } = usePlan();
   const [conferindo, setConferindo] = useState(false);
@@ -28,7 +29,13 @@ const AguardandoLiberacao: React.FC<{ onLogout: () => void; bloqueado?: boolean 
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-9">
         <img src="/logo-gi.png" alt="Gestão de Impacto" className="h-9 w-auto object-contain mb-7" />
 
-        {bloqueado ? (
+        {removido ? (
+          // Conta desativada pela GI: nada a conferir daqui, só a GI reativa.
+          <>
+            <h1 className="text-2xl font-bold text-brand-dark mb-3">Sua conta foi desativada</h1>
+            <p className="text-gray-600 leading-relaxed">Fale com a Gestão de Impacto para reativar.</p>
+          </>
+        ) : bloqueado ? (
           <>
             <h1 className="text-2xl font-bold text-brand-dark mb-3">Acesso suspenso</h1>
             <p className="text-gray-600 leading-relaxed">
@@ -72,7 +79,7 @@ const AguardandoLiberacao: React.FC<{ onLogout: () => void; bloqueado?: boolean 
           </>
         )}
 
-        {bloqueado && (
+        {(bloqueado || removido) && (
           <button
             onClick={onLogout}
             className="mt-7 px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
