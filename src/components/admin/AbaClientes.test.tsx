@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
 const { acesso, usuarios } = vi.hoisted(() => ({
-  acesso: { listarAcessos: vi.fn(), definirStatus: vi.fn(), listarAdmins: vi.fn(), promoverAdmin: vi.fn() },
+  acesso: { listarAcessos: vi.fn(), definirStatus: vi.fn(), listarAdmins: vi.fn(), promoverAdmin: vi.fn(), tirarPrazo: vi.fn() },
   usuarios: { criarCliente: vi.fn(), reenviarEmailDeSenha: vi.fn() },
 }));
 
@@ -16,10 +16,18 @@ vi.mock('../../services/adminUsuarios', () => usuarios);
 
 import AbaClientes from './AbaClientes';
 
-const pessoa = (uid: string, nome: string, email: string, status: string) => ({ uid, nome, email, status });
+const pessoa = (uid: string, nome: string, email: string, status: string, acessoAte: string | null = null) => ({
+  uid,
+  nome,
+  email,
+  status,
+  acessoAte,
+});
 const LISTA = [
   pessoa('p1', 'Ana Pendente', 'ana@x.com', 'pendente'),
   pessoa('l1', 'Bruno Liberado', 'bruno@x.com', 'liberado'),
+  pessoa('l2', 'Fabi Paga', 'fabi@x.com', 'liberado', '2099-03-10T03:00:00Z'),
+  pessoa('l3', 'Gil Vencido', 'gil@x.com', 'liberado', '2020-01-01T15:00:00Z'),
   pessoa('b1', 'Carla Bloqueada', 'carla@x.com', 'bloqueado'),
   pessoa('r1', 'Davi Removido', 'davi@x.com', 'removido'),
   pessoa('a2', 'Eva Admin', 'eva@gi.com', 'liberado'),
@@ -47,6 +55,7 @@ beforeEach(() => {
   acesso.listarAdmins.mockResolvedValue(ADMINS);
   acesso.definirStatus.mockResolvedValue(undefined);
   acesso.promoverAdmin.mockResolvedValue(undefined);
+  acesso.tirarPrazo.mockResolvedValue(undefined);
   usuarios.reenviarEmailDeSenha.mockResolvedValue(undefined);
 });
 afterEach(cleanup);
@@ -208,5 +217,25 @@ describe('AbaClientes', () => {
       await adicionar();
       expect(screen.getByText('E-mail inválido')).toBeTruthy();
     });
+  });
+
+  it('mostra a coluna Acesso até', async () => {
+    await montar();
+    expect(within(linha('bruno@x.com')).getByText('Acesso até: Sem prazo')).toBeTruthy();
+    expect(within(linha('fabi@x.com')).getByText('Acesso até: 10/03/2099')).toBeTruthy();
+    expect(within(linha('gil@x.com')).getByText('Acesso até: Vencido em 01/01/2020')).toBeTruthy();
+  });
+
+  it('Liberar sem prazo só aparece para conta com prazo e chama tirarPrazo', async () => {
+    await montar();
+    expect(acoes('bruno@x.com')).not.toContain('Liberar sem prazo');
+    expect(acoes('ana@x.com')).not.toContain('Liberar sem prazo');
+    expect(acoes('fabi@x.com')).toContain('Liberar sem prazo');
+    await act(async () => {
+      fireEvent.click(within(linha('gil@x.com')).getByRole('button', { name: 'Liberar sem prazo' }));
+    });
+    expect(acesso.tirarPrazo).toHaveBeenCalledWith({}, 'l3');
+    expect(within(linha('gil@x.com')).getByText('Acesso até: Sem prazo')).toBeTruthy();
+    expect(acoes('gil@x.com')).not.toContain('Liberar sem prazo');
   });
 });

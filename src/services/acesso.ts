@@ -106,6 +106,12 @@ export async function definirStatus(cliente: SupabaseClient, uid: string, status
   if (error) throw error;
 }
 
+/** Tira o prazo de uma conta (acesso sem vencimento). O banco recusa quem não é admin e registra a ação. */
+export async function tirarPrazo(cliente: SupabaseClient, alvo: string): Promise<void> {
+  const { error } = await cliente.rpc('admin_tirar_prazo', { alvo });
+  if (error) throw error;
+}
+
 /** Data legível a partir do texto ISO do banco (ou do carimbo antigo do Firestore). */
 export function quando(valor: unknown): string {
   if (!valor) return '—';

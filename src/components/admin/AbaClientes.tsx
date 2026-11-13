@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../services/supabase';
-import { Acesso, StatusAcesso, definirStatus, listarAcessos, listarAdmins, promoverAdmin } from '../../services/acesso';
+import { Acesso, StatusAcesso, definirStatus, listarAcessos, listarAdmins, promoverAdmin, tirarPrazo } from '../../services/acesso';
 import { criarCliente, reenviarEmailDeSenha } from '../../services/adminUsuarios';
 import type { PlanoDeCliente } from '../../types';
+import { rotuloDoPrazo } from '../../utils/prazo';
 import { BOTAO_NEUTRO, BOTAO_PERIGO, BOTAO_PRINCIPAL, Eu, mensagemDe } from './comum';
 
 const ROTULO: Record<StatusAcesso, { texto: string; classe: string }> = {
@@ -21,9 +22,10 @@ const FILTROS: Array<{ id: Filtro; texto: string }> = [
   { id: 'removido', texto: 'Removidos' },
 ];
 
-type Acao = 'liberar' | 'bloquear' | 'remover' | 'reativar' | 'reenviar' | 'abrir' | 'tornar_admin';
+type Acao = 'liberar' | 'tirar_prazo' | 'bloquear' | 'remover' | 'reativar' | 'reenviar' | 'abrir' | 'tornar_admin';
 const TEXTO_DA_ACAO: Record<Acao, string> = {
   liberar: 'Liberar',
+  tirar_prazo: 'Liberar sem prazo',
   bloquear: 'Bloquear',
   remover: 'Remover',
   reativar: 'Reativar',
@@ -33,12 +35,14 @@ const TEXTO_DA_ACAO: Record<Acao, string> = {
 };
 
 /** O que não está na lista do status não aparece (spec: tela Administração, aba Clientes). */
-function acoesDe(status: StatusAcesso, ehAdmin: boolean, ehEu: boolean): Acao[] {
+function acoesDe(status: StatusAcesso, ehAdmin: boolean, ehEu: boolean, temPrazo = false): Acao[] {
   if (ehEu) return [];
   if (ehAdmin) return ['abrir'];
   switch (status) {
     case 'pendente': return ['liberar', 'bloquear', 'remover', 'reenviar', 'abrir', 'tornar_admin'];
-    case 'liberado': return ['bloquear', 'remover', 'reenviar', 'abrir', 'tornar_admin'];
+    case 'liberado':
+      // why: tirar o prazo não muda o status; só faz sentido para quem já está liberado e tem prazo (pago ou vencido).
+      return [...(temPrazo ? (['tirar_prazo'] as Acao[]) : []), 'bloquear', 'remover', 'reenviar', 'abrir', 'tornar_admin'];
     case 'bloqueado': return ['liberar', 'remover', 'abrir'];
     case 'removido': return ['reativar', 'abrir'];
   }
@@ -124,6 +128,12 @@ const AbaClientes: React.FC<Props> = ({ eu, onAbrirPlano }) => {
       case 'liberar': return mudarStatus(a.uid, 'liberado');
       case 'bloquear': return mudarStatus(a.uid, 'bloqueado');
       case 'reativar': return mudarStatus(a.uid, 'liberado', `${a.email} foi reativado e liberado.`);
+      case 'tirar_prazo':
+        return executar(a.uid, async () => {
+          await tirarPrazo(supabase, a.uid);
+          setLista((l) => l.map((x) => (x.uid === a.uid ? { ...x, acessoAte: null } : x)));
+          setAviso({ texto: `${a.email} agora tem acesso sem prazo.` });
+        });
       case 'remover':
         setConfirmandoRemocao(a.uid);
         return;
@@ -269,8 +279,9 @@ const AbaClientes: React.FC<Props> = ({ eu, onAbrirPlano }) => {
                   {ehEu && <span className="text-[11px] text-gray-500">(você)</span>}
                 </div>
                 {a.nome && <span className="text-xs text-gray-500 break-all">{a.email}</span>}
+                <span className="text-xs text-gray-500">Acesso até: {rotuloDoPrazo(a.acessoAte)}</span>
                 <div className="flex flex-wrap gap-2">
-                  {acoesDe(a.status, ehAdmin, ehEu).map((acao) => (
+                  {acoesDe(a.status, ehAdmin, ehEu, !!a.acessoAte).map((acao) => (
                     <button
                       key={acao}
                       type="button"

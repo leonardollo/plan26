@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { usePlan } from '../hooks/usePlanData';
+import { authService, usePlan } from '../hooks/usePlanData';
+import { CHECKOUT } from '../utils/checkout';
+import CartaoAssinatura from './CartaoAssinatura';
 
 /**
  * Tela de quem se cadastrou e ainda não foi liberado.
@@ -55,13 +57,18 @@ const AguardandoLiberacao: React.FC<{ onLogout: () => void; bloqueado?: boolean;
               Não precisa se cadastrar de novo — criar outra conta só faria uma segunda fila.
             </p>
 
+            {/* why: só o pendente compra; bloqueado e removido dependem da GI, não de pagamento. */}
+            <div className="mt-6">
+              <CartaoAssinatura config={CHECKOUT} email={authService.emailAtual()} mostrarAvisoDoEmail />
+            </div>
+
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <button
                 onClick={conferir}
                 disabled={conferindo}
                 className="px-5 py-2.5 bg-brand-orange text-white rounded-lg font-medium hover:bg-orange-600 disabled:bg-gray-300 transition-colors"
               >
-                {conferindo ? 'Conferindo…' : 'Já fui liberado, conferir'}
+                {conferindo ? 'Conferindo…' : CHECKOUT ? 'Já paguei, verificar' : 'Já fui liberado, conferir'}
               </button>
               <button
                 onClick={onLogout}

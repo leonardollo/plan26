@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   ehAdministrador, listarAdmins, listarRegistro, obterAcesso, promoverAdmin, quando, rebaixarAdmin, rotuloEmailVerificado,
+  tirarPrazo,
 } from './acesso';
 
 // O banco de verdade está em tests/db/acesso.test.ts; aqui só o que o cliente faz com a resposta.
@@ -116,5 +117,15 @@ describe('administradores e Registro', () => {
     const [acao] = await listarRegistro(cliente, 'u2');
     expect(acao.detalhe).toEqual({});
     expect(chamadas).toContainEqual(['eq', 'alvo', 'u2']);
+  });
+});
+
+describe('tirarPrazo', () => {
+  it('chama admin_tirar_prazo com o alvo; erro do banco lança', async () => {
+    const rpc = vi.fn(async () => ({ data: null, error: null }));
+    await tirarPrazo({ rpc } as any, 'u1');
+    expect(rpc).toHaveBeenCalledWith('admin_tirar_prazo', { alvo: 'u1' });
+    const falha = vi.fn(async () => ({ data: null, error: { code: '42501' } }));
+    await expect(tirarPrazo({ rpc: falha } as any, 'u1')).rejects.toMatchObject({ code: '42501' });
   });
 });

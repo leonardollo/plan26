@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { usePlan } from '../hooks/usePlanData';
+import { authService, usePlan } from '../hooks/usePlanData';
+import { CHECKOUT, linkDoCheckout } from '../utils/checkout';
 
 const SubscriptionExpiredPage: React.FC<{ 
     status: 'expired' | 'not_found' | 'inactive',
@@ -52,14 +53,19 @@ const SubscriptionExpiredPage: React.FC<{
                     </button>
                 )}
 
-                <a 
-                    href="https://www.hotmart.com" // Placeholder for actual renewal/purchase link
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="mt-4 inline-block w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-brand-orange hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-orange"
-                >
-                    {content.button}
-                </a>
+                {/* why: sem checkout configurado, nenhum botão de pagar que leve a lugar nenhum. */}
+                {CHECKOUT ? (
+                    <a
+                        href={linkDoCheckout(CHECKOUT, authService.emailAtual())}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-4 inline-block w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-brand-orange hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-orange"
+                    >
+                        {content.button}
+                    </a>
+                ) : (
+                    <p className="mt-4 text-lg font-medium text-gray-700">Fale com a Gestão de Impacto</p>
+                )}
                 <button 
                     onClick={onLogout}
                     className="mt-6 text-sm text-gray-500 hover:text-gray-700 hover:underline"
