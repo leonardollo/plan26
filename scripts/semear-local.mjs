@@ -7,10 +7,16 @@ import { createClient } from '@supabase/supabase-js';
 
 const SENHA = 'senha-local-123';
 
+// `status`: onde a conta fica na fila; `comPlano`: grava um plano do ano do plano para o admin abrir.
 const CONTAS = [
-  { email: 'cliente@exemplo.com', nome: 'Cliente de Teste', admin: false },
-  { email: 'admin@exemplo.com', nome: 'Admin de Teste', admin: true },
+  { email: 'cliente@exemplo.com', nome: 'Cliente de Teste', admin: false, status: 'liberado' },
+  { email: 'admin@exemplo.com', nome: 'Admin de Teste', admin: true, status: 'liberado' },
+  { email: 'pendente@exemplo.com', nome: 'Cliente Pendente', admin: false, status: 'pendente' },
+  { email: 'removido@exemplo.com', nome: 'Cliente Removido', admin: false, status: 'removido', comPlano: true },
 ];
+
+// Mesmo critério de anoDoPlanoAtual (src/services/planos.ts): o plano é sempre do ano seguinte.
+const ANO_DO_PLANO = new Date().getFullYear() + 1;
 
 function variaveisLocais() {
   const saida = execFileSync('npx', ['supabase', 'status', '-o', 'env'], {
@@ -62,18 +68,25 @@ async function main() {
 
   for (const conta of CONTAS) {
     const id = await garantirConta(servico, conta);
-    const { error: e1 } = await servico
-      .from('acessos')
-      .update({ status: 'liberado', liberado_em: new Date().toISOString(), liberado_por: 'semear-local' })
-      .eq('user_id', id);
+    const acesso = conta.status === 'liberado'
+      ? { status: 'liberado', liberado_em: new Date().toISOString(), liberado_por: 'semear-local' }
+      : { status: conta.status, liberado_em: null, liberado_por: null };
+    const { error: e1 } = await servico.from('acessos').update(acesso).eq('user_id', id);
     if (e1) throw e1;
+    if (conta.comPlano) {
+      const dados = {
+        planData: { companyProfile: { name: `Empresa de ${conta.nome}`, cnpj: '', industry: 'Serviços', geminiApiKey: '' } },
+      };
+      const { error: e3 } = await servico.from('planos').upsert({ user_id: id, ano: ANO_DO_PLANO, dados });
+      if (e3) throw e3;
+    }
     if (conta.admin) {
       const { error: e2 } = await servico.from('admins').upsert({ email: conta.email });
       if (e2) throw e2;
     }
-    console.log(`ok: ${conta.email}${conta.admin ? ' (admin)' : ''}`);
+    console.log(`ok: ${conta.email} (${conta.admin ? 'admin' : conta.status}${conta.comPlano ? `, plano ${ANO_DO_PLANO}` : ''})`);
   }
-  console.log(`Senha das duas contas: ${SENHA}`);
+  console.log(`Senha de todas as contas: ${SENHA}`);
 }
 
 main().catch((e) => {

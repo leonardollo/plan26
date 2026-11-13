@@ -24,7 +24,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export type StatusAcesso = 'pendente' | 'liberado' | 'bloqueado';
+// `removido`: o admin tirou o cliente da lista; a conta e o plano continuam, e ele pode ser reativado.
+export type StatusAcesso = 'pendente' | 'liberado' | 'bloqueado' | 'removido';
 
 export interface Acesso {
   uid: string;
@@ -114,4 +115,72 @@ export function quando(valor: unknown): string {
     ' ' +
     d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   );
+}
+
+export type Admin = { email: string; uid: string | null; nome: string | null };
+
+/** Administradores, com a conta de cada um quando existe (uid/nome null: e-mail sem conta). */
+export async function listarAdmins(cliente: SupabaseClient): Promise<Admin[]> {
+  const { data, error } = await cliente.rpc('listar_admins');
+  if (error) throw error;
+  return ((data ?? []) as Array<{ email: string; user_id: string | null; nome: string | null }>).map((l) => ({
+    email: l.email,
+    uid: l.user_id ?? null,
+    nome: l.nome ?? null,
+  }));
+}
+
+/** O banco recusa e-mail sem conta, cliente removido e quem não é admin. */
+export async function promoverAdmin(cliente: SupabaseClient, email: string): Promise<void> {
+  const { error } = await cliente.rpc('promover_admin', { email });
+  if (error) throw error;
+}
+
+/** O banco recusa rebaixar a si mesmo e o último administrador. */
+export async function rebaixarAdmin(cliente: SupabaseClient, email: string): Promise<void> {
+  const { error } = await cliente.rpc('rebaixar_admin', { email });
+  if (error) throw error;
+}
+
+export type AcaoDoRegistro = {
+  id: number;
+  quando: Date;
+  adminEmail: string;
+  acao: string;
+  alvo: string | null;
+  alvoEmail: string | null;
+  detalhe: Record<string, unknown>;
+};
+
+type LinhaDoRegistro = {
+  id: number;
+  quando: string;
+  admin_email: string;
+  acao: string;
+  alvo: string | null;
+  alvo_email: string | null;
+  detalhe: Record<string, unknown> | null;
+};
+
+const LIMITE_DO_REGISTRO = 200;
+
+/** Ações dos administradores, mais novas primeiro; com `alvo`, só as daquele cliente. Só admin lê (RLS). */
+export async function listarRegistro(cliente: SupabaseClient, alvo?: string): Promise<AcaoDoRegistro[]> {
+  let consulta = cliente
+    .from('registro_admin')
+    .select('id, quando, admin_email, acao, alvo, alvo_email, detalhe')
+    .order('quando', { ascending: false })
+    .limit(LIMITE_DO_REGISTRO);
+  if (alvo) consulta = consulta.eq('alvo', alvo);
+  const { data, error } = await consulta;
+  if (error) throw error;
+  return ((data ?? []) as LinhaDoRegistro[]).map((l) => ({
+    id: l.id,
+    quando: new Date(l.quando),
+    adminEmail: l.admin_email,
+    acao: l.acao,
+    alvo: l.alvo,
+    alvoEmail: l.alvo_email,
+    detalhe: l.detalhe ?? {},
+  }));
 }

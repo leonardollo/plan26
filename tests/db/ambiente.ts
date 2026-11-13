@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { createHmac, randomUUID } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-export type StatusAcesso = 'pendente' | 'liberado' | 'bloqueado';
+export type StatusAcesso = 'pendente' | 'liberado' | 'bloqueado' | 'removido';
 
 type Variaveis = { API_URL: string; ANON_KEY: string; SERVICE_ROLE_KEY: string; JWT_SECRET: string };
 
@@ -72,7 +72,7 @@ export async function criarPessoa(opcoes: {
   admin?: boolean;
   confirmado?: boolean;
   nome?: string;
-}): Promise<{ id: string; cliente: SupabaseClient }> {
+}): Promise<{ id: string; cliente: SupabaseClient; token: string }> {
   const servico = clienteServico();
   const confirmado = opcoes.confirmado ?? true;
   const { data, error } = await servico.auth.admin.createUser({
@@ -97,13 +97,13 @@ export async function criarPessoa(opcoes: {
   if (!confirmado) {
     const token = tokenLocal(id, opcoes.email.toLowerCase());
     const cliente = createClient(v.API_URL, v.ANON_KEY, { ...SEM_SESSAO, accessToken: async () => token });
-    return { id, cliente };
+    return { id, cliente, token };
   }
 
   const cliente = createClient(v.API_URL, v.ANON_KEY, SEM_SESSAO);
-  const { error: e } = await cliente.auth.signInWithPassword({ email: opcoes.email, password: SENHA });
+  const { data: sessao, error: e } = await cliente.auth.signInWithPassword({ email: opcoes.email, password: SENHA });
   if (e) throw e;
-  return { id, cliente };
+  return { id, cliente, token: sessao.session.access_token };
 }
 
 /** Ano de hoje em UTC, a mesma referência da política de `planos`. */

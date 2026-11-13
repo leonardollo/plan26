@@ -1,35 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import Sidebar from './components/Sidebar';
-import Dashboard from './components/Dashboard';
-
-import DataCollection from './components/DataCollection';
-import GoalSetting from './components/GoalSetting';
-import ScenarioPlanning from './components/ScenarioPlanning';
-import MonthlyTracking from './components/MonthlyTracking';
-import Taxes from './components/Taxes';
-import { StrategicAnalysis } from './components/StrategicAnalysis';
-import ActionPlan from './components/ActionPlan';
-import Settings from './components/Settings';
-import FinancialPlanning2026 from './components/FinancialPlanning2026';
-import CommercialPlanning from './components/CommercialPlanning';
-import OkrsAndKpis from './components/OkrsAndKpis';
-import PlanSummary from './components/PlanSummary';
-import PricingCalculator from './components/PricingCalculator';
-import ReportGenerator from './components/ReportGenerator';
 import Login from './components/Login';
 import DefinirSenha from './components/DefinirSenha';
-import MarketingFunnel from './components/MarketingFunnel';
-import DreComparison from './components/DreComparison';
-import LiquidityDashboard from './components/LiquidityDashboard';
-import FinancialRatiosDashboard from './components/FinancialRatiosDashboard';
-import SensitivityAnalysis from './components/SensitivityAnalysis';
 import OnboardingWizard from './components/OnboardingWizard';
-import HelpGuide from './components/HelpGuide';
-import ImportFromDpe from './components/ImportFromDpe';
-import GestaoDeAcessos from './components/GestaoDeAcessos';
 import AguardandoLiberacao from './components/AguardandoLiberacao';
-import { User, View } from './types';
+import AreaDoPlano from './components/AreaDoPlano';
+import FaixaDoPlanoDoCliente from './components/admin/FaixaDoPlanoDoCliente';
+import { PlanoDeCliente, User, View } from './types';
 import { PlanProvider, authService, usePlan } from './hooks/usePlanData';
 import SubscriptionExpiredPage from './components/SubscriptionExpiredPage';
 import ErroAoAbrirPlano from './components/ErroAoAbrirPlano';
@@ -37,8 +14,8 @@ import VerificarEmailAdmin from './components/VerificarEmailAdmin';
 import { telaDoApp } from './utils/telaDoApp';
 import { telaDeEntrada } from './services/supabase';
 
-const LoadingScreen: React.FC<{ message?: string }> = ({ message = 'Carregando...' }) => (
-    <div className="flex h-screen w-full items-center justify-center bg-brand-dark">
+const LoadingScreen: React.FC<{ message?: string; altura?: string }> = ({ message = 'Carregando...', altura = 'h-screen' }) => (
+    <div className={`flex ${altura} w-full items-center justify-center bg-brand-dark`}>
         <div className="text-center animate-fadeIn">
             <img src="/logo-gi.png" alt="Gestão de Impacto" className="h-12 w-auto object-contain mx-auto mb-4 animate-pulse" />
             <div className="w-48 h-1 bg-gray-800 rounded-full mx-auto overflow-hidden">
@@ -49,39 +26,41 @@ const LoadingScreen: React.FC<{ message?: string }> = ({ message = 'Carregando..
     </div>
 );
 
+/**
+ * Plano de um cliente aberto pelo admin: outro PlanProvider (modo cliente), com a faixa no topo.
+ * Sem OnboardingWizard: o assistente é do dono do plano, não do admin.
+ */
+const PlanoDoClienteAberto: React.FC<{ user: User; onLogout: () => void; onVoltar: () => void }> = ({ user, onLogout, onVoltar }) => {
+    const [currentView, setCurrentView] = useState<View>('dashboard');
+    const { subscriptionStatus, estadoDaCarga, tentarCarregarDeNovo, saveStatus, saveDataNow } = usePlan();
+
+    // Sair no meio de uma edição grava antes: o autosave espera 3 s e a sessão acaba no logout.
+    const sairGravando = async () => {
+        if (saveStatus === 'unsaved' || saveStatus === 'saving' || saveStatus === 'error') {
+            try { await saveDataNow(); } catch { /* sai mesmo assim, como no plano próprio */ }
+        }
+        onLogout();
+    };
+
+    const tela = telaDoApp(subscriptionStatus, estadoDaCarga);
+    return (
+        <div className="flex flex-col h-screen">
+            <FaixaDoPlanoDoCliente onVoltar={onVoltar} />
+            {tela === 'erro_ao_abrir' ? (
+                <ErroAoAbrirPlano onTentarDeNovo={tentarCarregarDeNovo} onLogout={sairGravando} />
+            ) : tela === 'app' ? (
+                <AreaDoPlano user={user} onLogout={sairGravando} currentView={currentView} setCurrentView={setCurrentView} />
+            ) : (
+                <div className="flex-1 min-h-0"><LoadingScreen altura="h-full" message="Abrindo o plano do cliente..." /></div>
+            )}
+        </div>
+    );
+};
+
 const MainLayout: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLogout }) => {
     const [currentView, setCurrentView] = useState<View>('dashboard');
-    const { subscriptionStatus, statusAcesso, souAdmin, estadoDaCarga, tentarCarregarDeNovo } = usePlan();
-
-    const renderView = () => {
-        switch (currentView) {
-            case 'dashboard': return <Dashboard />;
-            case 'settings': return <Settings />;
-            case 'gestao-acessos': return <GestaoDeAcessos />;
-            case 'import-dpe': return <ImportFromDpe />;
-            case 'data-collection': return <DataCollection />;
-            case 'strategic-analysis': return <StrategicAnalysis />;
-            case 'goal-setting': return <GoalSetting />;
-            case 'okrs-kpis': return <OkrsAndKpis />;
-            case 'commercial-planning': return <CommercialPlanning />;
-            case 'marketing-funnel': return <MarketingFunnel />;
-            case 'action-plan': return <ActionPlan />;
-            case 'scenario-planning': return <ScenarioPlanning />;
-            case 'financial-planning': return <FinancialPlanning2026 />;
-            case 'plan-summary': return <PlanSummary />;
-            case 'monthly-tracking': return <MonthlyTracking />;
-            case 'dre-comparison': return <DreComparison />;
-            case 'taxes': return <Taxes />;
-
-            case 'pricing-calculator': return <PricingCalculator />;
-            case 'report-generator': return <ReportGenerator />;
-            case 'liquidity-dashboard': return <LiquidityDashboard />;
-            case 'financial-ratios': return <FinancialRatiosDashboard />;
-            case 'sensitivity-analysis': return <SensitivityAnalysis />;
-            case 'help-guide': return <HelpGuide />;
-            default: return <Dashboard />;
-        }
-    };
+    const [planoAberto, setPlanoAberto] = useState<PlanoDeCliente | null>(null);
+    const { subscriptionStatus, statusAcesso, estadoDaCarga, tentarCarregarDeNovo } = usePlan();
 
     switch (telaDoApp(subscriptionStatus, estadoDaCarga)) {
     case 'conferindo':
@@ -91,7 +70,7 @@ const MainLayout: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLo
     // realmente barra é o RLS do Supabase, que recusa ler e gravar na tabela
     // `planos` enquanto o acesso não estiver liberado.
     case 'aguardando':
-        return <AguardandoLiberacao onLogout={onLogout} bloqueado={statusAcesso === 'bloqueado'} />;
+        return <AguardandoLiberacao onLogout={onLogout} bloqueado={statusAcesso === 'bloqueado'} removido={statusAcesso === 'removido'} />;
 
     case 'expirado':
         return <SubscriptionExpiredPage status="expired" onLogout={onLogout} />;
@@ -106,20 +85,23 @@ const MainLayout: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLo
         return <ErroAoAbrirPlano onTentarDeNovo={tentarCarregarDeNovo} onLogout={onLogout} />;
 
     case 'app':
+        if (planoAberto) {
+            // key: trocar de cliente monta um provider novo, sem herdar estado do anterior.
+            return (
+                <PlanProvider key={planoAberto.uid} user={user} planoDeCliente={planoAberto}>
+                    <PlanoDoClienteAberto
+                        user={user}
+                        onLogout={onLogout}
+                        onVoltar={() => { setPlanoAberto(null); setCurrentView('administracao'); }}
+                    />
+                </PlanProvider>
+            );
+        }
         return (
-            <div className="flex flex-col lg:flex-row h-screen bg-[#f1f5f9] text-gray-800 relative">
-                <OnboardingWizard />
-                <Sidebar 
-                    currentView={currentView} 
-                    setCurrentView={setCurrentView} 
-                    user={user}
-                    onLogout={onLogout}
-                />
-                <main className="flex-1 min-h-0 min-w-0 p-4 sm:p-6 lg:p-8 xl:p-10 overflow-y-auto">
-                    <div className="max-w-7xl mx-auto animate-fadeIn">
-                        {renderView()}
-                    </div>
-                </main>
+            <div className="flex flex-col h-screen">
+                <AreaDoPlano user={user} onLogout={onLogout} currentView={currentView} setCurrentView={setCurrentView} onAbrirPlano={setPlanoAberto}>
+                    <OnboardingWizard />
+                </AreaDoPlano>
             </div>
         );
     }

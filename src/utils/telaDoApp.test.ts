@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { telaDoApp } from './telaDoApp';
+import { situacaoDoAcesso, telaDoApp } from './telaDoApp';
 import type { EstadoDaCarga } from '../types';
 
 const CARGAS: EstadoDaCarga[] = ['carregando', 'carregado', 'falhou'];
@@ -28,5 +28,14 @@ describe('telaDoApp', () => {
   });
   it('ativo com o plano carregado mostra o app', () => {
     expect(telaDoApp('active', 'carregado')).toBe('app');
+  });
+});
+
+describe('situacaoDoAcesso', () => {
+  it('liberado ativa; bloqueado e removido ficam inativos; pendente espera', () => {
+    expect(situacaoDoAcesso('liberado')).toBe('active');
+    expect(situacaoDoAcesso('bloqueado')).toBe('inactive');
+    expect(situacaoDoAcesso('removido')).toBe('inactive');
+    expect(situacaoDoAcesso('pendente')).toBe('not_found');
   });
 });
