@@ -12,9 +12,13 @@ function corpo(evento = 'PURCHASE_APPROVED', status = 'APPROVED', produto: unkno
   });
 }
 
-function pedido(extra: Partial<PedidoDoWebhook> = {}): PedidoDoWebhook {
-  const c = extra.corpo ?? corpo();
-  return { metodo: 'POST', hottok: HOTTOK, tamanho: c.length, corpo: c, ...extra };
+type ExtraDoPedido = Partial<Omit<PedidoDoWebhook, 'lerCorpo'>> & { corpo?: string };
+
+/** O corpo só é lido quando o fluxo pede (lerCorpo); o espião mostra se o portão leu antes da hora. */
+function pedido(extra: ExtraDoPedido = {}) {
+  const { corpo: c = corpo(), ...resto } = extra;
+  const lerCorpo = vi.fn(async () => c);
+  return { metodo: 'POST', hottok: HOTTOK, tamanho: c.length, lerCorpo, ...resto } satisfies PedidoDoWebhook;
 }
 
 function resultado(r: string, userId: string | null = 'u1'): ResultadoDoBanco {
@@ -69,6 +73,27 @@ describe('atenderWebhook: portão', () => {
     expect((await atenderWebhook(pedido({ corpo: grande, tamanho: null }), d)).status).toBe(413);
     expect((await atenderWebhook(pedido({ tamanho: TAMANHO_MAXIMO_DO_CORPO + 1 }), d)).status).toBe(413);
     nadaChamado(d);
+  });
+
+  it('segredo ausente, hottok errado/ausente, GET ou Content-Length grande → o corpo nem é lido', async () => {
+    const casos: Array<[string, DependenciasDoWebhook, ExtraDoPedido]> = [
+      ['segredo ausente', deps({ hottok: null }), {}],
+      ['hottok errado', deps(), { hottok: 'outro' }],
+      ['hottok ausente', deps(), { hottok: null }],
+      ['GET', deps(), { metodo: 'GET' }],
+      ['Content-Length grande', deps(), { tamanho: TAMANHO_MAXIMO_DO_CORPO + 1 }],
+    ];
+    for (const [nome, d, extra] of casos) {
+      const p = pedido(extra);
+      await atenderWebhook(p, d);
+      expect(p.lerCorpo, nome).not.toHaveBeenCalled();
+    }
+  });
+
+  it('pedido válido lê o corpo uma vez', async () => {
+    const p = pedido();
+    expect((await atenderWebhook(p, deps())).status).toBe(200);
+    expect(p.lerCorpo).toHaveBeenCalledTimes(1);
   });
 
   it('JSON inválido → 400', async () => {
@@ -208,5 +233,58 @@ describe('atenderWebhook: estorna', () => {
     expect(d.aplicar).toHaveBeenCalledWith('HP1', 'ana@x.com', 'estorna', 'PURCHASE_REFUNDED');
     expect(d.criarConta).not.toHaveBeenCalled();
     expect(d.enviarEmailDeSenha).not.toHaveBeenCalled();
+  });
+});
+
+describe('atenderWebhook: logs', () => {
+  // why: mensagem do Postgres ou do Auth pode trazer o e-mail do comprador; o log só leva evento, transação e resultado.
+  const MSG = 'duplicate key (email)=(ana@x.com) já existe';
+
+  function erroComEmail(extra: Record<string, unknown> = {}) {
+    return Object.assign(new Error(MSG), extra);
+  }
+
+  async function logsDe(d: DependenciasDoWebhook) {
+    const erro = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await atenderWebhook(pedido(), d);
+      return JSON.stringify([...erro.mock.calls, ...log.mock.calls], (_k, v) => (v instanceof Error ? { m: v.message, n: v.name } : v));
+    } finally {
+      erro.mockRestore();
+      log.mockRestore();
+    }
+  }
+
+  function semDadosDoComprador(texto: string) {
+    expect(texto.toLowerCase()).not.toContain('ana@x.com');
+    expect(texto).not.toContain('duplicate key');
+  }
+
+  it('Auth e banco lançam com o e-mail na mensagem → nenhum log leva o e-mail nem a mensagem', async () => {
+    semDadosDoComprador(
+      await logsDe(
+        deps({
+          aplicar: vi.fn(async () => resultado('sem_conta', null)),
+          criarConta: vi.fn(async () => Promise.reject(erroComEmail({ code: 'ana@x.com' }))),
+        }),
+      ),
+    );
+    semDadosDoComprador(await logsDe(deps({ aplicar: vi.fn(async () => Promise.reject(erroComEmail({ code: '23505' }))) })));
+    semDadosDoComprador(
+      await logsDe(
+        deps({
+          nuncaEntrou: vi.fn(async () => Promise.reject(erroComEmail({ name: 'AuthApiError' }))),
+          enviarEmailDeSenha: vi.fn(async () => false),
+          registrarFalhaDeEmail: vi.fn(async () => Promise.reject({ message: MSG, code: 'P0001' })),
+        }),
+      ),
+    );
+  });
+
+  it('o log de falha leva um código curto (code ou name), não a mensagem', async () => {
+    const texto = await logsDe(deps({ aplicar: vi.fn(async () => Promise.reject(erroComEmail({ code: '23505' }))) }));
+    expect(texto).toContain('23505');
+    expect(texto).toContain('HP1');
   });
 });

@@ -21,7 +21,14 @@ export interface DependenciasDoWebhook {
   registrarFalhaDeEmail(userId: string, email: string, transacao: string): Promise<void>;
 }
 
-export type PedidoDoWebhook = { metodo: string; hottok: string | null; tamanho: number | null; corpo: string };
+export type PedidoDoWebhook = {
+  metodo: string;
+  hottok: string | null;
+  /** Content-Length declarado; null se ausente. */
+  tamanho: number | null;
+  /** Lê o corpo (com teto) só quando chamado: o fluxo chama depois de conferir método, segredo, hottok e tamanho. */
+  lerCorpo: () => Promise<string>;
+};
 export type RespostaDoWebhook = { status: number; corpo: unknown };
 
 function log(evento: string, transacao: string | null, resultado: string) {
@@ -29,21 +36,37 @@ function log(evento: string, transacao: string | null, resultado: string) {
   console.log(`hotmart-webhook: ${evento || '?'} ${transacao ?? '-'} ${resultado}`);
 }
 
+const CODIGO_SEGURO = /^[A-Za-z0-9_]{1,40}$/;
+
+/** code ou name do erro, se for um identificador curto; nunca a mensagem. */
+function codigoDe(erro: unknown): string {
+  const e = (erro ?? {}) as { code?: unknown; name?: unknown };
+  if (typeof e.code === 'string' && CODIGO_SEGURO.test(e.code)) return e.code;
+  if (typeof e.name === 'string' && CODIGO_SEGURO.test(e.name)) return e.name;
+  return 'erro';
+}
+
+function logFalha(etapa: string, evento: string, transacao: string, erro: unknown) {
+  // why: mensagem do Postgres ou do Auth pode trazer o e-mail do comprador; o log leva só etapa, aviso e código.
+  console.error(`hotmart-webhook: falha ${etapa} ${evento} ${transacao} ${codigoDe(erro)}`);
+}
+
 export async function atenderWebhook(p: PedidoDoWebhook, d: DependenciasDoWebhook): Promise<RespostaDoWebhook> {
   if (p.metodo !== 'POST') return { status: 405, corpo: { erro: 'Método não permitido' } };
-  if ((p.tamanho ?? 0) > TAMANHO_MAXIMO_DO_CORPO || p.corpo.length > TAMANHO_MAXIMO_DO_CORPO) {
-    return { status: 413, corpo: { erro: 'Corpo grande demais' } };
-  }
   // why: falha fechada; sem o segredo configurado, nada passa (outro projeto já aceitou tudo quando ele faltou).
   if (!d.hottok) {
     console.error('hotmart-webhook: HOTMART_HOTTOK não configurado');
     return { status: 500, corpo: { erro: 'Não configurado' } };
   }
   if (!p.hottok || !tokenConfere(p.hottok, d.hottok)) return { status: 401, corpo: { erro: 'Não autorizado' } };
+  // why: o corpo só é lido depois do hottok; sem o segredo, ninguém faz a função ler 100 kB por requisição.
+  if ((p.tamanho ?? 0) > TAMANHO_MAXIMO_DO_CORPO) return { status: 413, corpo: { erro: 'Corpo grande demais' } };
+  const corpo = await p.lerCorpo();
+  if (corpo.length > TAMANHO_MAXIMO_DO_CORPO) return { status: 413, corpo: { erro: 'Corpo grande demais' } };
 
   let payload: unknown;
   try {
-    payload = JSON.parse(p.corpo);
+    payload = JSON.parse(corpo);
   } catch {
     return { status: 400, corpo: { erro: 'JSON inválido' } };
   }
@@ -76,7 +99,7 @@ export async function atenderWebhook(p: PedidoDoWebhook, d: DependenciasDoWebhoo
         // why: na corrida de dois avisos, o Auth recusa o segundo createUser com erro genérico de banco
         // (não email_exists); aplicar de novo acha a conta do outro, e só se ela não existir vira 500.
         erroAoCriar = erro;
-        console.error(`hotmart-webhook: criar conta ${transacao}`, erro instanceof Error ? erro.message : erro);
+        logFalha('criar_conta', evento, transacao, erro);
       }
       r = await d.aplicar(transacao, email, tipo, evento);
       if (r.resultado === 'sem_conta' && erroAoCriar) throw erroAoCriar;
@@ -84,7 +107,7 @@ export async function atenderWebhook(p: PedidoDoWebhook, d: DependenciasDoWebhoo
     if (r.resultado === 'sem_conta') throw new Error('conta não encontrada depois de criada');
   } catch (erro) {
     // 500: a Hotmart reenvia. Se a conta já foi criada, o reenvio libera e ainda manda o e-mail (nunca entrou).
-    console.error(`hotmart-webhook: falhou ${evento} ${transacao}`, erro instanceof Error ? erro.message : erro);
+    logFalha('aplicar', evento, transacao, erro);
     return { status: 500, corpo: { erro: 'Falha interna' } };
   }
 
@@ -94,7 +117,7 @@ export async function atenderWebhook(p: PedidoDoWebhook, d: DependenciasDoWebhoo
       mandar = await d.nuncaEntrou(r.user_id);
     } catch (erro) {
       // why: o pagamento já foi aplicado e um reenvio volta 'repetido'; na dúvida, manda (o link só serve ao dono do e-mail).
-      console.error('hotmart-webhook: nuncaEntrou', erro instanceof Error ? erro.message : erro);
+      logFalha('nunca_entrou', evento, transacao, erro);
     }
     if (mandar) {
       let saiu = false;
@@ -107,7 +130,7 @@ export async function atenderWebhook(p: PedidoDoWebhook, d: DependenciasDoWebhoo
         try {
           await d.registrarFalhaDeEmail(r.user_id, email, transacao);
         } catch (erro) {
-          console.error('hotmart-webhook: registrar falha de e-mail', erro instanceof Error ? erro.message : erro);
+          logFalha('registrar_falha_de_email', evento, transacao, erro);
         }
       }
     }

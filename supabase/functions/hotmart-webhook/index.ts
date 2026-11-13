@@ -84,11 +84,9 @@ async function lerCorpoLimitado(req: Request): Promise<string> {
 Deno.serve(async (req) => {
   const declarado = Number(req.headers.get('Content-Length'));
   const tamanho = Number.isFinite(declarado) && declarado > 0 ? declarado : null;
-  // Só lê o corpo de um POST com tamanho aceitável; o fluxo responde 405/413 sem ele.
-  const lerCorpo = req.method === 'POST' && (tamanho ?? 0) <= TAMANHO_MAXIMO_DO_CORPO;
-  const corpo = lerCorpo ? await lerCorpoLimitado(req) : '';
+  // O fluxo só chama lerCorpo depois de conferir método, segredo, hottok e o tamanho declarado.
   const r = await atenderWebhook(
-    { metodo: req.method, hottok: req.headers.get('x-hotmart-hottok'), tamanho, corpo },
+    { metodo: req.method, hottok: req.headers.get('x-hotmart-hottok'), tamanho, lerCorpo: () => lerCorpoLimitado(req) },
     dependencias(),
   );
   return new Response(JSON.stringify(r.corpo), { status: r.status, headers: { 'Content-Type': 'application/json' } });
