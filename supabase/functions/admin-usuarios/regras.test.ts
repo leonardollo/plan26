@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { cabecalhosCors, normalizarEmail, origemPermitida, URL_DO_APP, validarCriar, validarReenviar } from './regras';
+import {
+  cabecalhosCors,
+  JANELA_DO_LIMITE_S,
+  LIMITE_ENVIOS_POR_ADMIN,
+  LIMITE_REENVIOS_POR_DESTINATARIO,
+  normalizarEmail,
+  origemPermitida,
+  segundosAteLiberar,
+  URL_DO_APP,
+  validarCriar,
+  validarReenviar,
+} from './regras';
 
 describe('normalizarEmail', () => {
   it('apara e põe em minúsculas', () => {
@@ -53,6 +64,7 @@ describe('origens do CORS', () => {
     for (const o of [
       'https://planejamento.gestaoimpacto.com',
       'https://plan-abc123-gestao-de-impactos-projects.vercel.app',
+      'https://plan-git-feat-area-admin-gestao-de-impactos-projects.vercel.app',
       'http://localhost:5173',
     ]) {
       expect(origemPermitida(o), o).toBe(true);
@@ -62,8 +74,12 @@ describe('origens do CORS', () => {
   it('recusa o resto', () => {
     for (const o of [
       'https://plan-x.vercel.app.evil.com',
+      'https://plan-abc123-gestao-de-impactos-projects.vercel.app.evil.com',
+      'http://plan-abc123-gestao-de-impactos-projects.vercel.app',
+      'https://plan-abc123-outro-time.vercel.app',
+      'https://outro-abc123-gestao-de-impactos-projects.vercel.app',
       'https://evil-gestao-de-impactos-projects.vercel.app',
-      'https://plan-abc-x-gestao-de-impactos-projects.vercel.app',
+      'https://plan--gestao-de-impactos-projects.vercel.app',
       'https://planejamento.gestaoimpacto.com.evil.com',
       'http://localhost:5174',
       null,
@@ -78,7 +94,37 @@ describe('origens do CORS', () => {
     expect(cabecalhosCors(null)).not.toHaveProperty('Access-Control-Allow-Origin');
   });
 
+  it('a tela consegue ler o Retry-After', () => {
+    expect(cabecalhosCors('http://localhost:5173')['Access-Control-Expose-Headers']).toBe('Retry-After');
+  });
+
   it('o endereço do app é o de produção', () => {
     expect(URL_DO_APP).toBe('https://planejamento.gestaoimpacto.com');
+  });
+});
+
+describe('limite de envios', () => {
+  it('limites: 20 envios por admin e 3 reenvios por destinatário, por hora', () => {
+    expect(LIMITE_ENVIOS_POR_ADMIN).toBe(20);
+    expect(LIMITE_REENVIOS_POR_DESTINATARIO).toBe(3);
+    expect(JANELA_DO_LIMITE_S).toBe(3600);
+  });
+
+  it('segundosAteLiberar arredonda para cima', () => {
+    const agora = new Date('2026-11-13T12:00:00.000Z');
+    expect(segundosAteLiberar(new Date('2026-11-13T12:10:00.000Z'), agora)).toBe(600);
+    expect(segundosAteLiberar(new Date('2026-11-13T12:00:00.200Z'), agora)).toBe(1);
+    expect(segundosAteLiberar(new Date('2026-11-13T12:59:59.001Z'), agora)).toBe(3600);
+  });
+
+  it('segundosAteLiberar nunca é menor que 1, mesmo com relógios desencontrados', () => {
+    const agora = new Date('2026-11-13T12:00:00.000Z');
+    expect(segundosAteLiberar(agora, agora)).toBe(1);
+    expect(segundosAteLiberar(new Date('2026-11-13T11:59:00.000Z'), agora)).toBe(1);
+  });
+
+  it('segundosAteLiberar não passa da janela, mesmo com o relógio do banco adiantado', () => {
+    const agora = new Date('2026-11-13T12:00:00.000Z');
+    expect(segundosAteLiberar(new Date('2026-11-13T14:00:00.000Z'), agora)).toBe(3600);
   });
 });

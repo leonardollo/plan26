@@ -126,6 +126,14 @@ describe('AbaClientes', () => {
     expect(screen.queryByText('Bruno Liberado')).toBeNull();
   });
 
+  it('Reenviar no limite de envios: mostra a mensagem do 429', async () => {
+    usuarios.reenviarEmailDeSenha.mockRejectedValue(new Error('Muitos envios; tente de novo em 12 min'));
+    await montar();
+    fireEvent.click(within(linha('ana@x.com')).getByRole('button', { name: 'Reenviar e-mail de senha' }));
+    await act(async () => {});
+    expect(screen.getByRole('alert').textContent).toBe('Muitos envios; tente de novo em 12 min');
+  });
+
   it('Reenviar, Abrir plano e Tornar admin', async () => {
     await montar();
     fireEvent.click(within(linha('ana@x.com')).getByRole('button', { name: 'Reenviar e-mail de senha' }));

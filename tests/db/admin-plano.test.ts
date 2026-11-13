@@ -103,6 +103,18 @@ describe('plano do cliente pelo admin', () => {
     expect(linhas[0].detalhe).toEqual({ ano: 2026 });
   });
 
+  it('gravações simultâneas do mesmo admin, cliente e ano: uma linha "alterou plano"', async () => {
+    const admin = await novoAdmin();
+    const alvo = await criarPessoa({ email: emailUnico('alvo'), status: 'liberado' });
+    const respostas = await Promise.all(
+      Array.from({ length: 8 }, (_, i) =>
+        admin.cliente.rpc('salvar_plano_do_cliente', { alvo: alvo.id, ano: 2026, dados: { planData: { companyName: `p${i}` } } }),
+      ),
+    );
+    for (const r of respostas) expect(r.error).toBeNull();
+    expect(await registro(admin.email, alvo.id, 'alterou plano')).toHaveLength(1);
+  });
+
   it('anos diferentes contam separado no agrupamento', async () => {
     const admin = await novoAdmin();
     const alvo = await criarPessoa({ email: emailUnico('alvo'), status: 'liberado' });

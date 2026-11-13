@@ -8,7 +8,10 @@ import { clienteServico, criarPessoa, emailUnico, variaveis } from './ambiente';
 const MAILPIT = 'http://127.0.0.1:54324';
 const URL_DO_APP = 'https://planejamento.gestaoimpacto.com';
 
-async function chamar(corpo: unknown, token?: string): Promise<{ status: number; corpo: Record<string, unknown> }> {
+async function chamar(
+  corpo: unknown,
+  token?: string,
+): Promise<{ status: number; corpo: Record<string, unknown>; cabecalhos: Headers }> {
   const v = variaveis();
   const cabecalhos: Record<string, string> = { 'Content-Type': 'application/json', apikey: v.ANON_KEY };
   if (token) cabecalhos.Authorization = `Bearer ${token}`;
@@ -18,7 +21,7 @@ async function chamar(corpo: unknown, token?: string): Promise<{ status: number;
     body: JSON.stringify(corpo),
   });
   const texto = await r.text();
-  return { status: r.status, corpo: texto ? JSON.parse(texto) : {} };
+  return { status: r.status, corpo: texto ? JSON.parse(texto) : {}, cabecalhos: r.headers };
 }
 
 type Mensagem = { ID: string };
@@ -58,6 +61,20 @@ async function registro(alvo: string) {
   return data;
 }
 
+const LIMITES = { limite_admin: 20, limite_destinatario: 3 };
+
+/** Reserva direto no banco, como a função faz, para encher o limite sem mandar 20 e-mails. */
+async function reservar(adminEmail: string, para: string, tipo: 'criar' | 'reenviar') {
+  const { data, error } = await clienteServico().rpc('reservar_envio_de_senha', {
+    quem_envia: adminEmail,
+    para,
+    tipo_de_envio: tipo,
+    ...LIMITES,
+  });
+  if (error) throw error;
+  return data as string | null;
+}
+
 async function novoAdmin() {
   const email = emailUnico('admin');
   return { ...(await criarPessoa({ email, admin: true })), email };
@@ -93,7 +110,7 @@ describe('Edge Function admin-usuarios', () => {
       { acao: 'criar', email: `  ${email.toUpperCase()} `, nome: ' Novo Cliente ', redirectTo: 'https://evil.example.com' },
       admin.token,
     );
-    expect(r).toEqual({ status: 200, corpo: { resultado: 'criado' } });
+    expect(r).toMatchObject({ status: 200, corpo: { resultado: 'criado' } });
 
     const [acesso] = await acessoPorEmail(email);
     expect(acesso).toMatchObject({ status: 'liberado', nome: 'Novo Cliente', email_verificado: true });
@@ -120,7 +137,7 @@ describe('Edge Function admin-usuarios', () => {
       const email = emailUnico(caso.esperado);
       const pessoa = await criarPessoa({ email, status: caso.status, admin: caso.admin, nome: 'Antes' });
       const r = await chamar({ acao: 'criar', email: ` ${email.toUpperCase()}`, nome: 'Depois' }, admin.token);
-      expect(r, caso.esperado).toEqual({ status: 200, corpo: { resultado: 'ja_existe', status: caso.esperado, alvo: pessoa.id } });
+      expect({ status: r.status, corpo: r.corpo }, caso.esperado).toEqual({ status: 200, corpo: { resultado: 'ja_existe', status: caso.esperado, alvo: pessoa.id } });
       const [acesso] = await acessoPorEmail(email);
       expect(acesso, caso.esperado).toMatchObject({ status: caso.status, nome: 'Antes' });
       expect(await registro(pessoa.id), caso.esperado).toHaveLength(0);
@@ -132,7 +149,7 @@ describe('Edge Function admin-usuarios', () => {
     const email = emailUnico('reenvio');
     const pessoa = await criarPessoa({ email, status: 'liberado' });
     const r = await chamar({ acao: 'reenviar', alvo: pessoa.id }, admin.token);
-    expect(r).toEqual({ status: 200, corpo: { resultado: 'enviado' } });
+    expect({ status: r.status, corpo: r.corpo }).toEqual({ status: 200, corpo: { resultado: 'enviado' } });
     const mensagens = await esperarMensagens(email, 1);
     expect(mensagens).toHaveLength(1);
     expect(await redirectDoLink(mensagens[0].ID)).toBe(URL_DO_APP);
@@ -144,7 +161,7 @@ describe('Edge Function admin-usuarios', () => {
     const email = emailUnico('removido');
     const pessoa = await criarPessoa({ email, status: 'removido' });
     const r = await chamar({ acao: 'reenviar', alvo: pessoa.id }, admin.token);
-    expect(r).toEqual({ status: 400, corpo: { erro: 'Reative o cliente antes' } });
+    expect({ status: r.status, corpo: r.corpo }).toEqual({ status: 400, corpo: { erro: 'Reative o cliente antes' } });
     expect(await mensagensPara(email)).toHaveLength(0);
   });
 
@@ -171,5 +188,80 @@ describe('Edge Function admin-usuarios', () => {
     expect(login.error).toBeNull();
     const lido = await cliente.from('acessos').select('status').eq('user_id', acesso.user_id).single();
     expect(lido.data?.status).toBe('liberado');
+  });
+
+  it('e-mail em admins sem conta: ja_existe (administrador), nenhuma conta criada', async () => {
+    const admin = await novoAdmin();
+    const email = emailUnico('admin-sem-conta');
+    expect((await clienteServico().from('admins').insert({ email })).error).toBeNull();
+    const r = await chamar({ acao: 'criar', email, nome: 'Sem Conta' }, admin.token);
+    expect({ status: r.status, corpo: r.corpo }).toEqual({ status: 200, corpo: { resultado: 'ja_existe', status: 'administrador' } });
+    expect(await acessoPorEmail(email)).toHaveLength(0);
+    expect(await mensagensPara(email)).toHaveLength(0);
+  });
+
+  it('limite do admin: com 19 envios na hora o 20º passa; com 20, o 21º é 429 com Retry-After e nada é criado', async () => {
+    const admin = await novoAdmin();
+    for (let i = 0; i < 19; i++) expect(await reservar(admin.email, emailUnico('enchimento'), 'criar')).toBeNull();
+
+    const vigesimo = emailUnico('vigesimo');
+    expect((await chamar({ acao: 'criar', email: vigesimo, nome: 'Vigésimo' }, admin.token)).corpo).toEqual({ resultado: 'criado' });
+
+    const email = emailUnico('vigesimo-primeiro');
+    const r = await chamar({ acao: 'criar', email, nome: 'Demais' }, admin.token);
+    expect(r.status).toBe(429);
+    expect(r.corpo).toMatchObject({ erro: 'limite' });
+    const espera = Number(r.cabecalhos.get('Retry-After'));
+    expect(espera).toBeGreaterThan(3500);
+    expect(espera).toBeLessThanOrEqual(3600);
+    expect(r.corpo.esperaSegundos).toBe(espera);
+    expect(await acessoPorEmail(email)).toHaveLength(0);
+    expect(await mensagensPara(email)).toHaveLength(0);
+  });
+
+  it('o limite é por admin: outro admin segue enviando', async () => {
+    const cheio = await novoAdmin();
+    for (let i = 0; i < 20; i++) await reservar(cheio.email, emailUnico('enchimento'), 'criar');
+    expect(await reservar(cheio.email, emailUnico('x'), 'criar')).not.toBeNull();
+    const outro = await novoAdmin();
+    expect((await chamar({ acao: 'criar', email: emailUnico('outro'), nome: 'Outro' }, outro.token)).corpo).toEqual({ resultado: 'criado' });
+  });
+
+  it('limite do destinatário: 3 reenvios passam; o 4º, mesmo por outro admin, é 429 e o e-mail não sai', async () => {
+    const admin = await novoAdmin();
+    const email = emailUnico('reenvio-limite');
+    const pessoa = await criarPessoa({ email, status: 'liberado' });
+    for (let i = 0; i < 3; i++) {
+      // O Auth local recusa outro e-mail de senha ao mesmo usuário em menos de 1 s (max_frequency no config.toml).
+      if (i > 0) await new Promise((ok) => setTimeout(ok, 1100));
+      expect((await chamar({ acao: 'reenviar', alvo: pessoa.id }, admin.token)).corpo, String(i)).toEqual({ resultado: 'enviado' });
+    }
+    expect(await esperarMensagens(email, 3)).toHaveLength(3);
+
+    const outro = await novoAdmin();
+    const r = await chamar({ acao: 'reenviar', alvo: pessoa.id }, outro.token);
+    expect(r.status).toBe(429);
+    expect(r.corpo).toMatchObject({ erro: 'limite' });
+    expect(Number(r.cabecalhos.get('Retry-After'))).toBeGreaterThan(0);
+    await new Promise((ok) => setTimeout(ok, 500));
+    expect(await mensagensPara(email)).toHaveLength(3);
+    expect((await registro(pessoa.id)).map((l) => l.acao)).toEqual(Array(3).fill('reenviou e-mail de senha'));
+  });
+
+  it('dois pedidos simultâneos no último lugar do limite: só um reserva', async () => {
+    const admin = await novoAdmin();
+    for (let i = 0; i < 19; i++) await reservar(admin.email, emailUnico('enchimento'), 'criar');
+    const resultados = await Promise.all(Array.from({ length: 5 }, () => reservar(admin.email, emailUnico('corrida'), 'criar')));
+    expect(resultados.filter((r) => r === null)).toHaveLength(1);
+    const { count } = await clienteServico().from('envios_de_senha').select('*', { count: 'exact', head: true }).eq('admin_email', admin.email);
+    expect(count).toBe(20);
+  });
+
+  it('reservar_envio_de_senha e envios_de_senha ficam fora do alcance de quem está logado', async () => {
+    const admin = await novoAdmin();
+    const rpc = await admin.cliente.rpc('reservar_envio_de_senha', { quem_envia: admin.email, para: 'a@x.com', tipo_de_envio: 'criar', ...LIMITES });
+    expect(rpc.error?.code).toBe('42501');
+    const leitura = await admin.cliente.from('envios_de_senha').select('*');
+    expect(leitura.error?.code).toBe('42501');
   });
 });

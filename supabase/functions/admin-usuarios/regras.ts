@@ -36,9 +36,9 @@ export function validarReenviar(corpo: unknown): { alvo: string } | { erro: stri
 }
 
 const ORIGENS_FIXAS = new Set([URL_DO_APP, 'http://localhost:5173']);
-// why: só o hash da prévia (sem hífen) entre "plan-" e o time; com hífen, outro time chamado
-// "x-gestao-de-impactos-projects" casaria. O CORS não é a barreira (o token do admin é), mas não abre a mais.
-const PREVIA_VERCEL = /^https:\/\/plan-[a-z0-9]+-gestao-de-impactos-projects\.vercel\.app$/;
+// why: aceita hífens no meio para as prévias por branch (plan-git-<branch>-<time>.vercel.app), ancorada e só https.
+// O CORS não é a barreira (o token do admin é); ele só deixa a tela ler a resposta.
+const PREVIA_VERCEL = /^https:\/\/plan-[a-z0-9-]+-gestao-de-impactos-projects\.vercel\.app$/;
 
 export function origemPermitida(origem: string | null): boolean {
   if (!origem) return false;
@@ -53,5 +53,22 @@ export function cabecalhosCors(origem: string | null): Record<string, string> {
     'Access-Control-Allow-Origin': origem as string,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Expose-Headers': 'Retry-After',
   };
+}
+
+// ---------- limite de envios ----------
+// why: cada envio dispara um e-mail do Auth; o limite fica no banco (reservar_envio_de_senha), contado por hora,
+// para não virar canhão de e-mail nem estourar a cota de envio do projeto (docs/SECURITY.md).
+
+/** Criar + reenviar somados, por admin, por janela. */
+export const LIMITE_ENVIOS_POR_ADMIN = 20;
+/** Reenvios ao mesmo destinatário, por janela, somando todos os admins. */
+export const LIMITE_REENVIOS_POR_DESTINATARIO = 3;
+export const JANELA_DO_LIMITE_S = 3600;
+
+/** Segundos para o Retry-After: até a janela liberar, arredondado para cima, entre 1 e a janela. */
+export function segundosAteLiberar(liberaEm: Date, agora: Date): number {
+  const s = Math.ceil((liberaEm.getTime() - agora.getTime()) / 1000);
+  return Math.min(JANELA_DO_LIMITE_S, Math.max(1, s));
 }

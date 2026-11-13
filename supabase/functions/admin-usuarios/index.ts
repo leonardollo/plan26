@@ -2,8 +2,8 @@
 // (re)envia o "Defina sua senha". A chave secreta só existe aqui, no servidor (SUPABASE_SERVICE_ROLE_KEY,
 // injetada pelo Supabase); o app chama esta função com o token do admin.
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.119.0';
-import { atender, type Conta, type Dependencias } from './fluxo.ts';
-import { URL_DO_APP } from './regras.ts';
+import { atenderSemFalhar, type Conta, type Dependencias } from './fluxo.ts';
+import { LIMITE_ENVIOS_POR_ADMIN, LIMITE_REENVIOS_POR_DESTINATARIO, URL_DO_APP } from './regras.ts';
 
 const URL = Deno.env.get('SUPABASE_URL') ?? '';
 const ANON = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
@@ -77,6 +77,17 @@ function dependencias(autorizacao: string | null): Dependencias {
       });
       if (error) falhar('registrar', error);
     },
+    async reservarEnvio(adminEmail, destinatario, tipo) {
+      const { data, error } = await servico.rpc('reservar_envio_de_senha', {
+        quem_envia: adminEmail,
+        para: destinatario,
+        tipo_de_envio: tipo,
+        limite_admin: LIMITE_ENVIOS_POR_ADMIN,
+        limite_destinatario: LIMITE_REENVIOS_POR_DESTINATARIO,
+      });
+      if (error) falhar('reservar envio', error);
+      return data ? new Date(data as string) : null;
+    },
   };
 }
 
@@ -90,17 +101,10 @@ Deno.serve(async (req) => {
       corpo = null;
     }
   }
-  try {
-    const r = await atender(
-      { metodo: req.method, origem: req.headers.get('Origin'), autorizacao, corpo },
-      dependencias(autorizacao),
-    );
-    const cabecalhos = { ...r.cabecalhos, ...(r.corpo === null ? {} : { 'Content-Type': 'application/json' }) };
-    return new Response(r.corpo === null ? null : JSON.stringify(r.corpo), { status: r.status, headers: cabecalhos });
-  } catch {
-    return new Response(JSON.stringify({ erro: 'Erro interno; tente de novo' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+  const r = await atenderSemFalhar(
+    { metodo: req.method, origem: req.headers.get('Origin'), autorizacao, corpo },
+    dependencias(autorizacao),
+  );
+  const cabecalhos = { ...r.cabecalhos, ...(r.corpo === null ? {} : { 'Content-Type': 'application/json' }) };
+  return new Response(r.corpo === null ? null : JSON.stringify(r.corpo), { status: r.status, headers: cabecalhos });
 });
