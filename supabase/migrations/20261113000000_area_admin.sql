@@ -224,3 +224,99 @@ revoke execute on function public.listar_admins(), public.promover_admin(text), 
   from public, anon, authenticated;
 grant execute on function public.listar_admins(), public.promover_admin(text), public.rebaixar_admin(text)
   to authenticated;
+
+-- ---------- plano do cliente pelo admin ----------
+
+-- As políticas de `planos` seguem dando a cada um só o próprio plano; o admin chega ao plano de um cliente
+-- só por estas três funções, que conferem sou_admin() e gravam no Registro. O próprio plano do admin
+-- continua pelo caminho normal: alvo igual a si mesmo é recusado.
+create function public._conferir_admin_e_alvo(alvo uuid)
+returns void
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.sou_admin() then
+    raise exception 'só um administrador abre o plano de um cliente' using errcode = '42501';
+  end if;
+  if alvo is null or alvo = auth.uid() then
+    raise exception 'o próprio plano se abre pelo caminho normal, não como cliente' using errcode = '42501';
+  end if;
+end;
+$$;
+
+create function public.anos_do_cliente(alvo uuid)
+returns setof int
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  perform public._conferir_admin_e_alvo(alvo);
+  return query select p.ano from public.planos p where p.user_id = anos_do_cliente.alvo order by p.ano;
+end;
+$$;
+
+create function public.plano_do_cliente(alvo uuid, ano int)
+returns table (dados jsonb, atualizado_em timestamptz)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform public._conferir_admin_e_alvo(plano_do_cliente.alvo);
+  perform public._registrar('abriu plano', plano_do_cliente.alvo, jsonb_build_object('ano', plano_do_cliente.ano));
+  return query
+    select p.dados, p.atualizado_em
+      from public.planos p
+     where p.user_id = plano_do_cliente.alvo and p.ano = plano_do_cliente.ano;
+end;
+$$;
+
+-- Mesmos limites do cliente (política de `planos` e check da tabela): ano de 2026 até o ano UTC atual + 1, até 1 MiB.
+create function public.salvar_plano_do_cliente(alvo uuid, ano int, dados jsonb)
+returns timestamptz
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  meu_email text := lower(auth.jwt() ->> 'email');
+  novo timestamptz;
+begin
+  perform public._conferir_admin_e_alvo(salvar_plano_do_cliente.alvo);
+  if salvar_plano_do_cliente.ano is null
+     or salvar_plano_do_cliente.ano not between 2026 and extract(year from (now() at time zone 'utc'))::int + 1 then
+    raise exception 'Ano do plano fora do permitido' using errcode = '22023';
+  end if;
+
+  insert into public.planos (user_id, ano, dados)
+  values (salvar_plano_do_cliente.alvo, salvar_plano_do_cliente.ano, salvar_plano_do_cliente.dados)
+  on conflict on constraint planos_pkey do update set dados = excluded.dados
+  returning public.planos.atualizado_em into novo;
+
+  -- why: o salvamento automático grava a cada poucos segundos; uma linha por admin, cliente e ano a cada 30 minutos
+  -- (contados da última linha do grupo) basta para o Registro. O detalhe guarda só o ano, nunca o conteúdo do plano.
+  if not exists (
+    select 1 from public.registro_admin r
+     where r.acao = 'alterou plano'
+       and r.admin_email = meu_email
+       and r.alvo = salvar_plano_do_cliente.alvo
+       and r.detalhe ->> 'ano' = salvar_plano_do_cliente.ano::text
+       and r.quando > now() - interval '30 minutes'
+  ) then
+    perform public._registrar('alterou plano', salvar_plano_do_cliente.alvo,
+      jsonb_build_object('ano', salvar_plano_do_cliente.ano));
+  end if;
+  return novo;
+end;
+$$;
+
+revoke execute on function public._conferir_admin_e_alvo(uuid), public.anos_do_cliente(uuid),
+  public.plano_do_cliente(uuid, int), public.salvar_plano_do_cliente(uuid, int, jsonb)
+  from public, anon, authenticated;
+grant execute on function public.anos_do_cliente(uuid), public.plano_do_cliente(uuid, int),
+  public.salvar_plano_do_cliente(uuid, int, jsonb) to authenticated;
