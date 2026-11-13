@@ -12,7 +12,7 @@ import { idsPorEmail } from './migracao/gravar-supabase.mjs';
 import { lerUsuariosDoAuth } from './migracao/ler-firebase.mjs';
 
 // O link do e-mail leva ao app novo, que abre a tela "Crie sua senha".
-const ENDERECO_DO_APP = 'https://plan.gestaoimpacto.com';
+const ENDERECO_DO_APP = 'https://planejamento.gestaoimpacto.com';
 
 async function principal() {
   let enviar = false;

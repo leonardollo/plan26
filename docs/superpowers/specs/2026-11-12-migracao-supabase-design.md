@@ -7,7 +7,7 @@
 Tirar o PLAN do Firebase e da conta da Vercel do Leonardo, que não serão mais usados. Login e dados passam para o
 projeto Supabase **PLAN26** (`aixjmxfkaziqlxnpudkk`, us-east-2, organização no plano Pro). O app passa a ser
 hospedado no time da Vercel **"Gestao de Impacto's projects"** (`gestao-de-impactos-projects`), em
-`plan.gestaoimpacto.com`, e o endereço antigo `plan2026.gestaoimpacto.com` redireciona para ele.
+`planejamento.gestaoimpacto.com`, e o endereço antigo `plan2026.gestaoimpacto.com` redireciona para ele.
 
 **Sucesso:**
 - os ~40 clientes entram no app novo: quem usava Google entra com Google; quem usava senha cria uma senha nova
@@ -26,7 +26,7 @@ hospedado no time da Vercel **"Gestao de Impacto's projects"** (`gestao-de-impac
 | Formato dos dados | Uma linha por usuário e ano, plano em JSON | É o mesmo formato de hoje, sem reescrever cálculos. |
 | Hospedagem | Time principal do GI na Vercel | A conta antiga não será mais usada. |
 | Firebase no repositório | O SDK sai do app agora; `firestore.rules`, `firebase.json` e `.firebaserc` saem numa entrega posterior | O script de migração e o congelamento ainda precisam deles. |
-| Endereço | `plan.gestaoimpacto.com` (sugestão aprovada) | Sem o ano, porque o app abre sempre o ano seguinte. |
+| Endereço | `planejamento.gestaoimpacto.com` (escolha do usuário em 2026-11-13; antes, `plan.gestaoimpacto.com`) | Sem o ano, porque o app abre sempre o ano seguinte. |
 
 ## 1. Banco (PLAN26)
 
@@ -76,7 +76,7 @@ Estrutura versionada em `supabase/migrations/`, aplicada no PLAN26 com `supabase
 - Confirmação de e-mail ligada; SMTP próprio (sugestão: Resend, com o domínio verificado por DNS).
 - Provedor Google com o cliente OAuth do Google Cloud; endereço de retorno
   `https://aixjmxfkaziqlxnpudkk.supabase.co/auth/v1/callback`.
-- Site URL `https://plan.gestaoimpacto.com`; endereços permitidos: o novo, o antigo, as prévias da Vercel e
+- Site URL `https://planejamento.gestaoimpacto.com`; endereços permitidos: o novo, o antigo, as prévias da Vercel e
   `http://localhost:5173`.
 - Textos dos e-mails em português. O de redefinição serve para "crie" e para "redefina" a senha.
 
@@ -179,7 +179,7 @@ Supabase). O relatório fica só no terminal; não vai para o log nem para o vau
 - deploy pelo CLI até o Leo autorizar o app da Vercel no repositório `leonardollo/plan26`.
 
 **Domínio:**
-- `plan.gestaoimpacto.com` no projeto novo, com um CNAME no provedor de DNS (`hanoon6070`);
+- `planejamento.gestaoimpacto.com` no projeto novo, com um CNAME no provedor de DNS (`hanoon6070`);
 - `plan2026.gestaoimpacto.com` passa para o projeto novo com a verificação TXT que a Vercel pede, e redireciona
   (308) para o novo.
 

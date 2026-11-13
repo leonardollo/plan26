@@ -35,9 +35,10 @@ code, identifiers and commit messages follow the project's conventions.
   (`firebase deploy --only firestore:rules`) · approving or blocking users in production ·
   `supabase db push` (or `supabase link`) to PLAN26 · running the migration scripts against production ·
   sending the "create your password" e-mails · DNS · freezing or restoring the Firebase rules
-- **Deploy:** Vercel, project `plan` in team `gestao-de-impactos-projects`, `https://plan.gestaoimpacto.com`
+- **Deploy:** Vercel, project `plan` in team `gestao-de-impactos-projects`, `https://planejamento.gestaoimpacto.com`
   (human-only). Schema changes are migrations in `supabase/migrations/`, applied to PLAN26 by a human
-  (`supabase db push`). The old `https://plan2026.gestaoimpacto.com` (Leonardo's Vercel) runs on Firebase until the switch.
+  (`supabase db push`). The old app (Leonardo's Vercel, `app-orcamento-gi.vercel.app`) runs on Firebase until the switch;
+  its domain `plan2026.gestaoimpacto.com` was renamed to `planejamento` in the DNS on 2026-11-12.
 - **Notes:** read by range, never whole: `src/hooks/usePlanData.tsx`,
   `src/components/CommercialPlanning.tsx`, `src/services/geminiService.ts`. The PLAN26 publishable key
   fallback in `src/services/supabase.ts` and the DPE anon key are public client keys, not secrets;

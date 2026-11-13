@@ -2,7 +2,7 @@
 
 Especificação: `docs/superpowers/specs/2026-11-12-migracao-supabase-design.md` (seção 4).
 Destino: Supabase **PLAN26** (`aixjmxfkaziqlxnpudkk`) e projeto Vercel **`plan`** no time `gestao-de-impactos-projects`,
-em `https://plan.gestaoimpacto.com`. O Firebase (`plan-ea4cc`) **não é apagado** em nenhum passo.
+em `https://planejamento.gestaoimpacto.com`. O Firebase (`plan-ea4cc`) **não é apagado** em nenhum passo.
 
 **[humano]** = passo só humano: o agente para, mostra o comando e espera o "sim" do usuário na hora.
 Os comandos rodam na raiz do repositório, no `main` já com esta entrega (deploy só do que está no `main`).
@@ -34,9 +34,9 @@ Database → Functions mostra `sou_admin`, `posso_usar_o_espaco` e `definir_stat
 ### 1.2 Painel do Supabase (PLAN26) [humano]
 
 **Authentication → URL Configuration**
-- Site URL: `https://plan.gestaoimpacto.com`
+- Site URL: `https://planejamento.gestaoimpacto.com`
 - Redirect URLs:
-  - `https://plan.gestaoimpacto.com/**`
+  - `https://planejamento.gestaoimpacto.com/**`
   - `https://plan-*-gestao-de-impactos-projects.vercel.app/**` (prévias da Vercel)
   - `http://localhost:5173/**`
 
@@ -44,7 +44,7 @@ Database → Functions mostra `sou_admin`, `posso_usar_o_espaco` e `definir_stat
 - Email: ligado; **Confirm email ligado**; tamanho mínimo da senha 6 (o mesmo de `SENHA_MINIMA` no app).
 - Google: ligado, com o Client ID e o Client Secret de um cliente OAuth do tipo "Aplicativo da Web" no Google Cloud
   (o projeto `plan-ea4cc` já tem a tela de consentimento; ele não é apagado). No cliente OAuth:
-  - Origens JavaScript autorizadas: `https://plan.gestaoimpacto.com`
+  - Origens JavaScript autorizadas: `https://planejamento.gestaoimpacto.com`
   - URI de redirecionamento autorizado: `https://aixjmxfkaziqlxnpudkk.supabase.co/auth/v1/callback`
 
 **Authentication → Emails → SMTP Settings**: SMTP próprio do GI (host, porta, usuário, senha), remetente
@@ -67,7 +67,7 @@ e-mails por hora, e os ~40 "crie sua senha" não saem.
 
 ```html
 <h2>Defina sua senha</h2>
-<p>O PLAN, da Gestão de Impacto, mudou de endereço: agora é <strong>plan.gestaoimpacto.com</strong>.
+<p>O PLAN, da Gestão de Impacto, mudou de endereço: agora é <strong>planejamento.gestaoimpacto.com</strong>.
 Seus planos já estão lá. Para entrar, defina uma senha:</p>
 <p><a href="{{ .ConfirmationURL }}">Definir minha senha</a></p>
 <p>Se você entra com o Google, não precisa de senha: use "Entrar com Google". Se não pediu, ignore esta mensagem.</p>
@@ -149,7 +149,7 @@ Texto sugerido:
 
 > **Assunto:** O PLAN muda de endereço amanhã
 >
-> Olá! Amanhã, a partir de [horário], o PLAN passa a funcionar em **https://plan.gestaoimpacto.com**. Seus planos vão
+> Olá! Amanhã, a partir de [horário], o PLAN passa a funcionar em **https://planejamento.gestaoimpacto.com**. Seus planos vão
 > junto, ano a ano, e o endereço antigo leva ao novo.
 >
 > - Se você entra com **Google**, é só clicar em "Entrar com Google", como sempre.
@@ -168,7 +168,7 @@ Texto sugerido:
 | 3 | Importação simulada contra o Firebase congelado | [humano] | `node --env-file=.env.local scripts/migrar-firebase-para-supabase.mjs` | zero impedimentos; contagens iguais às do ensaio (1.5) |
 | 4 | Importação final no PLAN26 | [humano] | `node --env-file=.env.local scripts/migrar-firebase-para-supabase.mjs --aplicar --confirmo=aixjmxfkaziqlxnpudkk` | "Gravando em aixjmxfkaziqlxnpudkk.supabase.co"; conferência com esperado = achado em todas as linhas e "Diferenças (0)"; sai com código 0 |
 | 5 | Deploy de produção do projeto `plan` | [humano] | `vercel deploy --prod` | a URL de produção abre a tela de login |
-| 6 | Domínios no projeto novo | [humano] | Vercel → `plan` → Settings → Deployment Protection: voltar a proteção para **Standard** (todos exceto domínios próprios), senão os clientes caem no login da Vercel. Depois, Settings → Domains: adicionar `plan.gestaoimpacto.com`; no DNS (`hanoon6070`), CNAME `plan` → `cname.vercel-dns.com`. Adicionar `plan2026.gestaoimpacto.com`, criar o TXT de verificação que a Vercel mostrar e marcar o redirecionamento **308** para `plan.gestaoimpacto.com` | os dois domínios "Valid Configuration"; `plan.gestaoimpacto.com`, numa janela anônima, abre a tela de login do PLAN (não a da Vercel); `plan2026.gestaoimpacto.com` redireciona |
+| 6 | Domínios no projeto novo | [humano] | Vercel → `plan` → Settings → Deployment Protection: voltar a proteção para **Standard** (todos exceto domínios próprios), senão os clientes caem no login da Vercel. Depois, Settings → Domains: adicionar `planejamento.gestaoimpacto.com`. O CNAME `planejamento` já existe no DNS (`hanoon6070`, cPanel; era o `plan2026`, renomeado em 2026-11-12): se a Vercel pedir outro destino ou um TXT de verificação (o domínio pode seguir no projeto antigo do Leo), ajustar no cPanel. Adicionar `plan2026.gestaoimpacto.com` (recriar o CNAME `plan2026` no cPanel, se tiver saído) com o redirecionamento **308** para `planejamento.gestaoimpacto.com` | os dois domínios "Valid Configuration"; `planejamento.gestaoimpacto.com`, numa janela anônima, abre a tela de login do PLAN (não a da Vercel); `plan2026.gestaoimpacto.com` redireciona |
 | 7 | E-mails "crie sua senha": contar (só lê, mas lê a produção) | [humano] | `node --env-file=.env.local scripts/enviar-criar-senha.mjs` | "sem conta no Supabase" = 0 |
 | 8 | E-mails "crie sua senha": enviar | [humano] | `node --env-file=.env.local scripts/enviar-criar-senha.mjs --enviar --confirmo=aixjmxfkaziqlxnpudkk` | "Falharam: 0"; leva uns 2 min (lotes de 10, 30 s entre eles) |
 | 9 | Teste final | [humano] | entrar com o admin, com um cliente de senha (pelo e-mail recebido) e com um cliente Google | cada um vê os próprios planos de cada ano e o status de acesso que tinha |
