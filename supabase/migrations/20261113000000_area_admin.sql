@@ -129,3 +129,98 @@ revoke execute on function public._registrar(text, uuid, jsonb),
   public.registrar_acao_admin(text, text, uuid, text, jsonb)
   from public, anon, authenticated;
 grant execute on function public.registrar_acao_admin(text, text, uuid, text, jsonb) to service_role;
+
+-- ---------- administradores ----------
+
+-- Admins são todos iguais: qualquer um lista, promove e rebaixa. user_id e nome nulos: admin cadastrado sem conta.
+create function public.listar_admins()
+returns table (email text, user_id uuid, nome text)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.sou_admin() then
+    raise exception 'só um administrador lista os administradores' using errcode = '42501';
+  end if;
+  return query
+    select ad.email, a.user_id, a.nome
+      from public.admins ad
+      left join public.acessos a on lower(a.email) = ad.email
+     order by ad.email;
+end;
+$$;
+
+create function public.promover_admin(email text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  alvo_email text := lower(trim(email));
+  alvo_id uuid;
+  alvo_status text;
+begin
+  if not public.sou_admin() then
+    raise exception 'só um administrador promove outro' using errcode = '42501';
+  end if;
+  select a.user_id, a.status into alvo_id, alvo_status
+    from public.acessos a
+   where lower(a.email) = alvo_email
+   limit 1;
+  if alvo_id is null then
+    raise exception 'esse e-mail não tem conta: adicione como cliente antes';
+  end if;
+  if alvo_status = 'removido' then
+    raise exception 'cliente removido não vira administrador: reative antes' using errcode = '22023';
+  end if;
+  if exists (select 1 from public.admins ad where ad.email = alvo_email) then
+    return;
+  end if;
+  insert into public.admins (email) values (alvo_email);
+  perform public._registrar('promoveu admin', alvo_id, '{}'::jsonb);
+end;
+$$;
+
+create function public.rebaixar_admin(email text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  alvo_email text := lower(trim(email));
+  alvo_id uuid;
+begin
+  -- why: trava antes de conferir sou_admin() e de contar; dois admins se rebaixando ao mesmo tempo esperam um pelo
+  -- outro, e o segundo, já rebaixado, é recusado aqui embaixo em vez de deixar a tabela sem admin.
+  lock table public.admins in exclusive mode;
+  if not public.sou_admin() then
+    raise exception 'só um administrador rebaixa outro' using errcode = '42501';
+  end if;
+  if alvo_email = lower(auth.jwt() ->> 'email') then
+    raise exception 'ninguém rebaixa a si mesmo' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.admins ad where ad.email = alvo_email) then
+    raise exception 'esse e-mail não é administrador';
+  end if;
+  -- Defesa: sobra ao menos um admin com conta confirmada (quem chama já é um, então só falha com dados fora do comum).
+  if not exists (
+    select 1 from public.admins ad
+      join auth.users u on lower(u.email) = ad.email
+     where ad.email <> alvo_email and u.email_confirmed_at is not null
+  ) then
+    raise exception 'o último administrador não é rebaixado' using errcode = '42501';
+  end if;
+  select a.user_id into alvo_id from public.acessos a where lower(a.email) = alvo_email limit 1;
+  delete from public.admins ad where ad.email = alvo_email;
+  perform public._registrar('rebaixou admin', alvo_id, jsonb_build_object('email', alvo_email));
+end;
+$$;
+
+revoke execute on function public.listar_admins(), public.promover_admin(text), public.rebaixar_admin(text)
+  from public, anon, authenticated;
+grant execute on function public.listar_admins(), public.promover_admin(text), public.rebaixar_admin(text)
+  to authenticated;
