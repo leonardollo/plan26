@@ -1,5 +1,5 @@
 // Fluxo inteiro da Edge Function admin-usuarios contra o Supabase LOCAL. Antes, em outro terminal:
-//   npx supabase functions serve admin-usuarios --no-verify-jwt
+//   npx supabase functions serve --no-verify-jwt --env-file supabase/functions/local.env
 // O e-mail é conferido no Mailpit local.
 import { createClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';

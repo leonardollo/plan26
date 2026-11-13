@@ -28,14 +28,21 @@ jobs:
       # Local Supabase (Docker) for the permission tests; the CLI comes from the lockfile.
       - run: npx supabase start
       # tests/db/admin-usuarios.test.ts calls the Edge Function; config.toml keeps the edge runtime off to save RAM.
-      - name: Serve the admin-usuarios Edge Function
+      - name: Serve the Edge Functions
         run: |
-          nohup npx supabase functions serve admin-usuarios --no-verify-jwt > functions-serve.log 2>&1 &
+          # local.env holds fake values only (hottok and product id for the local hotmart-webhook).
+          nohup npx supabase functions serve --no-verify-jwt --env-file supabase/functions/local.env > functions-serve.log 2>&1 &
           for i in $(seq 1 60); do
             # Kong answers 503 "name resolution failed" until the function container is up.
-            body=$(curl -s -X POST http://127.0.0.1:54321/functions/v1/admin-usuarios || true)
-            if [ -n "$body" ] && ! echo "$body" | grep -qiE "name resolution|no route|upstream"; then
-              echo "function ready: $body"; exit 0
+            ready=0
+            for fn in admin-usuarios hotmart-webhook; do
+              body=$(curl -s -X POST http://127.0.0.1:54321/functions/v1/$fn || true)
+              if [ -n "$body" ] && ! echo "$body" | grep -qiE "name resolution|no route|upstream"; then
+                ready=$((ready + 1))
+              fi
+            done
+            if [ "$ready" -eq 2 ]; then
+              echo "functions ready"; exit 0
             fi
             sleep 2
           done
