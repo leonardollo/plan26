@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { createHmac, randomUUID } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-export type StatusAcesso = 'pendente' | 'liberado' | 'bloqueado';
+export type StatusAcesso = 'pendente' | 'liberado' | 'bloqueado' | 'removido';
 
 type Variaveis = { API_URL: string; ANON_KEY: string; SERVICE_ROLE_KEY: string; JWT_SECRET: string };
 
