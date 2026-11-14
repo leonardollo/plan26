@@ -25,6 +25,9 @@ begin
     raise exception 'O prazo vai até 5 anos à frente' using errcode = '22023';
   end if;
 
+  -- why: mesma ordem de travas do estorno em aplicar_pagamento_hotmart (pagamentos, depois acessos); a ordem
+  -- inversa daria deadlock com um estorno simultâneo do mesmo cliente.
+  perform 1 from public.pagamentos_hotmart p where p.user_id = alvo and p.mexeu_no_prazo for update;
   select a.status, a.acesso_ate into v_status, v_antes from public.acessos a where a.user_id = alvo for update;
   if not found then
     raise exception 'acesso não encontrado' using errcode = 'P0002';
