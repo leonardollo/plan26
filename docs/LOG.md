@@ -3,6 +3,38 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
+## 2026-11-13 — Admin vê e muda o prazo de acesso de cada cliente
+
+- **O quê:** no mesmo PR #9 da assinatura.
+  - **Banco** (migração `20261113030000_admin_definir_prazo`): `admin_definir_prazo(alvo, dia)` grava o último
+    instante do dia escolhido em São Paulo; recusa hoje, passado, vazio e mais de 5 anos à frente (22023), cliente
+    que não está liberado (22023) e quem não é admin (42501). Vai para o Registro como "definiu prazo", com antes e
+    depois. O dia escolhido zera `mexeu_no_prazo` dos pagamentos anteriores.
+  - **Tela:** a aba Clientes mostra "Acesso até dd/mm/aaaa · faltam N dias", "Vencido em dd/mm/aaaa · há N dias"
+    ou "Sem prazo". "Alterar prazo" (só para liberado) abre um painel com campo de data, os atalhos +1 ano e
+    +30 dias (a partir do prazo se ainda vale, senão de hoje), "Sem prazo" (`admin_tirar_prazo`), Salvar e
+    Cancelar. O Registro mostra o prazo como dia de São Paulo, não o instante em UTC.
+- **Por quê:** pedido da usuária: ver o tempo de acesso de cada usuário na Administração e poder alterá-lo.
+  Escolhas dela: data com atalhos, recusar data passada (cortar o acesso é Bloquear), no mesmo PR #9.
+- **Verificação** (em `108f00e`): typecheck ok; `npm test` 56 arquivos, 531/531; `npm run test:db` 11 arquivos,
+  107/107 (com `supabase functions serve` local); `vite build` ok; `npm audit --audit-level=high` ok (13 moderate).
+  Como usuário (agent-browser, contas falsas locais): painel do prazo, data inválida e estado salvo em 390 px;
+  aba Clientes em desktop.
+- **Revisão:** Codex, Normal + Sensível.
+  - Segurança de `fec1c50`: sem achados.
+  - Base de `fec1c50`: P1, o estorno de um pagamento anterior descontava um ano do dia escolhido pelo admin.
+    Corrigido em `d42534e` (teste visto falhando antes).
+  - Re-revisão de `d42534e`, base e segurança: o mesmo P2, deadlock por ordem inversa de travas
+    (`admin_definir_prazo` travava `acessos` e depois `pagamentos_hotmart`; o estorno faz o contrário). Corrigido
+    em `108f00e`: trava os pagamentos primeiro. `src/ordem-de-travas.test.ts` confere essa ordem em toda migração
+    (visto falhando sem a correção). Sem outra rodada de revisão.
+- **Em aberto:**
+  - O teste de concorrência real (dois pedidos simultâneos) não existe; a garantia é a checagem estática da ordem.
+  - No PostgREST local, o P0002 de cliente inexistente vira 500 sem código (já acontecia em `admin_tirar_prazo`).
+  - O estorno sem efeito não aparece no Registro.
+  - **Passo humano:** a migração `20261113030000_admin_definir_prazo` entra no `supabase db push` do PR #9.
+- **Commits:** `fec1c50`, `d42534e`, `108f00e`.
+
 ## 2026-11-13 — Assinatura anual pela Hotmart
 
 - **O quê:** plano `docs/superpowers/plans/2026-11-13-assinatura-hotmart.md` (spec
