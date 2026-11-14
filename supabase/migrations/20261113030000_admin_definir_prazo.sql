@@ -37,6 +37,10 @@ begin
   -- mantém o acesso o dia inteiro e faz a tela mostrar o próprio dia, não o seguinte.
   v_depois := ((dia + 1)::timestamp at time zone 'America/Sao_Paulo') - interval '1 microsecond';
   update public.acessos set acesso_ate = v_depois where user_id = alvo;
+  -- why: o dia escolhido pelo admin substitui o efeito dos pagamentos anteriores; o estorno de um deles não
+  -- desconta mais um ano do dia escolhido (como já acontece depois de "Sem prazo"). Pagamento novo segue estornável.
+  update public.pagamentos_hotmart set mexeu_no_prazo = false, alterado_em = now()
+   where user_id = alvo and mexeu_no_prazo;
   perform public._registrar('definiu prazo', alvo, jsonb_build_object('antes', v_antes, 'depois', v_depois));
   return v_depois;
 end;

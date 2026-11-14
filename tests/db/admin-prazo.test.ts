@@ -116,6 +116,31 @@ describe('admin_definir_prazo', () => {
     expect(r.error?.code).toBe('22023');
   });
 
+  it('o dia escolhido pelo admin vale contra o estorno de um pagamento anterior; um pagamento novo ainda é estornável', async () => {
+    const admin = await novoAdmin();
+    const email = emailUnico('pago');
+    const alvo = await criarPessoa({ email });
+    const aplicar = async (transacao: string, tipo: 'aprova' | 'estorna') => {
+      const { data, error } = await clienteServico().rpc('aplicar_pagamento_hotmart', {
+        p_transacao: transacao, p_email: email, p_tipo: tipo, p_evento: tipo === 'aprova' ? 'PURCHASE_APPROVED' : 'PURCHASE_REFUNDED',
+      });
+      if (error) throw error;
+      return data as { resultado: string };
+    };
+    const antiga = `prazo-${randomUUID()}`;
+    expect((await aplicar(antiga, 'aprova')).resultado).toBe('liberou');
+
+    const dia = somarDias(hojeEmSP(), 60);
+    expect((await admin.cliente.rpc('admin_definir_prazo', { alvo: alvo.id, dia })).error).toBeNull();
+    expect((await aplicar(antiga, 'estorna')).resultado).toBe('estorno_sem_efeito');
+    expect(new Date((await prazoDe(alvo.id))!).getTime()).toBe(fimDoDiaEmSP(dia));
+
+    const nova = `prazo-${randomUUID()}`;
+    expect((await aplicar(nova, 'aprova')).resultado).toBe('estendeu');
+    expect((await aplicar(nova, 'estorna')).resultado).toBe('estornou');
+    expect(new Date((await prazoDe(alvo.id))!).getTime()).toBe(fimDoDiaEmSP(dia));
+  });
+
   it('cliente inexistente é recusado; pendente, bloqueado e removido recebem 22023', async () => {
     const admin = await novoAdmin();
     const dia = somarDias(hojeEmSP(), 30);
