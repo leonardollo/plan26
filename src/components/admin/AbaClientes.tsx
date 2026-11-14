@@ -1,9 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../services/supabase';
-import { Acesso, StatusAcesso, definirStatus, listarAcessos, listarAdmins, promoverAdmin, tirarPrazo } from '../../services/acesso';
+import {
+  Acesso, StatusAcesso, definirPrazo, definirStatus, listarAcessos, listarAdmins, promoverAdmin, tirarPrazo,
+} from '../../services/acesso';
 import { criarCliente, reenviarEmailDeSenha } from '../../services/adminUsuarios';
 import type { PlanoDeCliente } from '../../types';
-import { rotuloDoPrazo } from '../../utils/prazo';
+import {
+  baseDosAtalhos, diaEmSP, hojeEmSP, rotuloDoPrazo, somarAnos, somarDias, validarDiaDoPrazo,
+} from '../../utils/prazo';
 import { BOTAO_NEUTRO, BOTAO_PERIGO, BOTAO_PRINCIPAL, Eu, mensagemDe } from './comum';
 
 const ROTULO: Record<StatusAcesso, { texto: string; classe: string }> = {
@@ -22,10 +26,10 @@ const FILTROS: Array<{ id: Filtro; texto: string }> = [
   { id: 'removido', texto: 'Removidos' },
 ];
 
-type Acao = 'liberar' | 'tirar_prazo' | 'bloquear' | 'remover' | 'reativar' | 'reenviar' | 'abrir' | 'tornar_admin';
+type Acao = 'liberar' | 'alterar_prazo' | 'bloquear' | 'remover' | 'reativar' | 'reenviar' | 'abrir' | 'tornar_admin';
 const TEXTO_DA_ACAO: Record<Acao, string> = {
   liberar: 'Liberar',
-  tirar_prazo: 'Liberar sem prazo',
+  alterar_prazo: 'Alterar prazo',
   bloquear: 'Bloquear',
   remover: 'Remover',
   reativar: 'Reativar',
@@ -35,20 +39,82 @@ const TEXTO_DA_ACAO: Record<Acao, string> = {
 };
 
 /** O que não está na lista do status não aparece (spec: tela Administração, aba Clientes). */
-function acoesDe(status: StatusAcesso, ehAdmin: boolean, ehEu: boolean, temPrazo = false): Acao[] {
+function acoesDe(status: StatusAcesso, ehAdmin: boolean, ehEu: boolean): Acao[] {
   if (ehEu) return [];
   if (ehAdmin) return ['abrir'];
   switch (status) {
     case 'pendente': return ['liberar', 'bloquear', 'remover', 'reenviar', 'abrir', 'tornar_admin'];
     case 'liberado':
-      // why: tirar o prazo não muda o status; só faz sentido para quem já está liberado e tem prazo (pago ou vencido).
-      return [...(temPrazo ? (['tirar_prazo'] as Acao[]) : []), 'bloquear', 'remover', 'reenviar', 'abrir', 'tornar_admin'];
+      // why: o prazo não muda o status; admin_definir_prazo só aceita cliente liberado.
+      return ['alterar_prazo', 'bloquear', 'remover', 'reenviar', 'abrir', 'tornar_admin'];
     case 'bloqueado': return ['liberar', 'remover', 'abrir'];
     case 'removido': return ['reativar', 'abrir'];
   }
 }
 
 type Aviso = { texto: string; reativar?: string };
+
+const diaLegivel = (dia: string) => dia.split('-').reverse().join('/');
+
+interface PainelDoPrazoProps {
+  acesso: Acesso;
+  ocupado: boolean;
+  onSalvar: (dia: string) => void;
+  onSemPrazo: () => void;
+  onCancelar: () => void;
+}
+
+/** Escolha do último dia de acesso: data + atalhos. Os atalhos só preenchem; nada grava antes de Salvar. */
+const PainelDoPrazo: React.FC<PainelDoPrazoProps> = ({ acesso, ocupado, onSalvar, onSemPrazo, onCancelar }) => {
+  const agora = new Date();
+  const vale = !!acesso.acessoAte && new Date(acesso.acessoAte).getTime() > agora.getTime();
+  const [dia, setDia] = useState(vale ? diaEmSP(acesso.acessoAte!) : '');
+  const [aviso, setAviso] = useState('');
+  const base = baseDosAtalhos(acesso.acessoAte, agora);
+  const hoje = hojeEmSP(agora);
+
+  function preencher(novo: string) {
+    setDia(novo);
+    setAviso('');
+  }
+
+  function salvar() {
+    const problema = validarDiaDoPrazo(dia);
+    if (problema) {
+      setAviso(problema);
+      return;
+    }
+    onSalvar(dia);
+  }
+
+  return (
+    <div className="p-3 rounded-lg bg-gray-50 border border-gray-200 text-sm flex flex-col gap-2">
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="text-xs font-semibold text-gray-600">
+          Último dia de acesso
+          <input
+            type="date"
+            value={dia}
+            min={somarDias(hoje, 1)}
+            max={somarAnos(hoje, 5)}
+            onChange={(e) => preencher(e.target.value)}
+            className="mt-1 block px-3 py-2 rounded-lg border border-gray-300 text-sm font-normal"
+          />
+        </label>
+        <button type="button" className={BOTAO_NEUTRO} onClick={() => preencher(somarAnos(base, 1))}>+1 ano</button>
+        <button type="button" className={BOTAO_NEUTRO} onClick={() => preencher(somarDias(base, 30))}>+30 dias</button>
+      </div>
+      {aviso && <p role="alert" className="text-xs text-red-700">{aviso}</p>}
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className={BOTAO_PRINCIPAL} disabled={ocupado} onClick={salvar}>Salvar</button>
+        {acesso.acessoAte && (
+          <button type="button" className={BOTAO_NEUTRO} disabled={ocupado} onClick={onSemPrazo}>Sem prazo</button>
+        )}
+        <button type="button" className={BOTAO_NEUTRO} onClick={onCancelar}>Cancelar</button>
+      </div>
+    </div>
+  );
+};
 
 interface Props {
   eu: Eu;
@@ -66,6 +132,7 @@ const AbaClientes: React.FC<Props> = ({ eu, onAbrirPlano }) => {
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [mexendo, setMexendo] = useState<string | null>(null);
   const [confirmandoRemocao, setConfirmandoRemocao] = useState<string | null>(null);
+  const [editandoPrazo, setEditandoPrazo] = useState<string | null>(null);
   const [adicionando, setAdicionando] = useState(false);
   const [novoEmail, setNovoEmail] = useState('');
   const [novoNome, setNovoNome] = useState('');
@@ -128,12 +195,9 @@ const AbaClientes: React.FC<Props> = ({ eu, onAbrirPlano }) => {
       case 'liberar': return mudarStatus(a.uid, 'liberado');
       case 'bloquear': return mudarStatus(a.uid, 'bloqueado');
       case 'reativar': return mudarStatus(a.uid, 'liberado', `${a.email} foi reativado e liberado.`);
-      case 'tirar_prazo':
-        return executar(a.uid, async () => {
-          await tirarPrazo(supabase, a.uid);
-          setLista((l) => l.map((x) => (x.uid === a.uid ? { ...x, acessoAte: null } : x)));
-          setAviso({ texto: `${a.email} agora tem acesso sem prazo.` });
-        });
+      case 'alterar_prazo':
+        setEditandoPrazo(a.uid);
+        return;
       case 'remover':
         setConfirmandoRemocao(a.uid);
         return;
@@ -153,6 +217,24 @@ const AbaClientes: React.FC<Props> = ({ eu, onAbrirPlano }) => {
         });
     }
   }
+
+  const trocarPrazo = (uid: string, acessoAte: string | null) =>
+    setLista((l) => l.map((x) => (x.uid === uid ? { ...x, acessoAte } : x)));
+
+  const salvarPrazo = (a: Acesso, dia: string) =>
+    executar(a.uid, async () => {
+      trocarPrazo(a.uid, await definirPrazo(supabase, a.uid, dia));
+      setEditandoPrazo(null);
+      setAviso({ texto: `${a.email} agora tem acesso até ${diaLegivel(dia)}.` });
+    });
+
+  const semPrazo = (a: Acesso) =>
+    executar(a.uid, async () => {
+      await tirarPrazo(supabase, a.uid);
+      trocarPrazo(a.uid, null);
+      setEditandoPrazo(null);
+      setAviso({ texto: `${a.email} agora tem acesso sem prazo.` });
+    });
 
   async function adicionar(e: React.FormEvent) {
     e.preventDefault();
@@ -279,9 +361,9 @@ const AbaClientes: React.FC<Props> = ({ eu, onAbrirPlano }) => {
                   {ehEu && <span className="text-[11px] text-gray-500">(você)</span>}
                 </div>
                 {a.nome && <span className="text-xs text-gray-500 break-all">{a.email}</span>}
-                <span className="text-xs text-gray-500">Acesso até: {rotuloDoPrazo(a.acessoAte)}</span>
+                <span className="text-xs text-gray-500">{rotuloDoPrazo(a.acessoAte)}</span>
                 <div className="flex flex-wrap gap-2">
-                  {acoesDe(a.status, ehAdmin, ehEu, !!a.acessoAte).map((acao) => (
+                  {acoesDe(a.status, ehAdmin, ehEu).map((acao) => (
                     <button
                       key={acao}
                       type="button"
@@ -293,6 +375,15 @@ const AbaClientes: React.FC<Props> = ({ eu, onAbrirPlano }) => {
                     </button>
                   ))}
                 </div>
+                {editandoPrazo === a.uid && a.status === 'liberado' && (
+                  <PainelDoPrazo
+                    acesso={a}
+                    ocupado={mexendo === a.uid}
+                    onSalvar={(dia) => salvarPrazo(a, dia)}
+                    onSemPrazo={() => semPrazo(a)}
+                    onCancelar={() => setEditandoPrazo(null)}
+                  />
+                )}
                 {confirmandoRemocao === a.uid && (
                   <div className="p-3 rounded-lg bg-red-50 text-sm text-red-800 flex flex-wrap items-center gap-2">
                     <span>Remover {a.nome || a.email}? A conta é desativada; nada é apagado e dá para reativar depois.</span>

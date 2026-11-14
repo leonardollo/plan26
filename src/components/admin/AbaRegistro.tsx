@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../services/supabase';
 import { Acesso, AcaoDoRegistro, listarAcessos, listarRegistro } from '../../services/acesso';
+import { diaEmSP } from '../../utils/prazo';
 import { mensagemDe } from './comum';
 
 const dois = (n: number) => String(n).padStart(2, '0');
@@ -8,9 +9,16 @@ const dois = (n: number) => String(n).padStart(2, '0');
 const formatar = (d: Date) =>
   `${dois(d.getDate())}/${dois(d.getMonth() + 1)}/${dois(d.getFullYear() % 100)} ${dois(d.getHours())}:${dois(d.getMinutes())}`;
 
-const textoDoDetalhe = (detalhe: Record<string, unknown>) =>
+// O prazo é gravado como o último instante do dia em São Paulo; em UTC ele cai no dia seguinte e confundiria.
+const prazoLegivel = (v: unknown) =>
+  typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? diaEmSP(v).split('-').reverse().join('/') : 'sem prazo';
+
+const textoDoDetalhe = (acao: string, detalhe: Record<string, unknown>) =>
   Object.entries(detalhe)
-    .map(([k, v]) => `${k}: ${v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
+    .map(([k, v]) => {
+      if (acao.endsWith('prazo') && (k === 'antes' || k === 'depois')) return `${k}: ${prazoLegivel(v)}`;
+      return `${k}: ${v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v)}`;
+    })
     .join(' · ');
 
 const AbaRegistro: React.FC = () => {
@@ -63,7 +71,7 @@ const AbaRegistro: React.FC = () => {
               <span className="font-semibold text-gray-900">{a.acao}</span>
               <span className="text-gray-700 break-all">{a.alvoEmail ?? '—'}</span>
               {Object.keys(a.detalhe).length > 0 && (
-                <span className="text-xs text-gray-500 break-all sm:col-span-4">{textoDoDetalhe(a.detalhe)}</span>
+                <span className="text-xs text-gray-500 break-all sm:col-span-4">{textoDoDetalhe(a.acao, a.detalhe)}</span>
               )}
             </li>
           ))}

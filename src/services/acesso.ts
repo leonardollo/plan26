@@ -106,6 +106,16 @@ export async function definirStatus(cliente: SupabaseClient, uid: string, status
   if (error) throw error;
 }
 
+/**
+ * Define o último dia de acesso (AAAA-MM-DD, em São Paulo) de um cliente liberado e devolve o prazo gravado.
+ * O banco recusa quem não é admin, hoje, passado e mais de 5 anos à frente, e registra a ação.
+ */
+export async function definirPrazo(cliente: SupabaseClient, alvo: string, dia: string): Promise<string> {
+  const { data, error } = await cliente.rpc('admin_definir_prazo', { alvo, dia });
+  if (error) throw error;
+  return data as string;
+}
+
 /** Tira o prazo de uma conta (acesso sem vencimento). O banco recusa quem não é admin e registra a ação. */
 export async function tirarPrazo(cliente: SupabaseClient, alvo: string): Promise<void> {
   const { error } = await cliente.rpc('admin_tirar_prazo', { alvo });

@@ -61,6 +61,16 @@ describe('AbaRegistro', () => {
     expect(acesso.listarRegistro).toHaveBeenLastCalledWith(expect.anything(), undefined);
   });
 
+  it('prazo no detalhe aparece como o dia em São Paulo, não o instante em UTC', async () => {
+    acesso.listarRegistro.mockResolvedValue([
+      { ...ACAO, id: 2, acao: 'definiu prazo', detalhe: { antes: null, depois: '2026-12-14T02:59:59.999999+00:00' } },
+      { ...ACAO, id: 3, acao: 'tirou prazo', detalhe: { antes: '2027-11-14T02:59:59.999999+00:00' } },
+    ]);
+    await montar();
+    expect(within(screen.getByLabelText('Ação 2')).getByText('antes: sem prazo · depois: 13/12/2026')).toBeTruthy();
+    expect(within(screen.getByLabelText('Ação 3')).getByText('antes: 13/11/2027')).toBeTruthy();
+  });
+
   it('sem ações, diz que não há', async () => {
     acesso.listarRegistro.mockResolvedValue([]);
     await montar();
