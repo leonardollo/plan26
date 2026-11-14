@@ -38,4 +38,23 @@ describe('situacaoDoAcesso', () => {
     expect(situacaoDoAcesso('removido')).toBe('inactive');
     expect(situacaoDoAcesso('pendente')).toBe('not_found');
   });
+
+  const AGORA = new Date('2027-03-10T12:00:00Z');
+
+  it('liberado com prazo futuro → active', () => {
+    expect(situacaoDoAcesso('liberado', '2028-03-10T12:00:00Z', AGORA)).toBe('active');
+  });
+  it('liberado com prazo vencido → expired', () => {
+    expect(situacaoDoAcesso('liberado', '2027-03-10T11:59:59Z', AGORA)).toBe('expired');
+  });
+  it('liberado sem prazo → active', () => {
+    expect(situacaoDoAcesso('liberado', null, AGORA)).toBe('active');
+    expect(situacaoDoAcesso('liberado', undefined, AGORA)).toBe('active');
+  });
+  it('bloqueado com prazo futuro → inactive', () => {
+    expect(situacaoDoAcesso('bloqueado', '2028-03-10T12:00:00Z', AGORA)).toBe('inactive');
+  });
+  it('prazo exatamente agora → expired', () => {
+    expect(situacaoDoAcesso('liberado', '2027-03-10T12:00:00Z', AGORA)).toBe('expired');
+  });
 });

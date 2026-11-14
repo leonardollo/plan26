@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   ehAdministrador, listarAdmins, listarRegistro, obterAcesso, promoverAdmin, quando, rebaixarAdmin, rotuloEmailVerificado,
+  definirPrazo, tirarPrazo,
 } from './acesso';
 
 // O banco de verdade está em tests/db/acesso.test.ts; aqui só o que o cliente faz com a resposta.
@@ -21,12 +22,17 @@ describe('obterAcesso', () => {
   it('converte a linha do banco', async () => {
     const linha = {
       user_id: 'u', email: 'a@x.com', nome: null, status: 'liberado', criado_em: '2026-11-12T10:00:00Z',
-      liberado_em: null, liberado_por: null, email_verificado: false,
+      liberado_em: null, liberado_por: null, email_verificado: false, acesso_ate: '2027-11-13T10:00:00Z',
     };
     expect(await obterAcesso(cliente({ data: linha, error: null }), 'u')).toEqual({
       uid: 'u', email: 'a@x.com', nome: '', status: 'liberado', criadoEm: '2026-11-12T10:00:00Z',
-      liberadoEm: null, liberadoPor: null, emailVerificado: false,
+      liberadoEm: null, liberadoPor: null, emailVerificado: false, acessoAte: '2027-11-13T10:00:00Z',
     });
+  });
+
+  it('linha sem acesso_ate → acessoAte null (sem prazo)', async () => {
+    const linha = { user_id: 'u', email: 'a@x.com', nome: 'A', status: 'liberado', criado_em: null };
+    expect((await obterAcesso(cliente({ data: linha, error: null }), 'u'))?.acessoAte).toBeNull();
   });
 
   it('sem linha devolve null; erro do banco lança', async () => {
@@ -111,5 +117,25 @@ describe('administradores e Registro', () => {
     const [acao] = await listarRegistro(cliente, 'u2');
     expect(acao.detalhe).toEqual({});
     expect(chamadas).toContainEqual(['eq', 'alvo', 'u2']);
+  });
+});
+
+describe('definirPrazo', () => {
+  it('chama admin_definir_prazo com alvo e dia; devolve o prazo gravado; erro do banco lança', async () => {
+    const rpc = vi.fn(async () => ({ data: '2027-11-14T02:59:59.999999+00:00', error: null }));
+    expect(await definirPrazo({ rpc } as any, 'u1', '2027-11-13')).toBe('2027-11-14T02:59:59.999999+00:00');
+    expect(rpc).toHaveBeenCalledWith('admin_definir_prazo', { alvo: 'u1', dia: '2027-11-13' });
+    const falha = vi.fn(async () => ({ data: null, error: { code: '22023' } }));
+    await expect(definirPrazo({ rpc: falha } as any, 'u1', '2026-11-13')).rejects.toMatchObject({ code: '22023' });
+  });
+});
+
+describe('tirarPrazo', () => {
+  it('chama admin_tirar_prazo com o alvo; erro do banco lança', async () => {
+    const rpc = vi.fn(async () => ({ data: null, error: null }));
+    await tirarPrazo({ rpc } as any, 'u1');
+    expect(rpc).toHaveBeenCalledWith('admin_tirar_prazo', { alvo: 'u1' });
+    const falha = vi.fn(async () => ({ data: null, error: { code: '42501' } }));
+    await expect(tirarPrazo({ rpc: falha } as any, 'u1')).rejects.toMatchObject({ code: '42501' });
   });
 });

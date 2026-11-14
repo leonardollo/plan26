@@ -37,6 +37,8 @@ export interface Acesso {
   liberadoPor?: string | null;
   /** Ausente nos pedidos criados antes deste campo existir. */
   emailVerificado?: boolean;
+  /** Fim do acesso pago (ISO); null é sem prazo (clientes antigos e quem o admin liberou sem prazo). */
+  acessoAte?: string | null;
 }
 
 type LinhaDeAcesso = {
@@ -48,9 +50,10 @@ type LinhaDeAcesso = {
   liberado_em: string | null;
   liberado_por: string | null;
   email_verificado: boolean | null;
+  acesso_ate: string | null;
 };
 
-const COLUNAS = 'user_id, email, nome, status, criado_em, liberado_em, liberado_por, email_verificado';
+const COLUNAS = 'user_id, email, nome, status, criado_em, liberado_em, liberado_por, email_verificado, acesso_ate';
 
 function paraAcesso(l: LinhaDeAcesso): Acesso {
   return {
@@ -62,6 +65,7 @@ function paraAcesso(l: LinhaDeAcesso): Acesso {
     liberadoEm: l.liberado_em,
     liberadoPor: l.liberado_por ?? null,
     emailVerificado: l.email_verificado ?? undefined,
+    acessoAte: l.acesso_ate ?? null,
   };
 }
 
@@ -99,6 +103,22 @@ export function rotuloEmailVerificado(v: boolean | undefined): 'Sim' | 'Não' | 
 /** Libera, bloqueia ou devolve alguém para a fila. Quem e quando, o banco registra. */
 export async function definirStatus(cliente: SupabaseClient, uid: string, status: StatusAcesso): Promise<void> {
   const { error } = await cliente.rpc('definir_status_de_acesso', { alvo: uid, novo_status: status });
+  if (error) throw error;
+}
+
+/**
+ * Define o último dia de acesso (AAAA-MM-DD, em São Paulo) de um cliente liberado e devolve o prazo gravado.
+ * O banco recusa quem não é admin, hoje, passado e mais de 5 anos à frente, e registra a ação.
+ */
+export async function definirPrazo(cliente: SupabaseClient, alvo: string, dia: string): Promise<string> {
+  const { data, error } = await cliente.rpc('admin_definir_prazo', { alvo, dia });
+  if (error) throw error;
+  return data as string;
+}
+
+/** Tira o prazo de uma conta (acesso sem vencimento). O banco recusa quem não é admin e registra a ação. */
+export async function tirarPrazo(cliente: SupabaseClient, alvo: string): Promise<void> {
+  const { error } = await cliente.rpc('admin_tirar_prazo', { alvo });
   if (error) throw error;
 }
 

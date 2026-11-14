@@ -2,6 +2,8 @@
 import React, { useState } from 'react';
 import { authService } from '../hooks/usePlanData';
 import { SENHA_MINIMA } from '../services/supabase';
+import { CHECKOUT } from '../utils/checkout';
+import CartaoAssinatura from './CartaoAssinatura';
 
 // Traduz os erros do Supabase Auth; o código vem em `code` (versões novas) ou só na mensagem (antigas).
 export function mensagemDeErroDeLogin(error: { code?: string; message?: string } | null | undefined): string {
@@ -140,7 +142,7 @@ const Login: React.FC = () => {
       </div>
 
       {/* Right side - Form */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 sm:px-12 lg:px-16">
+      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 py-10 sm:px-12 lg:px-16">
         {/* Mobile logo */}
         <div className="lg:hidden text-center mb-8">
           <img src="/logo-gi.png" alt="Gestão de Impacto" className="h-12 w-auto object-contain mx-auto mb-3" />
@@ -261,6 +263,11 @@ const Login: React.FC = () => {
               {isSignUp ? 'Fazer login' : 'Cadastre-se'}
             </button>
           </p>
+
+          {/* Quem ainda não é cliente vê o plano; quem já é entra como sempre, pelo formulário acima. */}
+          <div className="mt-8">
+            <CartaoAssinatura config={CHECKOUT} />
+          </div>
         </div>
       </div>
     </div>

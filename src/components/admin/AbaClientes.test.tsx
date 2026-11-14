@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
 const { acesso, usuarios } = vi.hoisted(() => ({
-  acesso: { listarAcessos: vi.fn(), definirStatus: vi.fn(), listarAdmins: vi.fn(), promoverAdmin: vi.fn() },
+  acesso: {
+    listarAcessos: vi.fn(), definirStatus: vi.fn(), listarAdmins: vi.fn(), promoverAdmin: vi.fn(), tirarPrazo: vi.fn(),
+    definirPrazo: vi.fn(),
+  },
   usuarios: { criarCliente: vi.fn(), reenviarEmailDeSenha: vi.fn() },
 }));
 
@@ -16,10 +19,19 @@ vi.mock('../../services/adminUsuarios', () => usuarios);
 
 import AbaClientes from './AbaClientes';
 
-const pessoa = (uid: string, nome: string, email: string, status: string) => ({ uid, nome, email, status });
+const pessoa = (uid: string, nome: string, email: string, status: string, acessoAte: string | null = null) => ({
+  uid,
+  nome,
+  email,
+  status,
+  acessoAte,
+});
 const LISTA = [
   pessoa('p1', 'Ana Pendente', 'ana@x.com', 'pendente'),
   pessoa('l1', 'Bruno Liberado', 'bruno@x.com', 'liberado'),
+  // Fim do dia em São Paulo, como admin_definir_prazo grava: 13/11/2027 e 10/11/2026.
+  pessoa('l2', 'Fabi Paga', 'fabi@x.com', 'liberado', '2027-11-14T02:59:59.999Z'),
+  pessoa('l3', 'Gil Vencido', 'gil@x.com', 'liberado', '2026-11-11T02:59:59.999Z'),
   pessoa('b1', 'Carla Bloqueada', 'carla@x.com', 'bloqueado'),
   pessoa('r1', 'Davi Removido', 'davi@x.com', 'removido'),
   pessoa('a2', 'Eva Admin', 'eva@gi.com', 'liberado'),
@@ -42,14 +54,21 @@ const acoes = (email: string) => within(linha(email)).queryAllByRole('button').m
 const filtrar = (nome: RegExp) => fireEvent.click(screen.getByRole('button', { name: nome }));
 
 beforeEach(() => {
+  // why: só o Date é falso (promessas seguem reais); "hoje" = 13/11/2026, meio-dia em São Paulo.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-13T15:00:00Z'));
   vi.clearAllMocks();
   acesso.listarAcessos.mockResolvedValue(LISTA);
   acesso.listarAdmins.mockResolvedValue(ADMINS);
   acesso.definirStatus.mockResolvedValue(undefined);
   acesso.promoverAdmin.mockResolvedValue(undefined);
+  acesso.tirarPrazo.mockResolvedValue(undefined);
   usuarios.reenviarEmailDeSenha.mockResolvedValue(undefined);
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe('AbaClientes', () => {
   it('sem filtro mostra todos menos os removidos', async () => {
@@ -89,7 +108,7 @@ describe('AbaClientes', () => {
   it('as ações de cada status, de outro admin e da própria linha', async () => {
     await montar();
     expect(acoes('ana@x.com')).toEqual(['Liberar', 'Bloquear', 'Remover', 'Reenviar e-mail de senha', 'Abrir plano', 'Tornar admin']);
-    expect(acoes('bruno@x.com')).toEqual(['Bloquear', 'Remover', 'Reenviar e-mail de senha', 'Abrir plano', 'Tornar admin']);
+    expect(acoes('bruno@x.com')).toEqual(['Alterar prazo', 'Bloquear', 'Remover', 'Reenviar e-mail de senha', 'Abrir plano', 'Tornar admin']);
     expect(acoes('carla@x.com')).toEqual(['Liberar', 'Remover', 'Abrir plano']);
     expect(acoes('eva@gi.com')).toEqual(['Abrir plano']);
     expect(acoes('eu@gi.com')).toEqual([]);
@@ -207,6 +226,121 @@ describe('AbaClientes', () => {
       usuarios.criarCliente.mockRejectedValue(new Error('E-mail inválido'));
       await adicionar();
       expect(screen.getByText('E-mail inválido')).toBeTruthy();
+    });
+  });
+
+  describe('tempo de acesso', () => {
+    const abrirPainel = (email: string) =>
+      fireEvent.click(within(linha(email)).getByRole('button', { name: 'Alterar prazo' }));
+    const campo = (email: string) => within(linha(email)).getByLabelText('Último dia de acesso') as HTMLInputElement;
+    const clicar = (email: string, nome: string) =>
+      fireEvent.click(within(linha(email)).getByRole('button', { name: nome }));
+
+    it('mostra o prazo com os dias que faltam ou que passaram', async () => {
+      await montar();
+      expect(within(linha('bruno@x.com')).getByText('Sem prazo')).toBeTruthy();
+      expect(within(linha('fabi@x.com')).getByText('Acesso até 13/11/2027 · faltam 365 dias')).toBeTruthy();
+      expect(within(linha('gil@x.com')).getByText('Vencido em 10/11/2026 · há 3 dias')).toBeTruthy();
+    });
+
+    it('Alterar prazo aparece para todo liberado; não para pendente, bloqueado, removido, admin ou a própria linha', async () => {
+      await montar();
+      for (const email of ['bruno@x.com', 'fabi@x.com', 'gil@x.com']) expect(acoes(email), email).toContain('Alterar prazo');
+      for (const email of ['ana@x.com', 'carla@x.com', 'eva@gi.com', 'eu@gi.com']) {
+        expect(acoes(email), email).not.toContain('Alterar prazo');
+      }
+      filtrar(/^Removidos/);
+      expect(acoes('davi@x.com')).not.toContain('Alterar prazo');
+    });
+
+    it('o campo começa no dia do prazo que ainda vale; vazio quando vencido ou sem prazo', async () => {
+      await montar();
+      abrirPainel('fabi@x.com');
+      expect(campo('fabi@x.com').value).toBe('2027-11-13');
+      clicar('fabi@x.com', 'Cancelar');
+      abrirPainel('gil@x.com');
+      expect(campo('gil@x.com').value).toBe('');
+    });
+
+    it('atalhos partem do prazo que vale, senão de hoje, e só preenchem a data', async () => {
+      await montar();
+      abrirPainel('fabi@x.com');
+      clicar('fabi@x.com', '+1 ano');
+      expect(campo('fabi@x.com').value).toBe('2028-11-13');
+      clicar('fabi@x.com', '+1 ano');
+      expect(campo('fabi@x.com').value).toBe('2028-11-13');
+      clicar('fabi@x.com', 'Cancelar');
+
+      abrirPainel('gil@x.com');
+      clicar('gil@x.com', '+30 dias');
+      expect(campo('gil@x.com').value).toBe('2026-12-13');
+      clicar('gil@x.com', 'Cancelar');
+
+      abrirPainel('bruno@x.com');
+      clicar('bruno@x.com', '+1 ano');
+      expect(campo('bruno@x.com').value).toBe('2027-11-13');
+      expect(acesso.definirPrazo).not.toHaveBeenCalled();
+    });
+
+    it('Salvar com hoje, passado ou vazio mostra a mensagem e não chama o banco', async () => {
+      await montar();
+      abrirPainel('bruno@x.com');
+      clicar('bruno@x.com', 'Salvar');
+      expect(within(linha('bruno@x.com')).getByRole('alert').textContent).toBe('Escolha uma data');
+      fireEvent.change(campo('bruno@x.com'), { target: { value: '2026-11-13' } });
+      clicar('bruno@x.com', 'Salvar');
+      expect(within(linha('bruno@x.com')).getByRole('alert').textContent).toBe(
+        'Escolha uma data futura; para cortar o acesso, use Bloquear',
+      );
+      fireEvent.change(campo('bruno@x.com'), { target: { value: '2031-11-14' } });
+      clicar('bruno@x.com', 'Salvar');
+      expect(within(linha('bruno@x.com')).getByRole('alert').textContent).toBe('O prazo vai até 5 anos à frente');
+      expect(acesso.definirPrazo).not.toHaveBeenCalled();
+    });
+
+    it('Salvar grava, atualiza o rótulo, fecha o painel e avisa', async () => {
+      acesso.definirPrazo.mockResolvedValue('2027-11-14T02:59:59.999999+00:00');
+      await montar();
+      abrirPainel('bruno@x.com');
+      clicar('bruno@x.com', '+1 ano');
+      await act(async () => clicar('bruno@x.com', 'Salvar'));
+      expect(acesso.definirPrazo).toHaveBeenCalledWith({}, 'l1', '2027-11-13');
+      expect(within(linha('bruno@x.com')).getByText('Acesso até 13/11/2027 · faltam 365 dias')).toBeTruthy();
+      expect(within(linha('bruno@x.com')).queryByLabelText('Último dia de acesso')).toBeNull();
+      expect(screen.getByRole('status').textContent).toBe('bruno@x.com agora tem acesso até 13/11/2027.');
+    });
+
+    it('a recusa do banco aparece na tela e o painel continua aberto', async () => {
+      acesso.definirPrazo.mockRejectedValue({ code: '22023', message: 'o prazo só vale para cliente liberado: libere antes' });
+      await montar();
+      abrirPainel('bruno@x.com');
+      clicar('bruno@x.com', '+30 dias');
+      await act(async () => clicar('bruno@x.com', 'Salvar'));
+      expect(screen.getByText('o prazo só vale para cliente liberado: libere antes')).toBeTruthy();
+      expect(campo('bruno@x.com').value).toBe('2026-12-13');
+    });
+
+    it('Sem prazo só aparece com prazo e chama tirarPrazo', async () => {
+      await montar();
+      abrirPainel('bruno@x.com');
+      expect(within(linha('bruno@x.com')).queryByRole('button', { name: 'Sem prazo' })).toBeNull();
+      clicar('bruno@x.com', 'Cancelar');
+
+      abrirPainel('gil@x.com');
+      await act(async () => clicar('gil@x.com', 'Sem prazo'));
+      expect(acesso.tirarPrazo).toHaveBeenCalledWith({}, 'l3');
+      expect(within(linha('gil@x.com')).getByText('Sem prazo')).toBeTruthy();
+      expect(within(linha('gil@x.com')).queryByLabelText('Último dia de acesso')).toBeNull();
+    });
+
+    it('Cancelar fecha sem gravar', async () => {
+      await montar();
+      abrirPainel('fabi@x.com');
+      clicar('fabi@x.com', '+1 ano');
+      clicar('fabi@x.com', 'Cancelar');
+      expect(within(linha('fabi@x.com')).queryByLabelText('Último dia de acesso')).toBeNull();
+      expect(acesso.definirPrazo).not.toHaveBeenCalled();
+      expect(within(linha('fabi@x.com')).getByText('Acesso até 13/11/2027 · faltam 365 dias')).toBeTruthy();
     });
   });
 });

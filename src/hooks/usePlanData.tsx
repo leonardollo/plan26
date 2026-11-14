@@ -710,9 +710,10 @@ export const PlanProvider: React.FC<{ children: React.ReactNode, user: User, pla
             }
 
             // Sem linha (o gatilho ainda não rodou ou falhou) é pendente, como no erro: nunca liberado.
-            const status = (await obterAcesso(supabase, user.uid))?.status ?? 'pendente';
+            const acesso = await obterAcesso(supabase, user.uid);
+            const status = acesso?.status ?? 'pendente';
             setStatusAcesso(status);
-            await aplicarStatusDeAcesso(situacaoDoAcesso(status));
+            await aplicarStatusDeAcesso(situacaoDoAcesso(status, acesso?.acessoAte));
         } catch (e) {
             // Não liberar por causa de erro: falha de rede não pode virar
             // porta aberta. Melhor a pessoa ver a tela de espera e tentar de novo.

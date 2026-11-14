@@ -3,6 +3,96 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
+## 2026-11-13 — Admin vê e muda o prazo de acesso de cada cliente
+
+- **O quê:** no mesmo PR #9 da assinatura.
+  - **Banco** (migração `20261113030000_admin_definir_prazo`): `admin_definir_prazo(alvo, dia)` grava o último
+    instante do dia escolhido em São Paulo; recusa hoje, passado, vazio e mais de 5 anos à frente (22023), cliente
+    que não está liberado (22023) e quem não é admin (42501). Vai para o Registro como "definiu prazo", com antes e
+    depois. O dia escolhido zera `mexeu_no_prazo` dos pagamentos anteriores.
+  - **Tela:** a aba Clientes mostra "Acesso até dd/mm/aaaa · faltam N dias", "Vencido em dd/mm/aaaa · há N dias"
+    ou "Sem prazo". "Alterar prazo" (só para liberado) abre um painel com campo de data, os atalhos +1 ano e
+    +30 dias (a partir do prazo se ainda vale, senão de hoje), "Sem prazo" (`admin_tirar_prazo`), Salvar e
+    Cancelar. O Registro mostra o prazo como dia de São Paulo, não o instante em UTC.
+- **Por quê:** pedido da usuária: ver o tempo de acesso de cada usuário na Administração e poder alterá-lo.
+  Escolhas dela: data com atalhos, recusar data passada (cortar o acesso é Bloquear), no mesmo PR #9.
+- **Verificação** (em `108f00e`): typecheck ok; `npm test` 56 arquivos, 531/531; `npm run test:db` 11 arquivos,
+  107/107 (com `supabase functions serve` local); `vite build` ok; `npm audit --audit-level=high` ok (13 moderate).
+  Como usuário (agent-browser, contas falsas locais): painel do prazo, data inválida e estado salvo em 390 px;
+  aba Clientes em desktop.
+- **Revisão:** Codex, Normal + Sensível.
+  - Segurança de `fec1c50`: sem achados.
+  - Base de `fec1c50`: P1, o estorno de um pagamento anterior descontava um ano do dia escolhido pelo admin.
+    Corrigido em `d42534e` (teste visto falhando antes).
+  - Re-revisão de `d42534e`, base e segurança: o mesmo P2, deadlock por ordem inversa de travas
+    (`admin_definir_prazo` travava `acessos` e depois `pagamentos_hotmart`; o estorno faz o contrário). Corrigido
+    em `108f00e`: trava os pagamentos primeiro. `src/ordem-de-travas.test.ts` confere essa ordem em toda migração
+    (visto falhando sem a correção). Sem outra rodada de revisão.
+- **Em aberto:**
+  - O teste de concorrência real (dois pedidos simultâneos) não existe; a garantia é a checagem estática da ordem.
+  - No PostgREST local, o P0002 de cliente inexistente vira 500 sem código (já acontecia em `admin_tirar_prazo`).
+  - O estorno sem efeito não aparece no Registro.
+  - **Passo humano:** a migração `20261113030000_admin_definir_prazo` entra no `supabase db push` do PR #9.
+- **Commits:** `fec1c50`, `d42534e`, `108f00e`.
+
+## 2026-11-13 — Assinatura anual pela Hotmart
+
+- **O quê:** plano `docs/superpowers/plans/2026-11-13-assinatura-hotmart.md` (spec
+  `…/specs/2026-11-13-assinatura-hotmart-design.md`), feito por um subagente implementador.
+  - **Banco** (migração `20261113020000_assinatura_hotmart`): `acessos.acesso_ate` (prazo; vazio = sem prazo);
+    `posso_usar_o_espaco()` passa a respeitar o prazo; `pagamentos_hotmart` guarda só transação, e-mail e evento,
+    para idempotência; `aplicar_pagamento_hotmart` libera ou estende por 1 ano (APPROVED/COMPLETE) e desfaz o que
+    mexeu no prazo (REFUNDED/CHARGEBACK); `admin_tirar_prazo` para o admin. Tudo vai para o Registro.
+  - **Edge Function `hotmart-webhook`** (`verify_jwt = false`): confere o `x-hotmart-hottok` em tempo constante
+    antes de ler o corpo; corpo limitado a 100 KB; cria a conta de quem compra sem ter conta e manda o "Defina sua
+    senha"; logs só com evento, transação, resultado e um código seguro.
+  - **Tela:** cartão da assinatura no login e na tela de pendente, com link para o checkout; tela de acesso
+    vencido com renovação; coluna de prazo na aba Clientes. Sem `VITE_HOTMART_CHECKOUT_URL` o cartão não aparece.
+  - Os 45 clientes já liberados seguem sem prazo.
+- **Por quê:** pedido da usuária: assinatura anual única pela Hotmart, com acesso automático por um ano depois do
+  pagamento. O produto, o valor e o link ainda não existem; tudo fica pronto para receber as configurações.
+- **Verificação:**
+  - em `2c84c3d`: typecheck ok; `npm test` 502/502; `npm run test:db` 10 arquivos, 100/100; `vite build` ok;
+    `npm audit --audit-level=high` ok;
+  - em `6dc07b6` (depois das correções): typecheck ok; `npm test` 510/510; `npm run test:db` 10 arquivos,
+    100/100 (com `supabase functions serve` local, incluindo `tests/db/hotmart-webhook.test.ts`); `vite build` ok;
+    audit ok;
+  - os testes de regressão das correções foram vistos falhando antes (relato do implementador);
+  - como usuário (agent-browser, login falso local): login em 390 px e desktop; pendente e vencido em 390 px;
+    Administração em desktop e 390 px.
+- **Revisão:** Codex, Estrutural + Sensível.
+  - Revisão contra o plano: 1 achado P2, logs com `erro.message` (poderiam levar o e-mail do comprador).
+    Corrigido em `0655ada` com `logFalha` (só etapa, evento, transação e código seguro).
+  - Revisão de segurança: 1 achado P2, ler 100 KB antes do hottok e sem limite por IP. Corrigido em parte em
+    `0655ada`: o hottok e o tamanho declarado são conferidos antes de ler o corpo.
+    **Rejeitado:** 429 por IP. A Hotmart é o único remetente legítimo; um limite poderia descartar os reenvios
+    dela e perder pagamentos; a invocação é cobrada de qualquer jeito, e um contador no banco deixaria cada pedido
+    de atacante mais caro.
+  - Re-revisão de segurança de `0655ada`: 3 achados P2.
+    - `index.ts` ainda logava `error.message` no envio do e-mail de senha: corrigido em `6dc07b6` (o fluxo loga
+      com `logFalha`; um teste falha se `index.ts` tiver `console.*`).
+    - E-mail sem limite de tamanho: corrigido em `6dc07b6`, `normalizarEmail` recusa acima de 254 caracteres
+      (RFC 5321); vale também para `admin-usuarios`.
+    - 429 por IP: rejeitado de novo, pelo mesmo motivo.
+- **Em aberto:**
+  - As respostas antecipadas (401, 413) não drenam o corpo. Com corpos acima de ~512 KB o gateway pode segurar a
+    conexão até um 504 (aprendizado do projeto fluxo de caixa). Não afeta a Hotmart (poucos KB); sondar em produção
+    com 1 KB, 512 KB e 2 MB depois do deploy.
+  - Telas de pendente e vencido conferidas só em 390 px; o logo branco some no fundo branco da tela de pendente
+    (já existia).
+  - Registro que faltava: os passos de produção da área admin (migrações e `admin-usuarios`) já foram aplicados.
+  - O curinga das prévias no Auth do PLAN26 (ver a entrada da área admin) continua aberto.
+  - **Passos humanos, nesta ordem:**
+    1. merge em `main`;
+    2. `supabase db push` (migração `20261113020000_assinatura_hotmart`);
+    3. `supabase functions deploy hotmart-webhook`;
+    4. criar o produto (assinatura anual) na Hotmart;
+    5. segredos `HOTMART_HOTTOK` e `HOTMART_PRODUTO_ID` no PLAN26;
+    6. webhook v2 da Hotmart para `https://aixjmxfkaziqlxnpudkk.supabase.co/functions/v1/hotmart-webhook`;
+    7. variáveis `VITE_HOTMART_CHECKOUT_URL` e `VITE_PRECO_ANUAL` na Vercel e novo deploy;
+    8. compra de teste e conferência do Registro.
+- **Commits:** `6e07839`, `ede4436`, `ce4524a`, `192a90a`, `4a9409f`, `15881f4`, `2c84c3d`, `0655ada`, `6dc07b6`.
+
 ## 2026-11-13 — Área de administração (substitui a Gestão de Acessos)
 
 - **O quê:** plano `docs/superpowers/plans/2026-11-13-area-admin.md` (spec `…/specs/2026-11-13-area-admin-design.md`),

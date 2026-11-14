@@ -6,11 +6,14 @@ export const URL_DO_APP = 'https://planejamento.gestaoimpacto.com';
 const FORMATO_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const FORMATO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NOME_MAX = 120;
+// why: 254 é o teto de um endereço pela RFC 5321; acima disso o aviso do webhook não chega à RPC nem ao Auth.
+const EMAIL_MAX = 254;
 
 /** E-mail aparado e em minúsculas (admins.email exige minúsculas); null se não tiver formato de e-mail. */
 export function normalizarEmail(bruto: unknown): string | null {
   if (typeof bruto !== 'string') return null;
   const email = bruto.trim().toLowerCase();
+  if (email.length > EMAIL_MAX) return null;
   return FORMATO_EMAIL.test(email) ? email : null;
 }
 

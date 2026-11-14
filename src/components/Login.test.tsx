@@ -8,6 +8,10 @@ const { falsos } = vi.hoisted(() => ({
 
 vi.mock('../hooks/usePlanData', () => ({ authService: falsos }));
 vi.mock('../services/supabase', () => ({ SENHA_MINIMA: 6 }));
+vi.mock('../utils/checkout', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../utils/checkout')>()),
+  CHECKOUT: { url: 'https://pay.hotmart.com/X', preco: 'R$ 497' },
+}));
 
 import Login, { mensagemDeErroDeLogin } from './Login';
 
@@ -64,5 +68,17 @@ describe('Login — cadastro', () => {
     fireEvent.change(container.querySelector('input[type="password"]')!, { target: { value: 'segredo1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
     expect(await screen.findByText('Confirme seu e-mail antes de entrar.')).toBeTruthy();
+  });
+});
+
+describe('Login — assinatura', () => {
+  it('mostra o cartão do plano', () => {
+    render(<Login />);
+    expect(screen.getByText('Plano anual — R$ 497/ano')).toBeTruthy();
+    const link = screen.getByRole('link', { name: 'Assinar' }) as HTMLAnchorElement;
+    expect(link.href).toBe('https://pay.hotmart.com/X');
+    expect(link.target).toBe('_blank');
+    // Quem já é cliente segue entrando como hoje.
+    expect(screen.getByRole('button', { name: 'Entrar' })).toBeTruthy();
   });
 });
