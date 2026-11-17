@@ -54,21 +54,24 @@ e-mails por hora, e os ~40 "crie sua senha" não saem.
 
 **Authentication → Emails → Templates**
 
-*Confirm signup*, assunto `Confirme seu e-mail no PLAN`:
+*Confirm signup*, assunto `Confirme seu e-mail no PLAN`. Desde 17/11/2026 o texto não promete que um administrador
+libera o acesso: depois de confirmar, a pessoa assina pela Hotmart ou espera a liberação, na tela "Seu cadastro foi
+recebido".
 
 ```html
 <h2>Confirme seu e-mail</h2>
 <p>Olá! Para terminar seu cadastro no PLAN, da Gestão de Impacto, confirme seu e-mail:</p>
 <p><a href="{{ .ConfirmationURL }}">Confirmar meu e-mail</a></p>
-<p>Depois disso, um administrador libera o seu acesso. Se não foi você, ignore esta mensagem.</p>
+<p>Depois, entre em <strong>planejamento.gestaoimpacto.com</strong> com este e-mail: lá você assina o PLAN ou confere se o seu acesso já foi liberado. Se não foi você, ignore esta mensagem.</p>
 ```
 
-*Reset password*, assunto `Defina sua senha do PLAN`:
+*Reset password*, assunto `Defina sua senha do PLAN`. Texto neutro desde 17/11/2026, depois do passo 8: o mesmo
+e-mail serve a quem compra pela Hotmart, a quem o admin cria e ao "Esqueceu a senha?". O texto da virada ("mudou de
+endereço") foi o que os clientes importados receberam no passo 8.
 
 ```html
 <h2>Defina sua senha</h2>
-<p>O PLAN, da Gestão de Impacto, mudou de endereço: agora é <strong>planejamento.gestaoimpacto.com</strong>.
-Seus planos já estão lá. Para entrar, defina uma senha:</p>
+<p>Para entrar no PLAN, da Gestão de Impacto, em <strong>planejamento.gestaoimpacto.com</strong>, defina sua senha:</p>
 <p><a href="{{ .ConfirmationURL }}">Definir minha senha</a></p>
 <p>Se você entra com o Google, não precisa de senha: use "Entrar com Google". Se não pediu, ignore esta mensagem.</p>
 ```
