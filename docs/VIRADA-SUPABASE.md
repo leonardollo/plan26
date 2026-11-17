@@ -63,12 +63,13 @@ e-mails por hora, e os ~40 "crie sua senha" não saem.
 <p>Depois disso, um administrador libera o seu acesso. Se não foi você, ignore esta mensagem.</p>
 ```
 
-*Reset password*, assunto `Defina sua senha do PLAN`:
+*Reset password*, assunto `Defina sua senha do PLAN`. Texto neutro desde 17/11/2026, depois do passo 8: o mesmo
+e-mail serve a quem compra pela Hotmart, a quem o admin cria e ao "Esqueceu a senha?". O texto da virada ("mudou de
+endereço") foi o que os clientes importados receberam no passo 8.
 
 ```html
 <h2>Defina sua senha</h2>
-<p>O PLAN, da Gestão de Impacto, mudou de endereço: agora é <strong>planejamento.gestaoimpacto.com</strong>.
-Seus planos já estão lá. Para entrar, defina uma senha:</p>
+<p>Para entrar no PLAN, da Gestão de Impacto, em <strong>planejamento.gestaoimpacto.com</strong>, defina sua senha:</p>
 <p><a href="{{ .ConfirmationURL }}">Definir minha senha</a></p>
 <p>Se você entra com o Google, não precisa de senha: use "Entrar com Google". Se não pediu, ignore esta mensagem.</p>
 ```
