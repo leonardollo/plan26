@@ -54,13 +54,15 @@ e-mails por hora, e os ~40 "crie sua senha" não saem.
 
 **Authentication → Emails → Templates**
 
-*Confirm signup*, assunto `Confirme seu e-mail no PLAN`:
+*Confirm signup*, assunto `Confirme seu e-mail no PLAN`. Desde 17/11/2026 o texto não promete que um administrador
+libera o acesso: depois de confirmar, a pessoa assina pela Hotmart ou espera a liberação, na tela "Seu cadastro foi
+recebido".
 
 ```html
 <h2>Confirme seu e-mail</h2>
 <p>Olá! Para terminar seu cadastro no PLAN, da Gestão de Impacto, confirme seu e-mail:</p>
 <p><a href="{{ .ConfirmationURL }}">Confirmar meu e-mail</a></p>
-<p>Depois disso, um administrador libera o seu acesso. Se não foi você, ignore esta mensagem.</p>
+<p>Depois, entre em <strong>planejamento.gestaoimpacto.com</strong> com este e-mail: lá você assina o PLAN ou confere se o seu acesso já foi liberado. Se não foi você, ignore esta mensagem.</p>
 ```
 
 *Reset password*, assunto `Defina sua senha do PLAN`. Texto neutro desde 17/11/2026, depois do passo 8: o mesmo

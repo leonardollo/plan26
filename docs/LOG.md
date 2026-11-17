@@ -3,7 +3,7 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
-## 2026-11-17 — Passo 8 enviado e texto neutro no "Defina sua senha"
+## 2026-11-17 — Passo 8 enviado e textos novos nos e-mails do Auth
 
 - **O quê:** operação em produção (PLAN26), autorizada pela usuária, sem mudança de código.
   - **Passo 8:** "Defina sua senha" para os 56 clientes importados que só têm login por e-mail e nunca entraram.
@@ -14,10 +14,14 @@ automaticamente: sessões novas leem as últimas entradas e o plano em andamento
   - **Modelo Reset password:** corpo trocado, depois do passo 8, por um texto neutro, que serve a quem compra pela
     Hotmart, a quem o admin cria e ao "Esqueceu a senha?". O texto anterior falava da mudança de endereço.
     `docs/VIRADA-SUPABASE.md` traz o texto novo.
-- **Por quê:** o passo 8 nunca tinha rodado, e um cliente importado não conseguiu entrar.
-- **Como foi aplicado:** `npx --no-install supabase config push --remote=<PLAN26>` a partir de um `config.toml` à
-  parte que declara só `[auth.email.template.recovery]`. A CLI v3 não mexe no que o arquivo não declara, e a prévia
-  sem `--yes` mostrou só `auth.email.template.recovery.content`. Não use o `supabase/config.toml` do repositório
+  - **Modelo Confirm signup:** deixou de dizer que "um administrador libera o seu acesso"; agora manda entrar no
+    site para assinar ou conferir a liberação, que é o que a tela "Seu cadastro foi recebido" oferece.
+- **Por quê:** o passo 8 nunca tinha rodado, e um cliente importado não conseguiu entrar. Os dois textos antigos
+  não serviam para quem compra pela Hotmart.
+- **Como foi aplicado:** `npx --no-install supabase config push --remote=<PLAN26>`, um modelo por vez, a partir de
+  um `config.toml` à parte que declara só `[auth.email.template.recovery]` (depois, só
+  `[auth.email.template.confirmation]`). A CLI v3 não mexe no que o arquivo não declara, e cada prévia sem `--yes`
+  mostrou só o `content` do modelo em questão. Não use o `supabase/config.toml` do repositório
   para isso: ele é o config local e levaria `site_url` e redirects locais para produção.
 - **Verificação:** SQL em `auth.users`: 56/56 com `recovery_sent_at` de hoje, nenhum sem envio. Logs do Auth sem
   erro de SMTP. `config push` sem `--yes` depois de aplicar: "Remote Auth config is up to date". Na conta de teste, os e-mails disparados
@@ -25,8 +29,8 @@ automaticamente: sessões novas leem as últimas entradas e o plano em andamento
   A troca de modelo no Auth hospedado leva alguns minutos para valer: teste de novo antes de concluir que falhou.
 - **Revisão:** nenhuma (operação e documentação).
 - **Em aberto:**
-  - O modelo "Confirm signup" ainda diz que "um administrador libera o seu acesso", o que não vale para quem compra
-    pela Hotmart.
+  - O texto novo do "Confirm signup" foi conferido só pela CLI ("up to date"), não por um e-mail recebido: isso
+    exigiria criar uma conta em produção. O primeiro cadastro real vai mostrá-lo.
 
 ## 2026-11-13 — Admin vê e muda o prazo de acesso de cada cliente
 
