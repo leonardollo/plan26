@@ -226,7 +226,8 @@ const Login: React.FC = () => {
 
             {!isSignUp && (
               <div className="text-right">
-                <button type="button" onClick={handlePasswordReset} className="text-sm text-brand-orange hover:text-orange-400 font-medium">
+                {/* Desativado durante o envio: cada pedido gera um link novo e anula o do e-mail anterior. */}
+                <button type="button" onClick={handlePasswordReset} disabled={isLoading} className="text-sm text-brand-orange hover:text-orange-400 font-medium disabled:opacity-50">
                   Esqueceu a senha?
                 </button>
               </div>
