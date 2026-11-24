@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const { falsos } = vi.hoisted(() => ({
-  falsos: { signup: vi.fn(), login: vi.fn(), enviarVerificacaoDeEmail: vi.fn() },
+  falsos: { signup: vi.fn(), login: vi.fn(), enviarVerificacaoDeEmail: vi.fn(), resetPassword: vi.fn() },
 }));
 
 vi.mock('../hooks/usePlanData', () => ({ authService: falsos }));
@@ -68,6 +68,24 @@ describe('Login — cadastro', () => {
     fireEvent.change(container.querySelector('input[type="password"]')!, { target: { value: 'segredo1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
     expect(await screen.findByText('Confirme seu e-mail antes de entrar.')).toBeTruthy();
+  });
+});
+
+describe('Login — esqueceu a senha', () => {
+  it('clique duplo envia um só e-mail (o segundo invalidaria o link do primeiro)', async () => {
+    let terminar!: () => void;
+    falsos.resetPassword.mockReturnValue(new Promise<void>((r) => { terminar = r; }));
+    render(<Login />);
+    fireEvent.change(screen.getByPlaceholderText('seu@email.com'), { target: { value: 'ana@empresa.com' } });
+    const botao = screen.getByRole('button', { name: 'Esqueceu a senha?' });
+    fireEvent.click(botao);
+    fireEvent.click(botao);
+    expect(falsos.resetPassword).toHaveBeenCalledTimes(1);
+    expect(falsos.resetPassword).toHaveBeenCalledWith('ana@empresa.com');
+
+    terminar();
+    expect(await screen.findByText('E-mail de recuperação enviado! Verifique sua caixa de entrada.')).toBeTruthy();
+    expect((botao as HTMLButtonElement).disabled).toBe(false);
   });
 });
 

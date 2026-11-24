@@ -3,6 +3,25 @@
 Uma entrada por entrega, escrita pelo `/ship`, a mais recente no topo. Não é carregado
 automaticamente: sessões novas leem as últimas entradas e o plano em andamento.
 
+## 2026-11-24 — "Esqueceu a senha?" não manda dois e-mails no clique duplo
+
+- **O quê:** o botão "Esqueceu a senha?" (`src/components/Login.tsx`) fica desativado enquanto o pedido está em
+  andamento, como já acontecia com "Entrar". Teste novo em `src/components/Login.test.tsx`.
+- **Por quê:** em produção, um usuário pediu a redefinição duas vezes no mesmo segundo (dois `POST /recover` 200
+  com `user_recovery_requested`) e, 16 s depois, abriu um link e recebeu 403 "One-time token not found". Cada
+  pedido gera um token novo e anula o anterior, então o primeiro e-mail chega com o link já inválido. Antes disso,
+  os pedidos dele com um e-mail sem conta respondiam 200 sem enviar nada, o que o Auth faz de propósito.
+- **Verificação:** o teste novo falhou sem a correção ("expected 1 times, but got 2 times") e passou com ela.
+  `npm test`: 532/532. `npm run build` (typecheck + `vite build`) ok. `npm run test:db`: 107/107, com
+  `supabase functions serve` local (sem ele, as 18 de Edge Function dão 503). Como usuário, no app local com
+  Mailpit: clique duplo em "Esqueceu a senha?" a 390 px e a 1440 px; cada vez chegou um só e-mail e apareceu a
+  mensagem de envio.
+- **Revisão:** Codex, Normal + Sensível (`Login.tsx`). Revisão base: nenhum achado. Revisão de segurança: nenhum
+  achado. Ela não conferiu a allowlist de redirects, o CAPTCHA nem os limites por IP no painel de produção.
+- **Em aberto:** o CI falha no `npm audit --audit-level=high` pelo alerta do `picomatch` (GHSA-fc5q-39xc-vjpf),
+  sem relação com esta entrega e ainda sem versão corrigida.
+- **Commits:** `1344dd3` (correção e teste).
+
 ## 2026-11-17 — Passo 8 enviado e textos novos nos e-mails do Auth
 
 - **O quê:** operação em produção (PLAN26), autorizada pela usuária, sem mudança de código.
